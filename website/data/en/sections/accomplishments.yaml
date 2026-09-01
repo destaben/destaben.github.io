@@ -1,7 +1,0 @@
-section:
-  name: Accomplishments
-  id: accomplishments
-  enable: false
-  weight: 7
-  showOnNavbar: false
-  hideTitle: false

@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://info.destaben.dev/sitemap-index.xml

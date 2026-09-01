@@ -10,3 +10,12 @@ website/public/
 website/resources/
 website/.hugo_build.lock
 website/assets/jsconfig.json
+node_modules/
+dist/
+.astro/
+npm-debug.log*
+.env
+.env.*
+!.env.example
+coverage/
+!package-lock.json

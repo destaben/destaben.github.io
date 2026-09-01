@@ -1,7 +1,0 @@
-section:
-  name: Recent Posts
-  id: recent-posts
-  enable: false
-  weight: 6
-  showOnNavbar: false
-  hideTitle: false
