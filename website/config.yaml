@@ -12,8 +12,7 @@ server:
   headers:
   - for: /*
     values:
-      Cache-Control: max-age 86400
-      Cache-Control: s-maxage 86400
+      Cache-Control: max-age=86400, s-maxage=86400
 
 markup:
   goldmark:
@@ -38,8 +37,8 @@ params:
     main: /images/site/logo.png
     favicon: /images/site/logo.png
 
-  gitRepo: https://github.com/destaben/personalwebsite
-  gitBranch: source
+  gitRepo: https://github.com/destaben/destaben.github.io
+  gitBranch: main
 
   features:
     portfolio:

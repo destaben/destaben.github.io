@@ -6,10 +6,7 @@ integration.tfvars
 *-lock.json
 *.zip
 tfplan
-themes
-static
-resources
-layouts
-content
-public
-.gitmodules
+website/public/
+website/resources/
+website/.hugo_build.lock
+website/assets/jsconfig.json

@@ -1,37 +1,53 @@
-# personalwebsite
-Full code of my website.
+# David Estaben's Website
 
-## Prerequisites:
-- AWS programatic user with this "base_user_policy.json" attached. Use this information to fill pro.tfvars.
-- Github account with access token created (https://github.com/settings/tokens), with the following permissions:
-    - admin:repo_hook
-    - repo
-- Create an S3 bucket and a DynamoDB to use in backend configuration, using "./create_terraform_backend.sh DYNAMODB_NAME BUCKET_NAME AWS_REGION"
+Source for [info.destaben.dev](https://info.destaben.dev), built with Hugo and deployed to GitHub Pages from `main`.
 
-## First configuration:
-- aws configure (Credentials from previous generated user)
-- terraform init -backend-config=bucket=$BUCKET_NAME -backend-config=dynamodb_table="DYNAMODB_NAME" -backend-config=key="GITHUB_REPO" -backend-config=region=$AWS_REGION
-- cd infrastructure
-- terraform plan -target module.build -out=tfplan -var-file=./pro.tfvars -var=aws_region="AWS_REGION" -var=github_token="GITHUB_TOKEN" -var=alerting_sms_number="ALERTING_SMS_NUMBER"
-- terraform apply tfplan
-- Check console and wait until aws_acm_certificate_validation.cert_validation resource creation procress, get into AWS check DNS verification information and create given CNAME in DNS provider.
-- Push code to the repo.
-- Create a CNAME record in your DNS provider with your domain_name value and Cloudfront distribution endpoint, check Cloudfront domain name with in AWS console.
+## Requirements
 
+- Git 2.20 or later, with submodule support.
+- Hugo extended `0.85.0`. This version is intentionally pinned because the site uses Toha `v2.2.0`.
 
-## Terraform 1.0.1 Providers
+## Local Development
 
-|     Name     |   Version   |
-|--------------|-------------|
-|     aws      |  ~> 3.48.0  |
-|   github     |  ~> 4.12.1  |
+Clone the repository with its theme:
 
-## pro.tfvars
+```sh
+git clone --recurse-submodules git@github.com:destaben/destaben.github.io.git
+cd destaben.github.io
+```
 
-|          Nombre           |                        Descripción                              |        Tipo         |
-|---------------------------|-----------------------------------------------------------------|---------------------|
-|environment                |Environment name                                                 |'string'             |
-|domain_name                |Domain name                                                      |'string'             |
-|github_owner               |Github owner nickname                                            |'string'             |
-|github_repo                |Github repo name                                                 |'string'             |
-|user_policy_arn            |ARN policy generated for user                                    |'string'             |
+For an existing checkout, initialize the theme with:
+
+```sh
+git submodule update --init --recursive
+```
+
+Run the development server:
+
+```sh
+hugo server --source website --buildDrafts
+```
+
+Create the production build:
+
+```sh
+hugo --source website --minify
+```
+
+The generated files are written to `website/public/` and must not be committed.
+
+## Deployment
+
+Every push to `main` runs `.github/workflows/deploy-pages.yml`. The workflow builds the site with Hugo extended `0.85.0` and deploys the generated artifact to GitHub Pages. GitHub Actions is the only deployment path; do not publish generated files to a branch.
+
+In the repository settings, configure Pages to use **GitHub Actions** as its source. The published artifact includes `website/static/CNAME`, which declares `info.destaben.dev` as the custom domain.
+
+## Custom Domain
+
+Set the Pages custom domain to `info.destaben.dev`, then create this DNS record at the authoritative DNS provider:
+
+```text
+info.destaben.dev CNAME destaben.github.io
+```
+
+Use DNS-only mode for this CNAME. Wait for GitHub to verify DNS and issue its certificate before enforcing HTTPS.
