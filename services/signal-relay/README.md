@@ -67,6 +67,13 @@ docker compose ps
 
 To update an existing deployment, download only `compose.yaml` and `nginx/nginx.conf` from the same URLs, then run `docker compose up -d --remove-orphans`. Do not replace `.env`, `reticulum/`, or `lab-sender-reticulum/`: they contain local secrets and persistent identities.
 
+To diagnose the latest browser laboratory send without copying a session ID, download and run the diagnostic after the test:
+
+```sh
+curl -fsSLo diagnose-last-lab-session.sh https://raw.githubusercontent.com/destaben/destaben.github.io/main/services/signal-relay/diagnose-last-lab-session.sh
+sudo sh diagnose-last-lab-session.sh
+```
+
 The relay has no host port. Nginx is the only HTTP entry point and binds to `127.0.0.1:8080` for host diagnostics; it exposes only the portfolio routes, limits laboratory POSTs, and rejects all other paths. Its `destaben-edge` Docker network can be joined by future services, then routed explicitly in `nginx/nginx.conf`. The `cloudflared` sidecar creates the outbound HTTPS tunnel when `CLOUDFLARE_TUNNEL_TOKEN` is set. The `reticulum/` directory contains the persistent Reticulum configuration; the named volume retains the LXMF identity and inbox across image upgrades.
 
 Keep the optional `lab-sender-reticulum/` configuration separate and give it an interface that reaches the relay's configured transport. Leave `SIGNAL_RELAY_LAB_SEND_ENABLED=false` until that route and the public anti-bot control are verified.
