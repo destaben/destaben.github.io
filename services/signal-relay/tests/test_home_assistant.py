@@ -62,3 +62,20 @@ def test_status_rejects_an_unexpected_unit():
 
     with pytest.raises(ValueError, match="unexpected_home_assistant_unit"):
         client.status()
+
+
+def test_status_accepts_home_assistants_greek_mu_pm25_unit():
+    client = FixtureClient({
+        "/api/": {"message": "API running."},
+        "/api/states/sensor.private_temperature": {
+            "state": "22", "attributes": {"device_class": "temperature", "unit_of_measurement": "°C"},
+        },
+        "/api/states/sensor.private_humidity": {
+            "state": "45", "attributes": {"device_class": "humidity", "unit_of_measurement": "%"},
+        },
+        "/api/states/sensor.private_air_quality": {
+            "state": "18", "attributes": {"device_class": "pm25", "unit_of_measurement": "μg/m³"},
+        },
+    })
+
+    assert client.status()["airQuality"] == "regular"

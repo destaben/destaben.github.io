@@ -70,7 +70,7 @@ class HomeAssistantLabClient:
         value = float(payload.get("state", ""))
         if not math.isfinite(value):
             raise ValueError("invalid_home_assistant_value")
-        if device_class == "pm25" and unit == "µg/m³":
+        if device_class == "pm25" and isinstance(unit, str) and unit.replace("μ", "µ") == "µg/m³":
             return "good" if value <= 12 else "regular" if value <= 35 else "bad"
         if device_class == "carbon_dioxide" and unit == "ppm":
             return "good" if value <= 800 else "regular" if value <= 1200 else "bad"
