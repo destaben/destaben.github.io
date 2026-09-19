@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from ipaddress import ip_address
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, status
@@ -21,6 +22,16 @@ class DemoInboxMessage(BaseModel):
 
 class LabMessage(BaseModel):
     content: str = Field(min_length=1, max_length=280)
+
+
+def lab_client_id(request: Request) -> str:
+    cloudflare_client_ip = request.headers.get("CF-Connecting-IP")
+    if cloudflare_client_ip:
+        try:
+            return str(ip_address(cloudflare_client_ip))
+        except ValueError:
+            pass
+    return request.client.host if request.client else "unknown"
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -64,8 +75,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/v1/lab/sessions", status_code=status.HTTP_201_CREATED, include_in_schema=False)
     async def create_lab_session(request: Request) -> dict[str, str]:
-        client_id = request.client.host if request.client else "unknown"
-        if not bridge.accept_request(client_id):
+        if not bridge.accept_lab_request(lab_client_id(request)):
             raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="rate_limited")
         try:
             return bridge.create_lab_session()
@@ -83,8 +93,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/v1/lab/sessions/{session_id}/messages", include_in_schema=False)
     async def send_lab_message(session_id: str, payload: LabMessage, request: Request) -> dict[str, str]:
-        client_id = request.client.host if request.client else "unknown"
-        if not bridge.accept_request(client_id):
+        if not bridge.accept_lab_request(lab_client_id(request)):
             raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="rate_limited")
         try:
             return bridge.send_lab_message(session_id, payload.content)

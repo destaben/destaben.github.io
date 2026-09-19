@@ -15,6 +15,8 @@ class Settings:
     telegram_chat_id: str | None
     lab_send_enabled: bool = False
     lab_sender_config_dir: Path | None = None
+    lab_rate_limit: int = 5
+    lab_rate_window_seconds: int = 60
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -42,4 +44,6 @@ class Settings:
             lab_sender_config_dir=Path(os.environ["SIGNAL_RELAY_LAB_SENDER_CONFIG_DIR"])
             if os.environ.get("SIGNAL_RELAY_LAB_SENDER_CONFIG_DIR")
             else None,
+            lab_rate_limit=int(os.environ.get("SIGNAL_RELAY_LAB_RATE_LIMIT", "5")),
+            lab_rate_window_seconds=int(os.environ.get("SIGNAL_RELAY_LAB_RATE_WINDOW_SECONDS", "60")),
         )

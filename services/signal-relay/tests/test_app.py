@@ -84,6 +84,30 @@ def test_lab_session_endpoints_are_disabled_by_default(tmp_path):
         assert response.json()["detail"] == "lab_disabled"
 
 
+def test_lab_requests_are_rate_limited_by_cloudflare_client_ip(tmp_path):
+    app = create_app(
+        Settings(
+            mode="demo",
+            allowed_origins={"http://127.0.0.1:4321"},
+            rate_limit=10,
+            rate_window_seconds=60,
+            reticulum_config_dir=None,
+            storage_dir=tmp_path,
+            telegram_bot_token=None,
+            telegram_chat_id=None,
+            lab_send_enabled=True,
+            lab_rate_limit=1,
+        )
+    )
+    with TestClient(app) as client:
+        first = client.post("/v1/lab/sessions", headers={"CF-Connecting-IP": "198.51.100.10"})
+        second = client.post("/v1/lab/sessions", headers={"CF-Connecting-IP": "198.51.100.10"})
+        other_client = client.post("/v1/lab/sessions", headers={"CF-Connecting-IP": "198.51.100.11"})
+        assert first.status_code == 503
+        assert second.status_code == 429
+        assert other_client.status_code == 503
+
+
 def test_initialises_the_official_reticulum_runtime(tmp_path):
     bridge = RelayBridge(
         Settings(
