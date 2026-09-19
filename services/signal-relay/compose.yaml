@@ -52,6 +52,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/cache/nginx
     security_opt:
       - no-new-privileges:true
     cap_drop:
