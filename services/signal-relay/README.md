@@ -76,6 +76,22 @@ sudo sh diagnose-last-lab-session.sh
 
 The relay has no host port. Nginx is the only HTTP entry point and binds to `127.0.0.1:8080` for host diagnostics; it exposes only the portfolio routes, limits laboratory POSTs, and rejects all other paths. Its `destaben-edge` Docker network can be joined by future services, then routed explicitly in `nginx/nginx.conf`. The `cloudflared` sidecar creates the outbound HTTPS tunnel when `CLOUDFLARE_TUNNEL_TOKEN` is set. The `reticulum/` directory contains the persistent Reticulum configuration; the named volume retains the LXMF identity and inbox across image upgrades.
 
+## Home Assistant environment lab
+
+The optional Home Assistant panel is a read-only public projection. It shows only rounded indoor temperature and humidity plus an air-quality category, cached for at least 15 minutes. It is not a Home Assistant dashboard or remote control.
+
+Create a dedicated Home Assistant user/token with the minimum read access required, then set these values in the private deployment `.env`:
+
+```sh
+SIGNAL_RELAY_HOME_ASSISTANT_TOKEN='replace-with-dedicated-token'
+SIGNAL_RELAY_HOME_ASSISTANT_TEMPERATURE_ENTITY_ID='replace-with-temperature-entity'
+SIGNAL_RELAY_HOME_ASSISTANT_HUMIDITY_ENTITY_ID='replace-with-humidity-entity'
+SIGNAL_RELAY_HOME_ASSISTANT_AIR_QUALITY_ENTITY_ID='replace-with-pm25-or-co2-entity'
+SIGNAL_RELAY_HOME_ASSISTANT_CACHE_SECONDS=900
+```
+
+Do not commit these values or use the administrator token. The relay speaks to Nginx's internal-only `8081` listener; Nginx reaches Home Assistant at `host.docker.internal:8123`. No new host port or Cloudflare route is created for Home Assistant. This configuration deliberately excludes presence, cameras, alarms, locks, doors, windows, lights, switches, automations, media, energy, room names, device names, attributes, and history. Keep Home Assistant remote access on the private VPN, and do not add a WAN port-forward for `8123`.
+
 Keep the optional `lab-sender-reticulum/` configuration separate and give it an interface that reaches the relay's configured transport. Leave `SIGNAL_RELAY_LAB_SEND_ENABLED=false` until that route and the public anti-bot control are verified.
 
 ## Tests

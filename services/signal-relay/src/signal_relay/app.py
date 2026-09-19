@@ -11,6 +11,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from .bridge import RelayBridge
 from .config import Settings
+from .home_assistant import HomeAssistantLabClient
 from .metrics import PrometheusLabClient
 
 
@@ -45,6 +46,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.bridge = bridge
     app.state.prometheus = PrometheusLabClient(relay_settings.prometheus_url) if relay_settings.prometheus_url else None
+    home_assistant_settings = (
+        relay_settings.home_assistant_url,
+        relay_settings.home_assistant_token,
+        relay_settings.home_assistant_temperature_entity_id,
+        relay_settings.home_assistant_humidity_entity_id,
+        relay_settings.home_assistant_air_quality_entity_id,
+    )
+    app.state.home_assistant = (
+        HomeAssistantLabClient(
+            relay_settings.home_assistant_url or "",
+            relay_settings.home_assistant_token or "",
+            relay_settings.home_assistant_temperature_entity_id or "",
+            relay_settings.home_assistant_humidity_entity_id or "",
+            relay_settings.home_assistant_air_quality_entity_id or "",
+            relay_settings.home_assistant_cache_seconds,
+        )
+        if all(home_assistant_settings)
+        else None
+    )
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
@@ -78,6 +98,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return await asyncio.to_thread(prometheus.query_range, metric, start, end, step)
         except (OSError, RuntimeError, ValueError):
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="metrics_unavailable") from None
+
+    @app.get("/v1/lab/home-status", include_in_schema=False)
+    async def home_status() -> dict[str, object]:
+        home_assistant = app.state.home_assistant
+        if home_assistant is None:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="home_status_unavailable")
+        try:
+            return await asyncio.to_thread(home_assistant.status)
+        except (OSError, RuntimeError, ValueError):
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="home_status_unavailable") from None
 
     @app.post("/v1/lab/sessions", status_code=status.HTTP_201_CREATED, include_in_schema=False)
     async def create_lab_session(request: Request) -> dict[str, str]:

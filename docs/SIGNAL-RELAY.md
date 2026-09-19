@@ -45,6 +45,20 @@ The endpoints are disabled by default and must remain disabled until both Reticu
 
 `GET /v1/lab/metrics` is the portfolio observability route. It accepts only `cpu` or `memory` and a bounded time range, then queries a configured internal Prometheus endpoint with fixed cAdvisor queries. It returns only container display names and timestamped aggregate values. It does not accept PromQL, scrape targets, arbitrary labels, host metrics, or Prometheus credentials.
 
+`GET /v1/lab/home-status` is the Home Assistant laboratory route. It takes no parameters and returns either `503 home_status_unavailable` or a fixed public projection:
+
+```json
+{
+  "status": "available",
+  "temperatureC": 22,
+  "humidityPercent": 45,
+  "airQuality": "good",
+  "refreshedAt": "2026-09-19T08:15:00Z"
+}
+```
+
+The relay uses a dedicated long-lived Home Assistant token plus explicitly configured temperature, humidity, and air-quality entities. These values are private deployment configuration and must never appear in Git, browser code, logs, or API responses. The air-quality value is classified privately as `good`, `regular`, or `bad`; its raw value is never public. Values remain cached for at least 15 minutes. The public route never exposes entity IDs, friendly names, attributes, room names, individual state timestamps, history, versions, errors, or Home Assistant controls.
+
 `WSS /v1/events` emits only these server events:
 
 - `relay.status`: `connecting`, `ready`, `maintenance`, or `unavailable`
@@ -77,7 +91,7 @@ When enabled, `POST /v1/signals` accepts only a fixed action vocabulary. It does
 
 ## Deployment
 
-Run Reticulum, the bridge, Nginx, and the tunnel under separate unprivileged containers. The Compose deployment runs `cloudflare/cloudflared` as a separate sidecar and reads `CLOUDFLARE_TUNNEL_TOKEN` only from the ignored `.env` file. Create the remotely managed tunnel in Cloudflare Zero Trust and map `lab.destaben.dev` to `http://nginx:8080`; do not forward residential ports or expose Reticulum's TCP interface. Nginx is the sole public HTTP policy point: it allowlists portfolio API routes, limits laboratory POSTs and trusts the Cloudflare client-IP header only because it has no public host binding. Keep secrets, Telegram credentials, and Reticulum identities outside Git and rotate tunnel credentials.
+Run Reticulum, the bridge, Nginx, and the tunnel under separate unprivileged containers. The Compose deployment runs `cloudflare/cloudflared` as a separate sidecar and reads `CLOUDFLARE_TUNNEL_TOKEN` only from the ignored `.env` file. Create the remotely managed tunnel in Cloudflare Zero Trust and map `lab.destaben.dev` to `http://nginx:8080`; do not forward residential ports or expose Reticulum's TCP interface. Nginx is the sole public HTTP policy point: it allowlists portfolio API routes, limits laboratory POSTs and trusts the Cloudflare client-IP header only because it has no public host binding. Its internal `8081` listener has no host port or Cloudflare ingress and proxies the relay's fixed Home Assistant reads to `host.docker.internal:8123`; it is not a Home Assistant public proxy. Keep secrets, Home Assistant credentials and entity IDs, Telegram credentials, and Reticulum identities outside Git and rotate tunnel credentials.
 
 The default `AutoInterface` supports local discovery only. For off-LAN LXMF delivery, configure a trusted Reticulum transport interface that both peers can reach. Announcing a destination alone does not create an Internet route.
 
@@ -91,3 +105,4 @@ The supported container image is `ghcr.io/destaben/signal-relay:latest`. It is p
 4. The public endpoint exposes no private network, Reticulum, scrape-target, or monitoring configuration details. The laboratory metrics route exposes only its documented aggregate container series.
 5. Prometheus captures inbound message counts and the retained inbox size.
 6. With Telegram credentials configured, an incoming message produces one private notification; a Telegram failure does not interrupt inbox persistence or LXMF delivery.
+7. The Home Assistant laboratory route returns only its documented delayed temperature, humidity, status, and aggregate refresh time; Home Assistant has no public route through `lab.destaben.dev`.

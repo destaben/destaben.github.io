@@ -16,6 +16,12 @@ class Settings:
     lab_send_enabled: bool = False
     lab_sender_config_dir: Path | None = None
     prometheus_url: str | None = None
+    home_assistant_url: str | None = None
+    home_assistant_token: str | None = None
+    home_assistant_temperature_entity_id: str | None = None
+    home_assistant_humidity_entity_id: str | None = None
+    home_assistant_air_quality_entity_id: str | None = None
+    home_assistant_cache_seconds: int = 900
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -44,4 +50,10 @@ class Settings:
             if os.environ.get("SIGNAL_RELAY_LAB_SENDER_CONFIG_DIR")
             else None,
             prometheus_url=os.environ.get("SIGNAL_RELAY_PROMETHEUS_URL") or None,
+            home_assistant_url=os.environ.get("SIGNAL_RELAY_HOME_ASSISTANT_URL") or None,
+            home_assistant_token=os.environ.get("SIGNAL_RELAY_HOME_ASSISTANT_TOKEN") or None,
+            home_assistant_temperature_entity_id=os.environ.get("SIGNAL_RELAY_HOME_ASSISTANT_TEMPERATURE_ENTITY_ID") or None,
+            home_assistant_humidity_entity_id=os.environ.get("SIGNAL_RELAY_HOME_ASSISTANT_HUMIDITY_ENTITY_ID") or None,
+            home_assistant_air_quality_entity_id=os.environ.get("SIGNAL_RELAY_HOME_ASSISTANT_AIR_QUALITY_ENTITY_ID") or None,
+            home_assistant_cache_seconds=int(os.environ.get("SIGNAL_RELAY_HOME_ASSISTANT_CACHE_SECONDS", "900")),
         )

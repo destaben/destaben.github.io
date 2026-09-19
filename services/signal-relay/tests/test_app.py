@@ -29,6 +29,51 @@ def test_metrics_endpoint_only_returns_fixed_container_series(tmp_path):
         assert client.get("/v1/lab/metrics", params={"metric": "cpu", "start": 2, "end": 1}).status_code == 422
 
 
+def test_home_status_only_returns_rounded_public_signals(tmp_path):
+    app = create_app(
+        Settings(
+            mode="demo", allowed_origins={"http://127.0.0.1:4321"}, rate_limit=2,
+            rate_window_seconds=60, reticulum_config_dir=None, storage_dir=tmp_path,
+            telegram_bot_token=None, telegram_chat_id=None,
+        )
+    )
+
+    class HomeAssistant:
+        def status(self):
+            return {
+                "status": "available",
+                "temperatureC": 22,
+                "humidityPercent": 45,
+                "airQuality": "good",
+                "refreshedAt": "2026-09-19T08:15:00Z",
+            }
+
+    app.state.home_assistant = HomeAssistant()
+    with TestClient(app) as client:
+        response = client.get("/v1/lab/home-status")
+        assert response.status_code == 200
+        assert response.json() == {
+            "status": "available",
+            "temperatureC": 22,
+            "humidityPercent": 45,
+            "airQuality": "good",
+            "refreshedAt": "2026-09-19T08:15:00Z",
+        }
+        assert client.get("/v1/lab/home-status").json().get("entity_id") is None
+
+
+def test_home_status_is_unavailable_without_private_configuration(tmp_path):
+    app = create_app(
+        Settings(
+            mode="demo", allowed_origins={"http://127.0.0.1:4321"}, rate_limit=2,
+            rate_window_seconds=60, reticulum_config_dir=None, storage_dir=tmp_path,
+            telegram_bot_token=None, telegram_chat_id=None,
+        )
+    )
+    with TestClient(app) as client:
+        assert client.get("/v1/lab/home-status").status_code == 503
+
+
 def test_health_status_and_signal_acknowledgement(tmp_path):
     app = create_app(
         Settings(

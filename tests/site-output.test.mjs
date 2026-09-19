@@ -23,6 +23,11 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /data-metrics-start/);
   assert.match(spanish, /data-metrics-end/);
   assert.match(spanish, /metrics-time/);
+  assert.match(spanish, /Estado ambiental del hogar/);
+  assert.match(spanish, /data-home-status-panel/);
+  assert.match(spanish, /Datos protegidos/);
+  assert.match(spanish, /Calidad ambiental/);
+  assert.match(spanish, /data-home-air-quality/);
   assert.match(spanish, /data-inbox-source-label="ID de origen"/);
   assert.match(spanish, /Reticulum online/);
   assert.match(english, /Reticulum address/);
@@ -30,6 +35,9 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(english, /data-inbox-source-label="Source ID"/);
   assert.doesNotMatch(spanish, /Simulador de coste y fiabilidad/);
   assert.match(english, /Service observability/);
+  assert.match(english, /Home environment status/);
+  assert.match(english, /Protected data/);
+  assert.match(english, /Air quality/);
   assert.doesNotMatch(spanish, /profile\.jpg/);
   assert.doesNotMatch(english, /Portrait of/);
 });

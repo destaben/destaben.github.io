@@ -22,6 +22,7 @@ The portfolio demonstrates David Estaben's engineering judgement through clear c
 
 - A live panel must identify whether the data is live, delayed, simulated, unavailable, or under maintenance. The Reticulum panel uses a green or red availability indicator based on its public health endpoint.
 - The Reticulum contact panel may show the public destination and the newest bounded plain-text messages. Treat every displayed message as public; do not expose sender identities, source hashes, private dashboards, monitoring internals, or home-network management endpoints.
+- The Home Assistant panel may show only a delayed, rounded aggregate temperature and humidity reading. It must not expose Home Assistant itself, entity IDs, rooms, devices, attributes, histories, presence, cameras, alarms, locks, doors, windows, lights, switches, automations, media, energy use, or network details.
 - Web input requires a documented rate limit, input validation, abuse controls, retention period, and kill switch before it is enabled.
 - The GitHub Pages site remains static. Persistent APIs and WebSockets live behind a separate, HTTPS-only public endpoint.
 
@@ -29,7 +30,7 @@ The portfolio demonstrates David Estaben's engineering judgement through clear c
 
 - Reticulum is the only published lab. It has a localized title, explicit availability state, and technology tags.
 - Its educational wizard may show a temporary sender hash only to the browser session that created it. It must never imply a real delivery when the relay has not returned one.
-- A future lab needs its own component and public contract. It must not reuse Reticulum endpoints or imply that it runs on the same host.
+- Each non-Reticulum lab needs its own component and public contract. It must not reuse Reticulum endpoints or imply that it runs on the same host.
 
 ## Accessibility
 
