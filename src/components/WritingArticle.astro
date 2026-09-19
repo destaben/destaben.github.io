@@ -11,7 +11,7 @@ interface Props {
 const { locale, post } = Astro.props as Props;
 const { Content } = await render(post);
 const copy = locale === "es" ? { home: "Inicio", index: "Bitácora", label: "Nota técnica" } : { home: "Home", index: "Notes", label: "Technical note" };
-const indexHref = locale === "es" ? "/es/bitacora/" : "/en/notes/";
+const indexHref = locale === "es" ? "/es/#bitacora" : "/en/#notes";
 const date = new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric" });
 ---
 

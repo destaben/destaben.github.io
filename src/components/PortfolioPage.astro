@@ -1,6 +1,8 @@
 ---
+import { getCollection, type CollectionEntry } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { portfolio, profile, type Locale } from "../data/portfolio";
+import { getPublicRepositories } from "../lib/github";
 import SignalRelayLab from "./SignalRelayLab.astro";
 
 interface Props {
@@ -10,8 +12,15 @@ interface Props {
 const { locale } = Astro.props;
 const content = portfolio[locale];
 const sectionIds = locale === "es"
-  ? { work: "trabajo", lab: "laboratorio", experience: "trayectoria", contact: "contacto" }
-  : { work: "work", lab: "lab", experience: "experience", contact: "contact" };
+  ? { work: "trabajo", lab: "laboratorio", projects: "proyectos", writing: "bitacora", experience: "trayectoria", contact: "contacto" }
+  : { work: "work", lab: "lab", projects: "projects", writing: "notes", experience: "experience", contact: "contact" };
+const repositories = await getPublicRepositories();
+const posts = (await getCollection("blog") as CollectionEntry<"blog">[])
+  .filter((post: CollectionEntry<"blog">) => !post.data.draft && post.data.locale === locale)
+  .sort((left: CollectionEntry<"blog">, right: CollectionEntry<"blog">) => right.data.pubDate.valueOf() - left.data.pubDate.valueOf());
+const updatedDate = new Intl.DateTimeFormat(locale, { month: "short", year: "numeric" });
+const publishedDate = new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric" });
+const writingPrefix = locale === "es" ? "/es/bitacora/" : "/en/notes/";
 ---
 
 <BaseLayout title={`David Estaben | ${locale === "es" ? "Sistemas y fiabilidad" : "Systems & Reliability"}`} description={content.description} locale={locale}>
@@ -21,8 +30,6 @@ const sectionIds = locale === "es"
       <a class="brand" href={`/${locale}/`} aria-label="David Estaben home">David Estaben</a>
       <div class="nav-links">
         {content.navigation.map((item) => <a href={item.href}>{item.label}</a>)}
-        <a href={locale === "es" ? "/es/proyectos/" : "/en/projects/"}>{content.archive.projects}</a>
-        <a href={locale === "es" ? "/es/bitacora/" : "/en/notes/"}>{content.archive.writing}</a>
         <a class="language-link" href={content.switchHref} lang={locale === "es" ? "en" : "es"}>{content.switchLanguage}</a>
       </div>
     </nav>
@@ -43,8 +50,28 @@ const sectionIds = locale === "es"
 
     <section class="section" id={sectionIds.lab} aria-labelledby="lab-title"><div class="shell"><div class="lab-heading"><p class="section-label">02 / {content.lab.label}</p><div><h2 id="lab-title">{content.lab.title}</h2><p class="section-copy">{content.lab.copy}</p></div></div><div class="lab-grid">{content.labs.map((lab) => <SignalRelayLab lab={lab} locale={locale} />)}</div></div></section>
 
-    <section class="section section-warm" id={sectionIds.experience} aria-labelledby="experience-title"><div class="shell"><div class="section-heading"><p class="section-label">03 / {content.experience.label}</p><h2 id="experience-title">{content.experience.title}</h2></div><ol class="timeline">{content.experience.items.map((item) => <li class="entry"><p class="period">{item.period}</p><article><h3>{item.role}</h3><p class="meta">{item.company}</p><p>{item.focus}</p></article></li>)}</ol></div></section>
-    <section class="section contact-section" id={sectionIds.contact} aria-labelledby="contact-title"><div class="shell contact-layout"><p class="section-label">04 / {content.contact.label}</p><div><h2 id="contact-title">{content.contact.title}</h2><p class="section-copy">{content.contact.copy}</p><dl class="contact-channels"><div><dt>{content.contact.emailLabel}</dt><dd><a href={`mailto:${profile.email}`}>{profile.email}</a></dd></div><div><dt>{content.contact.networkLabel}</dt><dd>{profile.socialLinks.map((link) => <a href={link.url} target="_blank" rel="noreferrer">{link.label}</a>)}</dd></div></dl><p class="contact-response">{content.contact.response}</p><a class="button button-primary" href={`mailto:${profile.email}`}>{content.contact.action}</a></div></div></section>
+    <section class="section section-ink" id={sectionIds.projects} aria-labelledby="projects-title"><div class="shell"><div class="section-heading"><p class="section-label">03 / GitHub</p><div><h2 id="projects-title">{locale === "es" ? "Código para explorar." : "Code to explore."}</h2><p class="section-copy">{locale === "es" ? "Repositorios públicos que acompañan el trabajo seleccionado." : "Public repositories that accompany the selected work."}</p></div></div><div class="projects-toolbar" aria-label={locale === "es" ? "Filtrar proyectos" : "Filter projects"}><button class="filter-button" type="button" data-filter="all" aria-pressed="true">{locale === "es" ? "Todos" : "All"}</button><button class="filter-button" type="button" data-filter="original" aria-pressed="false">{locale === "es" ? "Originales" : "Original"}</button><button class="filter-button" type="button" data-filter="fork" aria-pressed="false">Forks</button><button class="filter-button" type="button" data-filter="archived" aria-pressed="false">{locale === "es" ? "Archivados" : "Archived"}</button></div><p class="archive-empty" hidden>{locale === "es" ? "No hay repositorios en esta categoría." : "There are no repositories in this category."}</p><div class="projects-grid">{repositories.map((repository) => <article class="project" data-type={repository.archived ? "archived" : repository.fork ? "fork" : "original"}><p class="period">{locale === "es" ? "Actualizado" : "Updated"} {updatedDate.format(new Date(repository.updatedAt))}</p><h3><a href={repository.url} target="_blank" rel="noreferrer">{repository.name}</a></h3><p class="meta">{repository.language ?? (locale === "es" ? "Repositorio" : "Repository")} / {repository.stars} stars / {repository.forksCount} forks</p><p>{repository.description ?? "-"}</p><div class="tag-list">{repository.fork && <span class="tag">fork</span>}{repository.archived && <span class="tag">archived</span>}{repository.topics.map((topic) => <span class="tag">{topic}</span>)}</div></article>)}</div></div></section>
+
+    <section class="section" id={sectionIds.writing} aria-labelledby="writing-title"><div class="shell"><div class="section-heading"><p class="section-label">04 / {locale === "es" ? "Bitácora" : "Notes"}</p><div><h2 id="writing-title">{locale === "es" ? "Notas desde el trabajo de sistemas." : "Notes from systems work."}</h2><p class="section-copy">{locale === "es" ? "Notas breves sobre sistemas, operación y decisiones de arquitectura." : "Short notes on systems, operations, and architecture decisions."}</p></div></div><div class="writing-list">{posts.map((post) => <article class="note-card"><p class="period">{publishedDate.format(post.data.pubDate)}</p><h3><a href={`${writingPrefix}${post.id.split("/").at(-1)}/`}>{post.data.title}</a></h3><p>{post.data.description}</p><div class="tag-list">{post.data.tags.map((tag: string) => <span class="tag">{tag}</span>)}</div><a class="text-link" href={`${writingPrefix}${post.id.split("/").at(-1)}/`}>{locale === "es" ? "Leer nota" : "Read note"}</a></article>)}</div></div></section>
+
+    <section class="section section-warm" id={sectionIds.experience} aria-labelledby="experience-title"><div class="shell"><div class="section-heading"><p class="section-label">05 / {content.experience.label}</p><h2 id="experience-title">{content.experience.title}</h2></div><ol class="timeline">{content.experience.items.map((item) => <li class="entry"><p class="period">{item.period}</p><article><h3>{item.role}</h3><p class="meta">{item.company}</p><p>{item.focus}</p></article></li>)}</ol></div></section>
+    <section class="section contact-section" id={sectionIds.contact} aria-labelledby="contact-title"><div class="shell contact-layout"><p class="section-label">06 / {content.contact.label}</p><div><h2 id="contact-title">{content.contact.title}</h2><p class="section-copy">{content.contact.copy}</p><dl class="contact-channels"><div><dt>{content.contact.emailLabel}</dt><dd><a href={`mailto:${profile.email}`}>{profile.email}</a></dd></div><div><dt>{content.contact.networkLabel}</dt><dd>{profile.socialLinks.map((link) => <a href={link.url} target="_blank" rel="noreferrer">{link.label}</a>)}</dd></div></dl><p class="contact-response">{content.contact.response}</p><a class="button button-primary" href={`mailto:${profile.email}`}>{content.contact.action}</a></div></div></section>
   </main>
   <footer class="shell site-footer"><p>{profile.name} / {content.footer}</p><div>{profile.socialLinks.map((link) => <a href={link.url} target="_blank" rel="noreferrer">{link.label}</a>)}</div></footer>
+  <script>
+    const filters = document.querySelectorAll<HTMLButtonElement>("[data-filter]");
+    const projects = document.querySelectorAll<HTMLElement>("[data-type]");
+    const empty = document.querySelector<HTMLElement>(".archive-empty");
+    filters.forEach((filter) => filter.addEventListener("click", () => {
+      const type = filter.dataset.filter;
+      let visible = 0;
+      filters.forEach((button) => button.setAttribute("aria-pressed", String(button === filter)));
+      projects.forEach((project) => {
+        const matches = type === "all" || project.dataset.type === type;
+        project.hidden = !matches;
+        visible += Number(matches);
+      });
+      if (empty) empty.hidden = visible > 0;
+    }));
+  </script>
 </BaseLayout>

@@ -1,8 +1,0 @@
----
-import ProjectArchive from "../../components/ProjectArchive.astro";
-import { getPublicRepositories } from "../../lib/github";
-
-const repositories = await getPublicRepositories();
----
-
-<ProjectArchive locale="en" repositories={repositories} />

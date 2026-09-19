@@ -5,6 +5,6 @@ export default defineConfig({
   site: "https://info.destaben.dev",
   integrations: [sitemap()],
   build: {
-    format: "file",
+    format: "directory",
   },
 });

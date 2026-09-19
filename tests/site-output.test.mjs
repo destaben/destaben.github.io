@@ -5,7 +5,7 @@ import test from "node:test";
 const readPage = (path) => readFile(new URL(`../dist/${path}`, import.meta.url), "utf8");
 
 test("generates bilingual portfolio entries without a portrait", async () => {
-  const [spanish, english] = await Promise.all([readPage("index.html"), readPage("en.html")]);
+  const [spanish, english] = await Promise.all([readPage("index.html"), readPage("en/index.html")]);
 
   assert.match(spanish, /Sistemas claros\. Equipos seguros\./);
   assert.match(english, /Clear systems\. Confident teams\./);
@@ -27,16 +27,21 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.doesNotMatch(english, /Portrait of/);
 });
 
-test("generates project archives and published technical notes", async () => {
-  const [projects, spanishNotes, englishArticle] = await Promise.all([
-    readPage("es/proyectos.html"),
-    readPage("es/bitacora.html"),
-    readPage("en/notes/signal-relay.html"),
+test("integrates projects and published technical notes into portfolio pages", async () => {
+  const [spanishPortfolio, englishPortfolio, englishArticle] = await Promise.all([
+    readPage("es/index.html"),
+    readPage("en/index.html"),
+    readPage("en/notes/signal-relay/index.html"),
   ]);
 
-  assert.match(projects, /Archivo de proyectos/);
-  assert.match(projects, /data-filter="original"/);
-  assert.match(spanishNotes, /Reticulum: un punto de contacto directo/);
+  assert.match(spanishPortfolio, /id="proyectos"/);
+  assert.match(spanishPortfolio, /data-filter="original"/);
+  assert.match(spanishPortfolio, /id="bitacora"/);
+  assert.match(spanishPortfolio, /Reticulum: un punto de contacto directo/);
+  assert.match(spanishPortfolio, /Alertas que ayudan a decidir/);
+  assert.match(englishPortfolio, /id="projects"/);
+  assert.match(englishPortfolio, /id="notes"/);
+  assert.match(englishPortfolio, /Alerts that help teams decide/);
   assert.match(englishArticle, /A browser is not a Reticulum client/);
 });
 

@@ -70,8 +70,7 @@ export const portfolio = {
   es: {
     language: "ES", switchLanguage: "English", switchHref: "/en/",
     description: "David Estaben, ingeniero de fiabilidad y software especializado en plataformas, observabilidad y automatización.",
-    navigation: [{ label: "Trabajo", href: "#trabajo" }, { label: "Laboratorio", href: "#laboratorio" }, { label: "Trayectoria", href: "#trayectoria" }, { label: "Contacto", href: "#contacto" }],
-    archive: { projects: "Proyectos", writing: "Bitácora" },
+    navigation: [{ label: "Trabajo", href: "#trabajo" }, { label: "Laboratorio", href: "#laboratorio" }, { label: "Proyectos", href: "#proyectos" }, { label: "Bitácora", href: "#bitacora" }, { label: "Trayectoria", href: "#trayectoria" }, { label: "Contacto", href: "#contacto" }],
     hero: { eyebrow: "Ingeniería de fiabilidad y plataformas", title: "Sistemas claros. Equipos seguros.", copy: "Soy Site Reliability Engineer y desarrollador de software. Diseño automatización, observabilidad y plataformas cloud con una idea sencilla: reducir incertidumbre para que los equipos puedan centrarse en entregar valor.", primary: "Ver experiencia", secondary: "Contacto Reticulum" },
     proof: ["SRE y desarrollo de software", "Zaragoza · remoto", "Abierto a oportunidades y colaboración"],
     work: { label: "Áreas de trabajo", title: "Fiabilidad construida desde la práctica.", copy: "Mi trabajo combina visión de producto, criterio operativo y atención al detalle: entender el contexto, eliminar fricción y dejar una base más mantenible.", cases: [
@@ -94,8 +93,7 @@ export const portfolio = {
   en: {
     language: "EN", switchLanguage: "Español", switchHref: "/es/",
     description: "David Estaben is a reliability and software engineer focused on platforms, observability, and automation.",
-    navigation: [{ label: "Work", href: "#work" }, { label: "Lab", href: "#lab" }, { label: "Experience", href: "#experience" }, { label: "Contact", href: "#contact" }],
-    archive: { projects: "Projects", writing: "Notes" },
+    navigation: [{ label: "Work", href: "#work" }, { label: "Lab", href: "#lab" }, { label: "Projects", href: "#projects" }, { label: "Notes", href: "#notes" }, { label: "Experience", href: "#experience" }, { label: "Contact", href: "#contact" }],
     hero: { eyebrow: "Reliability and platform engineering", title: "Clear systems. Confident teams.", copy: "I am a Site Reliability Engineer and software developer. I build automation, observability, and cloud platforms around one simple idea: reduce uncertainty so teams can focus on delivering value.", primary: "Explore my work", secondary: "Reticulum contact" },
     proof: ["SRE and software engineering", "Zaragoza · remote", "Open to roles and collaboration"],
     work: { label: "Areas of work", title: "Reliability grounded in practice.", copy: "My work brings together product awareness, operational judgement, and care for detail: understand the context, remove friction, and leave a more maintainable foundation.", cases: [
