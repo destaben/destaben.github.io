@@ -22,6 +22,7 @@ coverage/
 .pytest_cache/
 __pycache__/
 *.egg-info/
+.copilot/
 services/signal-relay/data/
 data/
 !package-lock.json
