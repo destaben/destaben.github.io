@@ -1,7 +1,7 @@
 ---
 import { getCollection, type CollectionEntry } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
-import { portfolio, profile, type Locale } from "../data/portfolio";
+import { labSummaries, portfolio, profile, type Locale } from "../data/portfolio";
 import { getPublicRepositories } from "../lib/github";
 import SignalRelayLab from "./SignalRelayLab.astro";
 import ContainerMetricsLab from "./ContainerMetricsLab.astro";
@@ -13,6 +13,7 @@ interface Props {
 
 const { locale } = Astro.props;
 const content = portfolio[locale];
+const labs = content.labs.map((lab) => ({ ...lab, summary: labSummaries[locale][lab.id] ?? lab.summary }));
 const sectionIds = locale === "es"
   ? { work: "trabajo", lab: "laboratorio", projects: "proyectos", writing: "bitacora", experience: "trayectoria", contact: "contacto" }
   : { work: "work", lab: "lab", projects: "projects", writing: "notes", experience: "experience", contact: "contact" };
@@ -50,7 +51,7 @@ const writingPrefix = locale === "es" ? "/es/bitacora/" : "/en/notes/";
 
     <section class="section section-ink" id={sectionIds.work} aria-labelledby="work-title"><div class="shell"><div class="section-heading"><p class="section-label">01 / {content.work.label}</p><h2 id="work-title">{content.work.title}</h2></div><p class="section-copy">{content.work.copy}</p><div class="case-grid">{content.work.cases.map((study) => <article class="case-study"><p class="case-number">{study.number}</p><h3>{study.title}</h3><p>{study.context}</p><p class="decision">{study.decision}</p><div class="tag-list">{study.tags.map((tag) => <span class="tag">{tag}</span>)}</div></article>)}</div></div></section>
 
-    <section class="section" id={sectionIds.lab} aria-labelledby="lab-title"><div class="shell"><div class="lab-heading"><p class="section-label">02 / {content.lab.label}</p><div><h2 id="lab-title">{content.lab.title}</h2><p class="section-copy">{content.lab.copy}</p></div></div><div class="lab-grid">{content.labs.map((lab) => lab.kind === "relay" ? <SignalRelayLab lab={lab} locale={locale} /> : lab.kind === "metrics" ? <ContainerMetricsLab lab={lab} /> : <HomeAssistantLab lab={lab} />)}</div></div></section>
+    <section class="section" id={sectionIds.lab} aria-labelledby="lab-title"><div class="shell"><div class="lab-heading"><p class="section-label">02 / {content.lab.label}</p><div><h2 id="lab-title">{content.lab.title}</h2><p class="section-copy">{content.lab.copy}</p></div></div><div class="lab-grid">{labs.map((lab) => lab.kind === "relay" ? <SignalRelayLab lab={lab} locale={locale} /> : lab.kind === "metrics" ? <ContainerMetricsLab lab={lab} /> : <HomeAssistantLab lab={lab} />)}</div></div></section>
 
     <section class="section section-ink" id={sectionIds.projects} aria-labelledby="projects-title"><div class="shell"><div class="section-heading"><p class="section-label">03 / GitHub</p><div><h2 id="projects-title">{locale === "es" ? "Código para explorar." : "Code to explore."}</h2><p class="section-copy">{locale === "es" ? "Repositorios públicos que acompañan el trabajo seleccionado." : "Public repositories that accompany the selected work."}</p></div></div><div class="projects-toolbar" aria-label={locale === "es" ? "Filtrar proyectos" : "Filter projects"}><button class="filter-button" type="button" data-filter="all" aria-pressed="true">{locale === "es" ? "Todos" : "All"}</button><button class="filter-button" type="button" data-filter="original" aria-pressed="false">{locale === "es" ? "Originales" : "Original"}</button><button class="filter-button" type="button" data-filter="fork" aria-pressed="false">Forks</button><button class="filter-button" type="button" data-filter="archived" aria-pressed="false">{locale === "es" ? "Archivados" : "Archived"}</button></div><p class="archive-empty" hidden>{locale === "es" ? "No hay repositorios en esta categoría." : "There are no repositories in this category."}</p><div class="projects-grid">{repositories.map((repository) => <article class="project" data-type={repository.archived ? "archived" : repository.fork ? "fork" : "original"}><p class="period">{locale === "es" ? "Actualizado" : "Updated"} {updatedDate.format(new Date(repository.updatedAt))}</p><h3><a href={repository.url} target="_blank" rel="noreferrer">{repository.name}</a></h3><p class="meta">{repository.language ?? (locale === "es" ? "Repositorio" : "Repository")} / {repository.stars} stars / {repository.forksCount} forks</p><p>{repository.description ?? "-"}</p><div class="tag-list">{repository.fork && <span class="tag">fork</span>}{repository.archived && <span class="tag">archived</span>}{repository.topics.map((topic) => <span class="tag">{topic}</span>)}</div></article>)}</div></div></section>
 
