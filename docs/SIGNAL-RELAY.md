@@ -43,6 +43,8 @@ The endpoints are disabled by default and must remain disabled until both Reticu
 
 `GET /metrics` exposes Prometheus-format operational counters. It is intended for the operator's scraper, not for the portfolio interface.
 
+`GET /v1/lab/metrics` is the portfolio observability route. It accepts only `cpu` or `memory` and a bounded time range, then queries a configured internal Prometheus endpoint with fixed cAdvisor queries. It returns only container display names and timestamped aggregate values. It does not accept PromQL, scrape targets, arbitrary labels, host metrics, or Prometheus credentials.
+
 `WSS /v1/events` emits only these server events:
 
 - `relay.status`: `connecting`, `ready`, `maintenance`, or `unavailable`
@@ -86,6 +88,6 @@ The supported container image is `ghcr.io/destaben/signal-relay:latest`. It is p
 1. Restarting the bridge retains the same LXMF destination identity.
 2. An incoming LXMF message produces one retained plain-text inbox entry without exposing sender metadata.
 3. Rate-limited web signals produce a public rejection code but do not reveal policy internals.
-4. The public endpoint exposes no private network, Reticulum, or monitoring details.
+4. The public endpoint exposes no private network, Reticulum, scrape-target, or monitoring configuration details. The laboratory metrics route exposes only its documented aggregate container series.
 5. Prometheus captures inbound message counts and the retained inbox size.
 6. With Telegram credentials configured, an incoming message produces one private notification; a Telegram failure does not interrupt inbox persistence or LXMF delivery.

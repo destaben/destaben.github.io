@@ -15,6 +15,7 @@ class Settings:
     telegram_chat_id: str | None
     lab_send_enabled: bool = False
     lab_sender_config_dir: Path | None = None
+    prometheus_url: str | None = None
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -42,4 +43,5 @@ class Settings:
             lab_sender_config_dir=Path(os.environ["SIGNAL_RELAY_LAB_SENDER_CONFIG_DIR"])
             if os.environ.get("SIGNAL_RELAY_LAB_SENDER_CONFIG_DIR")
             else None,
+            prometheus_url=os.environ.get("SIGNAL_RELAY_PROMETHEUS_URL") or None,
         )

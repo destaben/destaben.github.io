@@ -14,8 +14,11 @@ services:
       SIGNAL_RELAY_STORAGE_DIR: /data
       SIGNAL_RELAY_TELEGRAM_BOT_TOKEN: ${SIGNAL_RELAY_TELEGRAM_BOT_TOKEN:-}
       SIGNAL_RELAY_TELEGRAM_CHAT_ID: ${SIGNAL_RELAY_TELEGRAM_CHAT_ID:-}
+      SIGNAL_RELAY_PROMETHEUS_URL: ${SIGNAL_RELAY_PROMETHEUS_URL:-http://host.docker.internal:9090}
     networks:
       - relay
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./reticulum:/reticulum
       - ./lab-sender-reticulum:/lab-sender-reticulum

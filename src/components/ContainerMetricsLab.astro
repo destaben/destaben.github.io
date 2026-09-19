@@ -1,0 +1,88 @@
+---
+import { ChevronLeft, ChevronRight, RotateCcw } from "@lucide/astro";
+import type { MetricsLab } from "../data/portfolio";
+
+interface Props { lab: MetricsLab; }
+const { lab } = Astro.props;
+---
+
+<article class="lab-card metrics-panel" data-metrics-panel data-local-url="http://127.0.0.1:8787" data-production-url="https://lab.destaben.dev" data-loading-label={lab.loadingLabel} data-unavailable-label={lab.unavailableLabel} data-no-data-label={lab.noDataLabel} aria-labelledby={`${lab.id}-title`}>
+  <div class="lab-card-header"><p class="lab-status">{lab.statusLabel}</p><span class="metrics-window" data-metrics-window></span></div>
+  <h3 id={`${lab.id}-title`}>{lab.title}</h3>
+  <p>{lab.summary}</p>
+  <div class="metrics-toolbar">
+    <div class="metrics-mode" role="group" aria-label={lab.titleLabel}>
+      <button type="button" data-metric="cpu" aria-pressed="true">{lab.cpuLabel}</button>
+      <button type="button" data-metric="memory" aria-pressed="false">{lab.memoryLabel}</button>
+    </div>
+    <div class="metrics-navigation">
+      <button type="button" data-offset="-1" aria-label={lab.previousLabel} title={lab.previousLabel}><ChevronLeft size={17} aria-hidden="true" /></button>
+      <button type="button" data-offset="0" aria-label={lab.nowLabel} title={lab.nowLabel}><RotateCcw size={15} aria-hidden="true" /></button>
+      <button type="button" data-offset="1" aria-label={lab.nextLabel} title={lab.nextLabel}><ChevronRight size={17} aria-hidden="true" /></button>
+    </div>
+  </div>
+  <div class="metrics-chart" data-metrics-chart role="img" aria-live="polite"></div>
+  <fieldset class="metrics-services"><legend>{lab.servicesLabel}</legend><div data-metrics-services></div></fieldset>
+</article>
+
+<script>
+  const panel = document.querySelector<HTMLElement>("[data-metrics-panel]");
+  if (panel) {
+    type Series = { name: string; values: [number, number][] };
+    const localHosts = new Set(["127.0.0.1", "localhost"]);
+    const baseUrl = localHosts.has(window.location.hostname) ? panel.dataset.localUrl : panel.dataset.productionUrl;
+    const chart = panel.querySelector<HTMLElement>("[data-metrics-chart]");
+    const services = panel.querySelector<HTMLElement>("[data-metrics-services]");
+    const windowLabel = panel.querySelector<HTMLElement>("[data-metrics-window]");
+    const colors = ["#d8f04b", "#ff7955", "#577075", "#0b1f23", "#198754", "#b28a20"];
+    const range = 6 * 60 * 60;
+    let metric = "cpu";
+    let end = Math.floor(Date.now() / 1000);
+    let allSeries: Series[] = [];
+    let visible = new Set<string>();
+
+    const formatValue = (value: number) => metric === "cpu" ? `${(value * 100).toFixed(value < .1 ? 2 : 1)}%` : `${(value / 1024 / 1024).toFixed(0)} MiB`;
+    const render = () => {
+      const active = allSeries.filter((series) => visible.has(series.name));
+      if (!chart) return;
+      if (!active.length) { chart.textContent = panel.dataset.noDataLabel || "No samples"; return; }
+      const points = active.flatMap((series) => series.values);
+      const max = Math.max(...points.map(([, value]) => value), 1);
+      const minTime = end - range;
+      const pathFor = (series: Series) => series.values.map(([time, value], index) => `${index ? "L" : "M"}${48 + ((time - minTime) / range) * 780},${202 - (value / max) * 164}`).join(" ");
+      chart.innerHTML = `<svg viewBox="0 0 860 230" preserveAspectRatio="none" aria-hidden="true"><path class="metrics-grid-line" d="M48 38H828M48 120H828M48 202H828"/><path class="metrics-axis" d="M48 22V202H828"/>${active.map((series, index) => `<path class="metrics-line" style="stroke:${colors[index % colors.length]}" d="${pathFor(series)}"/>`).join("")}<text x="0" y="42">${formatValue(max)}</text><text x="18" y="206">0</text></svg>`;
+    };
+    const renderServices = () => {
+      if (!services) return;
+      services.replaceChildren(...allSeries.map((series, index) => {
+        const label = document.createElement("label");
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.checked = visible.has(series.name);
+        input.addEventListener("change", () => { input.checked ? visible.add(series.name) : visible.delete(series.name); render(); });
+        const swatch = document.createElement("span");
+        swatch.className = "metrics-swatch";
+        swatch.style.background = colors[index % colors.length];
+        label.append(input, swatch, document.createTextNode(series.name));
+        return label;
+      }));
+    };
+    const load = async () => {
+      if (!baseUrl || !chart) return;
+      chart.textContent = panel.dataset.loadingLabel || "Loading";
+      const start = end - range;
+      try {
+        const response = await fetch(`${baseUrl}/v1/lab/metrics?metric=${metric}&start=${start}&end=${end}&step=120`);
+        if (!response.ok) throw new Error();
+        const data = await response.json() as { series?: Series[] };
+        allSeries = Array.isArray(data.series) ? data.series : [];
+        visible = new Set(allSeries.map((series) => series.name));
+        if (windowLabel) windowLabel.textContent = new Intl.DateTimeFormat(document.documentElement.lang, { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" }).formatRange(new Date(start * 1000), new Date(end * 1000));
+        renderServices(); render();
+      } catch { chart.textContent = panel.dataset.unavailableLabel || "Metrics unavailable"; }
+    };
+    panel.querySelectorAll<HTMLButtonElement>("[data-metric]").forEach((button) => button.addEventListener("click", () => { metric = button.dataset.metric || "cpu"; panel.querySelectorAll("[data-metric]").forEach((item) => item.setAttribute("aria-pressed", String(item === button))); load(); }));
+    panel.querySelectorAll<HTMLButtonElement>("[data-offset]").forEach((button) => button.addEventListener("click", () => { const offset = Number(button.dataset.offset); end = offset === 0 ? Math.floor(Date.now() / 1000) : Math.min(Math.floor(Date.now() / 1000), end + offset * range); load(); }));
+    load();
+  }
+</script>

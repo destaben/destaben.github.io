@@ -1,4 +1,6 @@
 from contextlib import asynccontextmanager
+import asyncio
+import time
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, status
@@ -9,6 +11,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from .bridge import RelayBridge
 from .config import Settings
+from .metrics import PrometheusLabClient
 
 
 class SignalRequest(BaseModel):
@@ -41,6 +44,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["Content-Type"],
     )
     app.state.bridge = bridge
+    app.state.prometheus = PrometheusLabClient(relay_settings.prometheus_url) if relay_settings.prometheus_url else None
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
@@ -61,6 +65,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/v1/lab/capabilities", include_in_schema=False)
     async def lab_capabilities() -> dict[str, bool]:
         return bridge.lab_capabilities()
+
+    @app.get("/v1/lab/metrics", include_in_schema=False)
+    async def lab_metrics(metric: Literal["cpu", "memory"], start: int, end: int, step: int = 120) -> dict[str, object]:
+        prometheus = app.state.prometheus
+        now = int(time.time())
+        if prometheus is None:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="metrics_unavailable")
+        if start >= end or end > now + 300 or end - start > 604800 or step < 30 or step > 900:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="invalid_time_range")
+        try:
+            return await asyncio.to_thread(prometheus.query_range, metric, start, end, step)
+        except (OSError, RuntimeError, ValueError):
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="metrics_unavailable") from None
 
     @app.post("/v1/lab/sessions", status_code=status.HTTP_201_CREATED, include_in_schema=False)
     async def create_lab_session(request: Request) -> dict[str, str]:

@@ -57,6 +57,20 @@ export interface RelayLab extends LabBase {
   };
 }
 
+export interface MetricsLab extends LabBase {
+  kind: "metrics";
+  titleLabel: string;
+  cpuLabel: string;
+  memoryLabel: string;
+  servicesLabel: string;
+  previousLabel: string;
+  nextLabel: string;
+  nowLabel: string;
+  loadingLabel: string;
+  unavailableLabel: string;
+  noDataLabel: string;
+}
+
 export const profile = {
   name: "David Estaben",
   email: "estaben.sti@gmail.com",
@@ -81,7 +95,8 @@ export const portfolio = {
     lab: { label: "Laboratorio", title: "Reticulum explicado desde el recorrido de un mensaje.", copy: "Reticulum es una red resiliente y descentralizada. El recorrido guiado puede crear una identidad temporal para esta prueba y muestra cómo se prepara un mensaje antes de emitirlo." },
     labs: [
       { id: "signal-relay", kind: "relay", title: "Reticulum", summary: "Un punto de contacto Reticulum autohospedado para recibir mensajes desde clientes compatibles.", status: "active", statusLabel: "Activo", technologies: ["Reticulum", "FastAPI"], addressLabel: "Dirección Reticulum", addressPending: "Dirección disponible al publicar el nodo", copyLabel: "Copiar", copiedLabel: "Copiada", checkingLabel: "Comprobando Reticulum", onlineLabel: "Reticulum online", offlineLabel: "Reticulum offline", inboxLabel: "Mensajes recibidos", inboxEmpty: "Todavía no hay mensajes registrados.", inboxNote: "Los mensajes se muestran como texto plano y se conservan de forma limitada.", officialLinkLabel: "Web oficial de Reticulum", wizard: { title: "Recorrido Reticulum", copy: "La identidad temporal se crea sólo al enviar esta prueba. El navegador no recibe claves privadas ni se conecta directamente a Reticulum.", steps: ["Origen temporal", "Destino Reticulum", "Cifrado", "Confirmación"], openLabel: "Explorar recorrido Reticulum", closeLabel: "Cerrar recorrido", sourcePending: "Se crea al enviar la prueba", sourceLabel: "Origen temporal", destinationLabel: "Destino de David", messageLabel: "Nota para esta prueba", messagePlaceholder: "Escribe un mensaje breve", sendLabel: "Enviar prueba", preparingLabel: "Preparando sesión segura", unavailableLabel: "El envío educativo no está habilitado en este nodo.", queuedLabel: "Mensaje en cola", deliveredLabel: "Entrega confirmada", failedLabel: "No se pudo entregar", routeWaitingLabel: "Pendiente", routeSourceReadyLabel: "Identidad temporal preparada", routeEncryptedLabel: "Mensaje cifrado por Reticulum", routeRoutingLabel: "Esperando acuse de la ruta", routeReceivedLabel: "Recibido por Reticulum", routeConfirmedLabel: "Acuse de Reticulum confirmado", routeDeliveryFailedLabel: "El destino no confirmó la entrega", routeOutboundFailedLabel: "El nodo no pudo emitir el mensaje", routeUnknownFailedLabel: "La entrega terminó con un error", telegramLabel: "Aviso Telegram", telegramConfiguredLabel: "Telegram configurado", telegramUnavailableLabel: "Telegram no configurado", telegramCopy: "Cuando Reticulum recibe el mensaje, puede enviar un aviso privado por Telegram." } },
-    ] satisfies RelayLab[],
+      { id: "container-metrics", kind: "metrics", title: "cAdvisor", summary: "Uso de CPU y memoria de los servicios de mi servidor personal, consultado a través de Prometheus.", status: "active", statusLabel: "En directo", technologies: ["cAdvisor", "Prometheus"], titleLabel: "Métricas de contenedores", cpuLabel: "CPU", memoryLabel: "Memoria", servicesLabel: "Servicios", previousLabel: "Intervalo anterior", nextLabel: "Intervalo siguiente", nowLabel: "Volver a ahora", loadingLabel: "Cargando métricas", unavailableLabel: "Las métricas no están disponibles ahora.", noDataLabel: "No hay muestras en este intervalo." },
+    ] satisfies (RelayLab | MetricsLab)[],
     experience: { label: "Trayectoria", title: "Experiencia en software, cloud y operaciones.", items: [
       { period: "2021 - hoy", role: "Software Developer / SRE", company: "adidas", focus: "Observabilidad, automatización y orquestación." },
       { period: "2020 - 2021", role: "Cloud Engineer", company: "NTT Data", focus: "Infraestructura, optimización de costes e integración." },
@@ -104,7 +119,8 @@ export const portfolio = {
     lab: { label: "Lab", title: "Reticulum explained through a message journey.", copy: "Reticulum is a resilient, decentralised network. The guided journey can create a temporary identity for this test and shows how a message is prepared before it is emitted." },
     labs: [
       { id: "signal-relay", kind: "relay", title: "Reticulum", summary: "A self-hosted Reticulum contact point for receiving messages from compatible clients.", status: "active", statusLabel: "Active", technologies: ["Reticulum", "FastAPI"], addressLabel: "Reticulum address", addressPending: "Address available once the node is published", copyLabel: "Copy", copiedLabel: "Copied", checkingLabel: "Checking Reticulum", onlineLabel: "Reticulum online", offlineLabel: "Reticulum offline", inboxLabel: "Received messages", inboxEmpty: "No messages have been recorded yet.", inboxNote: "Messages are shown as plain text and retained for a limited time.", officialLinkLabel: "Reticulum official website", wizard: { title: "Reticulum journey", copy: "The temporary identity is created only when this test is sent. The browser never receives private keys or connects directly to Reticulum.", steps: ["Temporary source", "Reticulum destination", "Encryption", "Confirmation"], openLabel: "Explore the Reticulum journey", closeLabel: "Close journey", sourcePending: "Created when the test is sent", sourceLabel: "Temporary source", destinationLabel: "David's destination", messageLabel: "Note for this test", messagePlaceholder: "Write a short message", sendLabel: "Send test", preparingLabel: "Preparing secure session", unavailableLabel: "Educational sending is not enabled on this node.", queuedLabel: "Message queued", deliveredLabel: "Delivery confirmed", failedLabel: "Delivery failed", routeWaitingLabel: "Waiting", routeSourceReadyLabel: "Temporary identity prepared", routeEncryptedLabel: "Message encrypted by Reticulum", routeRoutingLabel: "Waiting for route acknowledgement", routeReceivedLabel: "Received by Reticulum", routeConfirmedLabel: "Reticulum acknowledgement confirmed", routeDeliveryFailedLabel: "The destination did not confirm delivery", routeOutboundFailedLabel: "The node could not emit the message", routeUnknownFailedLabel: "Delivery ended with an error", telegramLabel: "Telegram notice", telegramConfiguredLabel: "Telegram configured", telegramUnavailableLabel: "Telegram not configured", telegramCopy: "When Reticulum receives the message, it can send a private Telegram notification." } },
-    ] satisfies RelayLab[],
+      { id: "container-metrics", kind: "metrics", title: "cAdvisor", summary: "CPU and memory use from my personal server services, queried through Prometheus.", status: "active", statusLabel: "Live", technologies: ["cAdvisor", "Prometheus"], titleLabel: "Container metrics", cpuLabel: "CPU", memoryLabel: "Memory", servicesLabel: "Services", previousLabel: "Previous interval", nextLabel: "Next interval", nowLabel: "Back to now", loadingLabel: "Loading metrics", unavailableLabel: "Metrics are unavailable right now.", noDataLabel: "There are no samples in this interval." },
+    ] satisfies (RelayLab | MetricsLab)[],
     experience: { label: "Experience", title: "Experience across software, cloud, and operations.", items: [
       { period: "2021 - present", role: "Software Developer / SRE", company: "adidas", focus: "Observability, automation, and orchestration." },
       { period: "2020 - 2021", role: "Cloud Engineer", company: "NTT Data", focus: "Infrastructure, cost optimisation, and integration." },

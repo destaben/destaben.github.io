@@ -5,6 +5,30 @@ from signal_relay.bridge import LAB_SESSION_FIELD, LabSession, RelayBridge
 from signal_relay.config import Settings
 
 
+def test_metrics_endpoint_only_returns_fixed_container_series(tmp_path):
+    app = create_app(
+        Settings(
+            mode="demo", allowed_origins={"http://127.0.0.1:4321"}, rate_limit=2,
+            rate_window_seconds=60, reticulum_config_dir=None, storage_dir=tmp_path,
+            telegram_bot_token=None, telegram_chat_id=None, prometheus_url="http://prometheus:9090",
+        )
+    )
+
+    class Prometheus:
+        def query_range(self, metric, start, end, step):
+            assert metric == "cpu"
+            assert end > start
+            assert step == 120
+            return {"metric": metric, "start": start, "end": end, "series": [{"name": "cadvisor", "values": [[start, 0.2]]}]}
+
+    app.state.prometheus = Prometheus()
+    with TestClient(app) as client:
+        response = client.get("/v1/lab/metrics", params={"metric": "cpu", "start": 1, "end": 2, "step": 120})
+        assert response.status_code == 200
+        assert response.json()["series"][0]["name"] == "cadvisor"
+        assert client.get("/v1/lab/metrics", params={"metric": "cpu", "start": 2, "end": 1}).status_code == 422
+
+
 def test_health_status_and_signal_acknowledgement(tmp_path):
     app = create_app(
         Settings(
