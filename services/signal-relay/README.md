@@ -1,6 +1,6 @@
-# Signal Relay
+# Reticulum Contact
 
-Self-hosted service for the public Reticulum contact point. It is intentionally separate from the Astro site: GitHub Pages cannot run persistent APIs or WebSockets.
+Self-hosted service for the public Reticulum contact point. It is intentionally separate from the Astro site: GitHub Pages cannot run persistent APIs or WebSockets. See the [official Reticulum website](https://reticulum.network) for the network and protocol.
 
 ## Local demo
 
@@ -31,9 +31,9 @@ export SIGNAL_RELAY_TELEGRAM_CHAT_ID='replace-with-your-private-chat-id'
 
 Every received LXMF message is then forwarded to that chat after it is stored locally. Notifications run in the background and failures do not interrupt LXMF delivery. The token and chat ID are secrets: do not commit them, put them in the public website, or add them to `.env.example`.
 
-## Educational browser session
+## Educational Reticulum session
 
-The portfolio includes an optional LXMF walkthrough. It needs both `SIGNAL_RELAY_LAB_SEND_ENABLED=true` and `SIGNAL_RELAY_LAB_SENDER_CONFIG_DIR` pointing to a second, reachable Reticulum client configuration. Each send starts an isolated official RNS/LXMF runtime with a new temporary identity, sends one short LXMF message to the configured Signal Relay destination, then removes its temporary LXMF storage. The second runtime is necessary: a Reticulum runtime cannot establish a route to its own delivery destination.
+The portfolio includes an optional Reticulum walkthrough. It needs both `SIGNAL_RELAY_LAB_SEND_ENABLED=true` and `SIGNAL_RELAY_LAB_SENDER_CONFIG_DIR` pointing to a second, reachable Reticulum client configuration. Each send starts an isolated official Reticulum runtime with a new temporary identity, sends one short Reticulum message to the configured destination, then removes its temporary storage. The second runtime is necessary: a Reticulum runtime cannot establish a route to its own delivery destination.
 
 This is disabled by default. Enable it only after configuring both Reticulum clients to reach the same trusted transport and adding an anti-bot control at the public proxy. The sender configuration must be separate from the relay configuration. Session identities, private keys, message text, and session capabilities are never persisted, forwarded to Telegram, returned through the public inbox, or exported as metrics. A session reports `identity_ready`, `queued`, `delivered`, or `failed`; failures include a bounded public `errorCode` such as `path_unavailable`, `delivery_failed`, or `delivery_timeout`.
 

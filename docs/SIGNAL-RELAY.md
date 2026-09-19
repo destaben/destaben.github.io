@@ -1,14 +1,14 @@
-# Signal Relay Contract
+# Reticulum Contact Contract
 
-Signal Relay is a separate, self-hosted service. It is not hosted by GitHub Pages and is intentionally absent from this repository's runtime.
+Reticulum Contact is a separate, self-hosted service. It is not hosted by GitHub Pages and is intentionally absent from this repository's runtime. Learn more at [reticulum.network](https://reticulum.network).
 
 ## Boundary
 
 ```text
-Browser -> HTTPS/WSS -> lab.info.destaben.dev -> bridge -> Reticulum / LXMF
+Browser -> HTTPS/WSS -> lab.info.destaben.dev -> bridge -> Reticulum
 ```
 
-The browser receives only the public LXMF destination hash. It never receives a Reticulum private identity, private key, daemon port, home IP address, or direct access to the node. The bridge is the only component that speaks both web protocols and Reticulum.
+The browser receives only the public Reticulum destination hash. It never receives a Reticulum private identity, private key, daemon port, home IP address, or direct access to the node. The bridge is the only component that speaks both web protocols and Reticulum.
 
 ## Public API
 
@@ -22,7 +22,7 @@ The browser receives only the public LXMF destination hash. It never receives a 
 }
 ```
 
-`GET /v1/contact` returns the public LXMF delivery destination after the Reticulum node is configured.
+`GET /v1/contact` returns the public Reticulum delivery destination after the node is configured.
 
 ```json
 {
@@ -35,11 +35,11 @@ The browser receives only the public LXMF destination hash. It never receives a 
 
 `GET /v1/lab/capabilities` returns only whether educational sending is currently enabled and whether Telegram notifications are configured. It never reveals notification credentials or destinations.
 
-## Educational LXMF sessions
+## Educational Reticulum sessions
 
-The portfolio may create a short-lived, browser-scoped educational session only when `SIGNAL_RELAY_LAB_SEND_ENABLED=true` and `SIGNAL_RELAY_LAB_SENDER_CONFIG_DIR` identifies a separate, reachable Reticulum client configuration. On send, the bridge starts an isolated official RNS/LXMF runtime with a new temporary identity. It returns the public source hash only to that browser session, sends once through the configured transport, and removes its temporary LXMF storage on exit. The separate runtime is required because one Reticulum runtime cannot route to its own delivery destination.
+The portfolio may create a short-lived, browser-scoped educational session only when `SIGNAL_RELAY_LAB_SEND_ENABLED=true` and `SIGNAL_RELAY_LAB_SENDER_CONFIG_DIR` identifies a separate, reachable Reticulum client configuration. On send, the bridge starts an isolated official Reticulum runtime with a new temporary identity. It returns the public source hash only to that browser session, sends once through the configured transport, and removes its temporary storage on exit. The separate runtime is required because one Reticulum runtime cannot route to its own delivery destination.
 
-The endpoints are disabled by default and must remain disabled until both Reticulum configurations have a verified external route and an anti-bot control is in place. When enabled, a session expires after 15 minutes and may emit one LXMF message at most. The browser reports only the actual `identity_ready`, `queued`, `delivered`, or `failed` state from the official LXMF runtime; it does not simulate delivery. A `failed` session includes a bounded `errorCode`, currently `lab_sender_unconfigured`, `path_unavailable`, `destination_unavailable`, `delivery_failed`, `delivery_timeout`, or `outbound_error`.
+The endpoints are disabled by default and must remain disabled until both Reticulum configurations have a verified external route and an anti-bot control is in place. When enabled, a session expires after 15 minutes and may emit one Reticulum message at most. The browser reports only the actual `identity_ready`, `queued`, `delivered`, or `failed` state from the official Reticulum runtime; it does not simulate delivery. A `failed` session includes a bounded public `errorCode`, currently `lab_sender_unconfigured`, `path_unavailable`, `destination_unavailable`, `delivery_failed`, `delivery_timeout`, or `outbound_error`.
 
 `GET /metrics` exposes Prometheus-format operational counters. It is intended for the operator's scraper, not for the portfolio interface.
 

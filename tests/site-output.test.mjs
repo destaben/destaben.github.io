@@ -12,13 +12,14 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /favicon\.svg/);
   assert.match(spanish, /data-relay-local-url="http:\/\/127\.0\.0\.1:8787"/);
   assert.match(spanish, /Reticulum explicado desde el recorrido de un mensaje\./);
-  assert.match(spanish, /Signal Relay/);
-  assert.match(spanish, /Explorar recorrido LXMF/);
+  assert.match(spanish, /Reticulum/);
+  assert.match(spanish, /Explorar recorrido Reticulum/);
+  assert.match(spanish, /https:\/\/reticulum\.network/);
   assert.match(spanish, /Origen temporal/);
   assert.match(spanish, /Aviso Telegram/);
-  assert.match(spanish, /Signal Relay online/);
-  assert.match(english, /LXMF address/);
-  assert.match(english, /Explore the LXMF journey/);
+  assert.match(spanish, /Reticulum online/);
+  assert.match(english, /Reticulum address/);
+  assert.match(english, /Explore the Reticulum journey/);
   assert.doesNotMatch(spanish, /Simulador de coste y fiabilidad/);
   assert.doesNotMatch(spanish, /Prometheus \/metrics/);
   assert.doesNotMatch(spanish, /mini PC/i);
@@ -35,7 +36,7 @@ test("generates project archives and published technical notes", async () => {
 
   assert.match(projects, /Archivo de proyectos/);
   assert.match(projects, /data-filter="original"/);
-  assert.match(spanishNotes, /Signal Relay: un punto de contacto directo/);
+  assert.match(spanishNotes, /Reticulum: un punto de contacto directo/);
   assert.match(englishArticle, /A browser is not a Reticulum client/);
 });
 
@@ -43,6 +44,6 @@ test("publishes a crawlable sitemap and RSS feed", async () => {
   const [sitemap, feed, notFound] = await Promise.all([readPage("sitemap-index.xml"), readPage("rss.xml"), readPage("404.html")]);
 
   assert.match(sitemap, /sitemap-/);
-  assert.match(feed, /Signal Relay/);
+  assert.match(feed, /Reticulum/);
   assert.match(notFound, /This route has no signal/);
 });

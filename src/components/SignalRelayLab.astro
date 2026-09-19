@@ -18,7 +18,8 @@ const { lab, locale } = Astro.props;
   <h3 id={`${lab.id}-title`}>{lab.title}</h3>
   <p>{lab.summary}</p>
   <div class="tag-list">{lab.technologies.map((technology) => <span class="tag">{technology}</span>)}</div>
-  <div class="relay-address"><div><p class="relay-label">{lab.addressLabel}</p><code data-relay-address>{lab.addressPending}</code></div><button type="button" data-copy-address aria-label={locale === "es" ? "Copiar dirección LXMF" : "Copy LXMF address"} disabled>{lab.copyLabel}</button></div>
+  <a class="relay-official-link" href="https://reticulum.network" target="_blank" rel="noreferrer">{lab.officialLinkLabel}</a>
+  <div class="relay-address"><div><p class="relay-label">{lab.addressLabel}</p><code data-relay-address>{lab.addressPending}</code></div><button type="button" data-copy-address aria-label={locale === "es" ? "Copiar dirección Reticulum" : "Copy Reticulum address"} disabled>{lab.copyLabel}</button></div>
   <button class="relay-explore-button" type="button" data-open-wizard><MessageSquareText size={17} aria-hidden="true" />{lab.wizard.openLabel}</button>
   <div class="relay-inbox"><p class="relay-label">{lab.inboxLabel}</p><ul data-relay-inbox aria-live="polite"><li>{lab.inboxEmpty}</li></ul><p class="relay-note">{lab.inboxNote}</p></div>
 </article>

@@ -33,7 +33,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         yield
         bridge.stop()
 
-    app = FastAPI(title="Signal Relay", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="Reticulum Contact", version="0.1.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=sorted(relay_settings.allowed_origins),

@@ -12,4 +12,4 @@ def test_sends_message_to_configured_telegram_chat():
 
     request = urlopen.call_args.args[0]
     assert request.full_url == "https://api.telegram.org/bottest-token/sendMessage"
-    assert request.data == b'{"chat_id": "12345", "text": "New LXMF message\\n\\nHello from LXMF"}'
+    assert request.data == b'{"chat_id": "12345", "text": "New Reticulum message\\n\\nHello from LXMF"}'

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "signal-relay"
 version = "0.1.0"
-description = "A bounded public bridge between web signals and Reticulum/LXMF."
+description = "A bounded public bridge between web signals and Reticulum."
 requires-python = ">=3.11"
 dependencies = [
   "fastapi==0.141.1",

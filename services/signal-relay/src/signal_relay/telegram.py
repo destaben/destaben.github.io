@@ -11,7 +11,7 @@ class TelegramNotifier:
 
     def send_message(self, content: str) -> None:
         payload = json.dumps(
-            {"chat_id": self._chat_id, "text": f"New LXMF message\n\n{content}"}
+            {"chat_id": self._chat_id, "text": f"New Reticulum message\n\n{content}"}
         ).encode("utf-8")
         request = Request(
             f"https://api.telegram.org/bot{self._bot_token}/sendMessage",
