@@ -15,7 +15,7 @@ const { lab, locale } = Astro.props;
     <p class="lab-status">{lab.statusLabel}</p>
     <span class="relay-availability" data-relay-availability data-state="checking" role="status"><span data-relay-status-dot></span><span data-relay-status-text>{lab.checkingLabel}</span></span>
   </div>
-  <h3 id={`${lab.id}-title`}>{lab.title}</h3>
+  <h3 id={`${lab.id}-title`}><a href="https://reticulum.network" target="_blank" rel="noreferrer">{lab.title}</a></h3>
   <p>{lab.summary}</p>
   <div class="tag-list">{lab.technologies.map((technology) => <span class="tag">{technology}</span>)}</div>
   <a class="relay-official-link" href="https://reticulum.network" target="_blank" rel="noreferrer">{lab.officialLinkLabel}</a>

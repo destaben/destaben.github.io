@@ -15,6 +15,7 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /Reticulum/);
   assert.match(spanish, /Explorar recorrido Reticulum/);
   assert.match(spanish, /https:\/\/reticulum\.network/);
+  assert.match(spanish, /<h3 id="signal-relay-title"><a href="https:\/\/reticulum\.network"/);
   assert.match(spanish, /Origen temporal/);
   assert.match(spanish, /Aviso Telegram/);
   assert.match(spanish, /Reticulum online/);
