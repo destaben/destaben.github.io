@@ -32,5 +32,6 @@ This repository is the source for `https://info.destaben.dev`. It is a static As
 - Use the scoped instructions in `.github/instructions/` for portfolio, relay, and deployment work. They complement this file; the documented public contracts remain the source of truth.
 - Use the `portfolio-content` skill for bilingual portfolio or article changes, and `release-validation` before completing a change.
 - Use `portfolio-reviewer` for site, content, accessibility, or localization reviews. Use `relay-boundary-reviewer` for relay API, privacy, Nginx, Compose, or deployment-boundary reviews.
+- Invoke `documentation-curator` after implementing every change and before validation or completion. It must update only the documentation and AI context that the diff makes inaccurate, incomplete, or newly necessary.
 - Use `change-verifier` to select and run the required checks. Only it may record a completed validation for the local AI guard.
 - The AI guard requires confirmation before a sensitive change and blocks completion until the current sensitive diff has matching local validation evidence. Its local state is ignored and never replaces CI.
