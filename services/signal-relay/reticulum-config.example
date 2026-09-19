@@ -1,0 +1,15 @@
+# Public bootstrap transports for Signal Relay Reticulum mode.
+# Copy this file to your private deployment directory as reticulum/config.
+# Keep deployment-specific identities and additional interfaces outside Git.
+
+[[RNS Testnet Amsterdam]]
+  type = TCPClientInterface
+  enabled = yes
+  target_host = amsterdam.connect.reticulum.network
+  target_port = 4965
+
+[[RNS Testnet Dublin]]
+  type = TCPClientInterface
+  enabled = yes
+  target_host = dublin.connect.reticulum.network
+  target_port = 4965

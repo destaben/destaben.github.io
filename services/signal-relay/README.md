@@ -18,7 +18,7 @@ The default `demo` mode is an explicitly labelled local acknowledgement loop. It
 
 Set `SIGNAL_RELAY_MODE=reticulum` and optionally `SIGNAL_RELAY_RETICULUM_CONFIG_DIR` to initialise the official `rns` runtime. The service persists a private delivery identity under `SIGNAL_RELAY_STORAGE_DIR`, announces its LXMF destination hash, and retains the newest 20 message bodies as bounded plain text. Keep the storage directory and service configuration outside Git.
 
-The default Reticulum configuration only enables link-local discovery. To accept messages from a device outside the local network, configure a Reticulum interface that both devices can reach, such as a trusted `TCPClientInterface` transport. Do not expose the service HTTP port or Reticulum's TCP interface directly to the Internet.
+The default Reticulum configuration only enables link-local discovery. To accept messages from a device outside the local network, configure a Reticulum interface that both devices can reach, such as a trusted `TCPClientInterface` transport. Use `reticulum-config.example` as the starter for public testnet bootstrap transports (`amsterdam.connect.reticulum.network:4965` and `dublin.connect.reticulum.network:4965`). Do not expose the service HTTP port or Reticulum's TCP interface directly to the Internet.
 
 ## Telegram notifications
 
@@ -53,6 +53,7 @@ cd /opt/signal-relay
 curl -fsSLo compose.yaml https://raw.githubusercontent.com/destaben/destaben.github.io/main/services/signal-relay/compose.yaml
 curl -fsSLo nginx/nginx.conf https://raw.githubusercontent.com/destaben/destaben.github.io/main/services/signal-relay/nginx/nginx.conf
 curl -fsSLo .env https://raw.githubusercontent.com/destaben/destaben.github.io/main/services/signal-relay/.env.example
+curl -fsSLo reticulum/config https://raw.githubusercontent.com/destaben/destaben.github.io/main/services/signal-relay/reticulum-config.example
 chmod 600 .env
 sudo chown 10001:10001 reticulum lab-sender-reticulum
 ```
