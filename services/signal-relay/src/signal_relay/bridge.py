@@ -39,7 +39,6 @@ class RelayBridge:
         self.last_acknowledgement_ms: int | None = None
         self._clients: set[Any] = set()
         self._requests: defaultdict[str, deque[float]] = defaultdict(deque)
-        self._lab_requests: defaultdict[str, deque[float]] = defaultdict(deque)
         self._reticulum: Any | None = None
         self._router: Any | None = None
         self._delivery_destination: Any | None = None
@@ -280,33 +279,11 @@ class RelayBridge:
         self._inbox_path.write_text(json.dumps(self.inbox), encoding="utf-8")
 
     def accept_request(self, client_id: str) -> bool:
-        return self._accept_rate_limited_request(
-            self._requests,
-            client_id,
-            self.settings.rate_limit,
-            self.settings.rate_window_seconds,
-        )
-
-    def accept_lab_request(self, client_id: str) -> bool:
-        return self._accept_rate_limited_request(
-            self._lab_requests,
-            client_id,
-            self.settings.lab_rate_limit,
-            self.settings.lab_rate_window_seconds,
-        )
-
-    @staticmethod
-    def _accept_rate_limited_request(
-        requests_by_client: defaultdict[str, deque[float]],
-        client_id: str,
-        limit: int,
-        window_seconds: int,
-    ) -> bool:
         now = time.monotonic()
-        requests = requests_by_client[client_id]
-        while requests and now - requests[0] >= window_seconds:
+        requests = self._requests[client_id]
+        while requests and now - requests[0] >= self.settings.rate_window_seconds:
             requests.popleft()
-        if len(requests) >= limit:
+        if len(requests) >= self.settings.rate_limit:
             return False
         requests.append(now)
         return True

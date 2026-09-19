@@ -35,7 +35,7 @@ Every received LXMF message is then forwarded to that chat after it is stored lo
 
 The portfolio includes an optional Reticulum walkthrough. It needs both `SIGNAL_RELAY_LAB_SEND_ENABLED=true` and `SIGNAL_RELAY_LAB_SENDER_CONFIG_DIR` pointing to a second, reachable Reticulum client configuration. Each send starts an isolated official Reticulum runtime with a new temporary identity, sends one short Reticulum message to the configured destination, then removes its temporary storage. The second runtime is necessary: a Reticulum runtime cannot establish a route to its own delivery destination.
 
-This is disabled by default. Enable it only after configuring both Reticulum clients to reach the same trusted transport. The sender configuration must be separate from the relay configuration. The bridge limits session creation and sends to five requests per Cloudflare client IP per minute by default; configure `SIGNAL_RELAY_LAB_RATE_LIMIT` and `SIGNAL_RELAY_LAB_RATE_WINDOW_SECONDS` when needed. Session identities, private keys, message text, and session capabilities are never persisted, forwarded to Telegram, returned through the public inbox, or exported as metrics. A session reports `identity_ready`, `queued`, `delivered`, or `failed`; failures include a bounded public `errorCode` such as `path_unavailable`, `delivery_failed`, or `delivery_timeout`.
+This is disabled by default. Enable it only after configuring both Reticulum clients to reach the same trusted transport. The sender configuration must be separate from the relay configuration. Nginx limits public session creation and sends to five requests per Cloudflare client IP per minute; the limit lives in `nginx/nginx.conf` with the rest of the public edge policy. Session identities, private keys, message text, and session capabilities are never persisted, forwarded to Telegram, returned through the public inbox, or exported as metrics. A session reports `identity_ready`, `queued`, `delivered`, or `failed`; failures include a bounded public `errorCode` such as `path_unavailable`, `delivery_failed`, or `delivery_timeout`.
 
 ## Container deployment
 
@@ -56,7 +56,7 @@ chmod 600 .env
 sudo chown 10001:10001 reticulum lab-sender-reticulum
 ```
 
-Set `SIGNAL_RELAY_TELEGRAM_BOT_TOKEN` and `SIGNAL_RELAY_TELEGRAM_CHAT_ID` in `.env` when Telegram notifications are required. In Cloudflare Zero Trust, create a remotely managed tunnel and assign `lab.destaben.dev` to `http://signal-relay:8787`. Copy its token into `.env` as `CLOUDFLARE_TUNNEL_TOKEN`; do not quote it in shell output or commit it. Start and update the service with:
+Set `SIGNAL_RELAY_TELEGRAM_BOT_TOKEN` and `SIGNAL_RELAY_TELEGRAM_CHAT_ID` in `.env` when Telegram notifications are required. In Cloudflare Zero Trust, create a remotely managed tunnel and assign `lab.destaben.dev` to `http://nginx:8080`. Copy its token into `.env` as `CLOUDFLARE_TUNNEL_TOKEN`; do not quote it in shell output or commit it. Start and update the service with:
 
 ```sh
 docker compose pull
@@ -64,7 +64,7 @@ docker compose up -d
 docker compose ps
 ```
 
-The Compose file binds the HTTP API to `127.0.0.1:8787` only. Its `cloudflared` sidecar creates the outbound HTTPS tunnel when `CLOUDFLARE_TUNNEL_TOKEN` is set. The `reticulum/` directory contains the persistent Reticulum configuration; the named volume retains the LXMF identity and inbox across image upgrades.
+The relay has no host port. Nginx is the only HTTP entry point and binds to `127.0.0.1:8080` for host diagnostics; it exposes only the portfolio routes, limits laboratory POSTs, and rejects all other paths. Its `destaben-edge` Docker network can be joined by future services, then routed explicitly in `nginx/nginx.conf`. The `cloudflared` sidecar creates the outbound HTTPS tunnel when `CLOUDFLARE_TUNNEL_TOKEN` is set. The `reticulum/` directory contains the persistent Reticulum configuration; the named volume retains the LXMF identity and inbox across image upgrades.
 
 Keep the optional `lab-sender-reticulum/` configuration separate and give it an interface that reaches the relay's configured transport. Leave `SIGNAL_RELAY_LAB_SEND_ENABLED=false` until that route and the public anti-bot control are verified.
 
@@ -101,9 +101,8 @@ Refresh the portfolio page: the message and timestamp appear in the inbox. This 
 Verify the API does not leak network details:
 
 ```sh
-curl -H 'Origin: http://127.0.0.1:4321' http://127.0.0.1:8787/healthz
-curl http://127.0.0.1:8787/v1/contact
-curl http://127.0.0.1:8787/metrics
+curl -H 'Origin: http://127.0.0.1:4321' http://127.0.0.1:8080/healthz
+curl http://127.0.0.1:8080/v1/contact
 ```
 
 For a complete accepted-and-acknowledged signal loop, use a second local service in clearly labelled demo mode:

@@ -5,7 +5,7 @@ Reticulum Contact is a separate, self-hosted service. It is not hosted by GitHub
 ## Boundary
 
 ```text
-Browser -> HTTPS/WSS -> lab.destaben.dev -> bridge -> Reticulum
+Browser -> HTTPS/WSS -> lab.destaben.dev -> cloudflared -> nginx -> bridge -> Reticulum
 ```
 
 The browser receives only the public Reticulum destination hash. It never receives a Reticulum private identity, private key, daemon port, home IP address, or direct access to the node. The bridge is the only component that speaks both web protocols and Reticulum.
@@ -39,7 +39,7 @@ The browser receives only the public Reticulum destination hash. It never receiv
 
 The portfolio may create a short-lived, browser-scoped educational session only when `SIGNAL_RELAY_LAB_SEND_ENABLED=true` and `SIGNAL_RELAY_LAB_SENDER_CONFIG_DIR` identifies a separate, reachable Reticulum client configuration. On send, the bridge starts an isolated official Reticulum runtime with a new temporary identity. It returns the public source hash only to that browser session, sends once through the configured transport, and removes its temporary storage on exit. The separate runtime is required because one Reticulum runtime cannot route to its own delivery destination.
 
-The endpoints are disabled by default and must remain disabled until both Reticulum configurations have a verified external route. When enabled, a session expires after 15 minutes and may emit one Reticulum message at most. Session creation and sends are limited to five requests per Cloudflare client IP per minute by default; operators can set `SIGNAL_RELAY_LAB_RATE_LIMIT` and `SIGNAL_RELAY_LAB_RATE_WINDOW_SECONDS`. The browser reports only the actual `identity_ready`, `queued`, `delivered`, or `failed` state from the official Reticulum runtime; it does not simulate delivery. A `failed` session includes a bounded public `errorCode`, currently `lab_sender_unconfigured`, `path_unavailable`, `destination_unavailable`, `delivery_failed`, `delivery_timeout`, or `outbound_error`.
+The endpoints are disabled by default and must remain disabled until both Reticulum configurations have a verified external route. When enabled, a session expires after 15 minutes and may emit one Reticulum message at most. The Nginx edge limits laboratory POSTs to five requests per Cloudflare client IP per minute, while status polling remains unrestricted. The browser reports only the actual `identity_ready`, `queued`, `delivered`, or `failed` state from the official Reticulum runtime; it does not simulate delivery. A `failed` session includes a bounded public `errorCode`, currently `lab_sender_unconfigured`, `path_unavailable`, `destination_unavailable`, `delivery_failed`, `delivery_timeout`, or `outbound_error`.
 
 `GET /metrics` exposes Prometheus-format operational counters. It is intended for the operator's scraper, not for the portfolio interface.
 
@@ -75,11 +75,11 @@ When enabled, `POST /v1/signals` accepts only a fixed action vocabulary. It does
 
 ## Deployment
 
-Run Reticulum, the bridge, and the tunnel under separate unprivileged service accounts or containers. The Compose deployment runs `cloudflare/cloudflared` as a separate sidecar and reads `CLOUDFLARE_TUNNEL_TOKEN` only from the ignored `.env` file. Create the remotely managed tunnel in Cloudflare Zero Trust and map `lab.destaben.dev` to `http://signal-relay:8787`; do not forward residential ports or expose Reticulum's TCP interface. Keep secrets, Telegram credentials, and Reticulum identities outside Git and rotate tunnel credentials.
+Run Reticulum, the bridge, Nginx, and the tunnel under separate unprivileged containers. The Compose deployment runs `cloudflare/cloudflared` as a separate sidecar and reads `CLOUDFLARE_TUNNEL_TOKEN` only from the ignored `.env` file. Create the remotely managed tunnel in Cloudflare Zero Trust and map `lab.destaben.dev` to `http://nginx:8080`; do not forward residential ports or expose Reticulum's TCP interface. Nginx is the sole public HTTP policy point: it allowlists portfolio API routes, limits laboratory POSTs and trusts the Cloudflare client-IP header only because it has no public host binding. Keep secrets, Telegram credentials, and Reticulum identities outside Git and rotate tunnel credentials.
 
 The default `AutoInterface` supports local discovery only. For off-LAN LXMF delivery, configure a trusted Reticulum transport interface that both peers can reach. Announcing a destination alone does not create an Internet route.
 
-The supported container image is `ghcr.io/destaben/signal-relay:latest`. It is published for `linux/amd64` and `linux/arm64` by `.github/workflows/publish-signal-relay.yml`. The companion Compose file binds the HTTP API to loopback, runs as an unprivileged user, persists Reticulum configuration and service state, and drops Linux capabilities. See `services/signal-relay/README.md` for the exact host setup and update commands.
+The supported container image is `ghcr.io/destaben/signal-relay:latest`. It is published for `linux/amd64` and `linux/arm64` by `.github/workflows/publish-signal-relay.yml`. The companion Compose file keeps the relay off the host network, binds the Nginx diagnostics entry point to loopback, persists Reticulum configuration and service state, and drops Linux capabilities. Future services can join the `destaben-edge` Docker network, then be routed explicitly by Nginx. See `services/signal-relay/README.md` for the exact host setup and update commands.
 
 ## Acceptance checks
 
