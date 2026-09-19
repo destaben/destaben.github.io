@@ -28,6 +28,9 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /Datos protegidos/);
   assert.match(spanish, /Calidad ambiental/);
   assert.match(spanish, /data-home-air-quality/);
+  assert.match(spanish, /data-good-label="Buena"/);
+  assert.match(spanish, /data-regular-label="Regular"/);
+  assert.match(spanish, /data-bad-label="Mala"/);
   assert.match(spanish, /data-inbox-source-label="ID de origen"/);
   assert.match(spanish, /Reticulum online/);
   assert.match(english, /Reticulum address/);

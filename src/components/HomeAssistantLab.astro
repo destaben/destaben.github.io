@@ -5,7 +5,7 @@ interface Props { lab: HomeStatusLab; }
 const { lab } = Astro.props;
 ---
 
-<article class="lab-card home-panel" data-home-status-panel data-local-url="http://127.0.0.1:8787" data-production-url="https://lab.destaben.dev" data-loading-label={lab.loadingLabel} data-unavailable-label={lab.unavailableLabel} data-available-label={lab.availableLabel} aria-labelledby={`${lab.id}-title`}>
+<article class="lab-card home-panel" data-home-status-panel data-local-url="http://127.0.0.1:8787" data-production-url="https://lab.destaben.dev" data-loading-label={lab.loadingLabel} data-unavailable-label={lab.unavailableLabel} data-available-label={lab.availableLabel} data-good-label={lab.goodLabel} data-regular-label={lab.regularLabel} data-bad-label={lab.badLabel} aria-labelledby={`${lab.id}-title`}>
   <div class="lab-card-header"><p class="lab-status">{lab.statusLabel}</p><span class="home-status-state" data-home-status-state role="status">{lab.loadingLabel}</span></div>
   <h3 id={`${lab.id}-title`}>{lab.title}</h3>
   <p>{lab.summary}</p>
