@@ -43,6 +43,8 @@ test("integrates projects and published technical notes into portfolio pages", a
   assert.match(englishPortfolio, /id="notes"/);
   assert.match(englishPortfolio, /Alerts that help teams decide/);
   assert.match(englishArticle, /A browser is not a Reticulum client/);
+  assert.match(englishArticle, /class="article-header"/);
+  assert.match(englishArticle, /class="article-body"/);
 });
 
 test("publishes a crawlable sitemap and RSS feed", async () => {

@@ -3,7 +3,7 @@ title: "Reticulum: un punto de contacto directo"
 description: "La arquitectura de una dirección Reticulum pública, una bandeja respetuosa con la privacidad y métricas operativas separadas."
 locale: es
 pubDate: 2026-09-19
-tags: [Reticulum, SRE, Architecture]
+tags: [Reticulum, SRE, Arquitectura]
 draft: false
 ---
 
