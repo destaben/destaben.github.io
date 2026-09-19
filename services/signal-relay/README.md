@@ -56,7 +56,7 @@ chmod 600 .env
 sudo chown 10001:10001 reticulum lab-sender-reticulum
 ```
 
-Set `SIGNAL_RELAY_TELEGRAM_BOT_TOKEN` and `SIGNAL_RELAY_TELEGRAM_CHAT_ID` in `.env` when Telegram notifications are required. In Cloudflare Zero Trust, create a remotely managed tunnel and assign `lab.info.destaben.dev` to `http://signal-relay:8787`. Copy its token into `.env` as `CLOUDFLARE_TUNNEL_TOKEN`; do not quote it in shell output or commit it. Start and update the service with:
+Set `SIGNAL_RELAY_TELEGRAM_BOT_TOKEN` and `SIGNAL_RELAY_TELEGRAM_CHAT_ID` in `.env` when Telegram notifications are required. In Cloudflare Zero Trust, create a remotely managed tunnel and assign `lab.destaben.dev` to `http://signal-relay:8787`. Copy its token into `.env` as `CLOUDFLARE_TUNNEL_TOKEN`; do not quote it in shell output or commit it. Start and update the service with:
 
 ```sh
 docker compose pull

@@ -5,7 +5,7 @@ Reticulum Contact is a separate, self-hosted service. It is not hosted by GitHub
 ## Boundary
 
 ```text
-Browser -> HTTPS/WSS -> lab.info.destaben.dev -> bridge -> Reticulum
+Browser -> HTTPS/WSS -> lab.destaben.dev -> bridge -> Reticulum
 ```
 
 The browser receives only the public Reticulum destination hash. It never receives a Reticulum private identity, private key, daemon port, home IP address, or direct access to the node. The bridge is the only component that speaks both web protocols and Reticulum.
@@ -75,7 +75,7 @@ When enabled, `POST /v1/signals` accepts only a fixed action vocabulary. It does
 
 ## Deployment
 
-Run Reticulum, the bridge, and the tunnel under separate unprivileged service accounts or containers. The Compose deployment runs `cloudflare/cloudflared` as a separate sidecar and reads `CLOUDFLARE_TUNNEL_TOKEN` only from the ignored `.env` file. Create the remotely managed tunnel in Cloudflare Zero Trust and map `lab.info.destaben.dev` to `http://signal-relay:8787`; do not forward residential ports or expose Reticulum's TCP interface. Keep secrets, Telegram credentials, and Reticulum identities outside Git and rotate tunnel credentials.
+Run Reticulum, the bridge, and the tunnel under separate unprivileged service accounts or containers. The Compose deployment runs `cloudflare/cloudflared` as a separate sidecar and reads `CLOUDFLARE_TUNNEL_TOKEN` only from the ignored `.env` file. Create the remotely managed tunnel in Cloudflare Zero Trust and map `lab.destaben.dev` to `http://signal-relay:8787`; do not forward residential ports or expose Reticulum's TCP interface. Keep secrets, Telegram credentials, and Reticulum identities outside Git and rotate tunnel credentials.
 
 The default `AutoInterface` supports local discovery only. For off-LAN LXMF delivery, configure a trusted Reticulum transport interface that both peers can reach. Announcing a destination alone does not create an Internet route.
 
