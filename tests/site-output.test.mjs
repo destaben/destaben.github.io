@@ -11,10 +11,15 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(english, /Clear systems\. Confident teams\./);
   assert.match(spanish, /favicon\.svg/);
   assert.match(spanish, /data-relay-local-url="http:\/\/127\.0\.0\.1:8787"/);
-  assert.match(spanish, /Dirección LXMF/);
+  assert.match(spanish, /Reticulum explicado desde el recorrido de un mensaje\./);
+  assert.match(spanish, /Signal Relay/);
+  assert.match(spanish, /Explorar recorrido LXMF/);
+  assert.match(spanish, /Origen temporal/);
+  assert.match(spanish, /Aviso Telegram/);
   assert.match(spanish, /Signal Relay online/);
   assert.match(english, /LXMF address/);
-  assert.match(spanish, /Cualquiera puede enviar un mensaje/);
+  assert.match(english, /Explore the LXMF journey/);
+  assert.doesNotMatch(spanish, /Simulador de coste y fiabilidad/);
   assert.doesNotMatch(spanish, /Prometheus \/metrics/);
   assert.doesNotMatch(spanish, /mini PC/i);
   assert.doesNotMatch(spanish, /profile\.jpg/);

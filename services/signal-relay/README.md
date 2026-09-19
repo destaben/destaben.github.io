@@ -31,6 +31,12 @@ export SIGNAL_RELAY_TELEGRAM_CHAT_ID='replace-with-your-private-chat-id'
 
 Every received LXMF message is then forwarded to that chat after it is stored locally. Notifications run in the background and failures do not interrupt LXMF delivery. The token and chat ID are secrets: do not commit them, put them in the public website, or add them to `.env.example`.
 
+## Educational browser session
+
+The portfolio includes an optional LXMF walkthrough. It needs both `SIGNAL_RELAY_LAB_SEND_ENABLED=true` and `SIGNAL_RELAY_LAB_SENDER_CONFIG_DIR` pointing to a second, reachable Reticulum client configuration. Each send starts an isolated official RNS/LXMF runtime with a new temporary identity, sends one short LXMF message to the configured Signal Relay destination, then removes its temporary LXMF storage. The second runtime is necessary: a Reticulum runtime cannot establish a route to its own delivery destination.
+
+This is disabled by default. Enable it only after configuring both Reticulum clients to reach the same trusted transport and adding an anti-bot control at the public proxy. The sender configuration must be separate from the relay configuration. Session identities, private keys, message text, and session capabilities are never persisted, forwarded to Telegram, returned through the public inbox, or exported as metrics. A session reports `identity_ready`, `queued`, `delivered`, or `failed`; failures include a bounded public `errorCode` such as `path_unavailable`, `delivery_failed`, or `delivery_timeout`.
+
 ## Container deployment
 
 GitHub Actions publishes a multi-architecture image to GitHub Container Registry on every `main` push that changes this service:
@@ -42,12 +48,12 @@ ghcr.io/destaben/signal-relay:latest
 Make the package public in GitHub Packages before a host pulls it anonymously. On the deployment host, copy `compose.yaml` and `.env.example` into a private directory, then configure the environment file and Reticulum directory:
 
 ```sh
-mkdir -p /opt/signal-relay/reticulum
+mkdir -p /opt/signal-relay/reticulum /opt/signal-relay/lab-sender-reticulum
 cd /opt/signal-relay
 curl -O https://raw.githubusercontent.com/destaben/personalwebsite/main/services/signal-relay/compose.yaml
 curl -o .env https://raw.githubusercontent.com/destaben/personalwebsite/main/services/signal-relay/.env.example
 chmod 600 .env
-sudo chown 10001:10001 reticulum
+sudo chown 10001:10001 reticulum lab-sender-reticulum
 ```
 
 Set `SIGNAL_RELAY_TELEGRAM_BOT_TOKEN` and `SIGNAL_RELAY_TELEGRAM_CHAT_ID` in `.env` when Telegram notifications are required. Start and update the service with:
@@ -59,6 +65,8 @@ docker compose ps
 ```
 
 The Compose file binds the HTTP API to `127.0.0.1:8787` only. Put a reverse proxy or outbound HTTPS tunnel in front of it if the portfolio needs browser access. The `reticulum/` directory contains the persistent Reticulum configuration; the named volume retains the LXMF identity and inbox across image upgrades.
+
+Keep the optional `lab-sender-reticulum/` configuration separate and give it an interface that reaches the relay's configured transport. Leave `SIGNAL_RELAY_LAB_SEND_ENABLED=false` until that route and the public anti-bot control are verified.
 
 ## Tests
 

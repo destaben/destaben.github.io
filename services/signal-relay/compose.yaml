@@ -7,11 +7,13 @@ services:
       SIGNAL_RELAY_MODE: reticulum
       SIGNAL_RELAY_ALLOWED_ORIGINS: https://info.destaben.dev
       SIGNAL_RELAY_RETICULUM_CONFIG_DIR: /reticulum
+      SIGNAL_RELAY_LAB_SENDER_CONFIG_DIR: /lab-sender-reticulum
       SIGNAL_RELAY_STORAGE_DIR: /data
     ports:
       - "127.0.0.1:8787:8787"
     volumes:
       - ./reticulum:/reticulum
+      - ./lab-sender-reticulum:/lab-sender-reticulum
       - signal-relay-data:/data
     init: true
     read_only: true

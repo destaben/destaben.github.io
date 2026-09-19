@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 from collections import defaultdict, deque
+from dataclasses import dataclass
 from datetime import UTC, datetime
 import json
+import os
 from pathlib import Path
 import secrets
+import subprocess
+import sys
 import threading
 import time
 from typing import Any
@@ -13,6 +17,16 @@ from prometheus_client import CollectorRegistry, Counter, Gauge
 
 from .config import Settings
 from .telegram import TelegramNotifier
+
+
+@dataclass
+class LabSession:
+    expires_at: float
+    source_hash: str
+    destination_hash: str
+    state: str = "identity_ready"
+    error_code: str | None = None
+    sent_count: int = 0
 
 
 class RelayBridge:
@@ -30,6 +44,8 @@ class RelayBridge:
         self._delivery_destination: Any | None = None
         self.public_address: str | None = None
         self.inbox: list[dict[str, str]] = []
+        self._lab_sessions: dict[str, LabSession] = {}
+        self._lab_session_lock = threading.Lock()
         self.transport = "demo"
         self.state = "ready"
         self.metrics = CollectorRegistry()
@@ -82,6 +98,7 @@ class RelayBridge:
 
     def stop(self) -> None:
         self._clients.clear()
+        self._lab_sessions.clear()
 
     def health(self) -> dict[str, str]:
         return {
@@ -104,8 +121,121 @@ class RelayBridge:
     def contact(self) -> dict[str, str | None]:
         return {"scheme": "lxmf.delivery", "address": self.public_address}
 
+    def lab_capabilities(self) -> dict[str, bool]:
+        return {
+            "educationalSending": (
+                self.settings.lab_send_enabled
+                and self.settings.lab_sender_config_dir is not None
+                and self.transport == "reticulum"
+            ),
+            "telegramNotifications": self._telegram is not None,
+        }
+
     def inbox_notices(self) -> list[dict[str, str]]:
         return self.inbox
+
+    def create_lab_session(self) -> dict[str, str]:
+        if not self.settings.lab_send_enabled:
+            raise PermissionError("lab_disabled")
+        if self.transport != "reticulum" or self._delivery_destination is None:
+            raise RuntimeError("transport_unavailable")
+
+        session_id = secrets.token_urlsafe(24)
+        expires_at = time.monotonic() + 15 * 60
+        session = LabSession(
+            expires_at=expires_at,
+            source_hash="",
+            destination_hash=self.contact()["address"] or "",
+        )
+        with self._lab_session_lock:
+            self._clean_lab_sessions()
+            self._lab_sessions[session_id] = session
+        return self._lab_session_status(session_id, session)
+
+    def lab_session_status(self, session_id: str) -> dict[str, str]:
+        with self._lab_session_lock:
+            self._clean_lab_sessions()
+            session = self._lab_sessions.get(session_id)
+            if session is None:
+                raise KeyError("session_not_found")
+            return self._lab_session_status(session_id, session)
+
+    def send_lab_message(self, session_id: str, content: str) -> dict[str, str]:
+        if not self.settings.lab_send_enabled:
+            raise PermissionError("lab_disabled")
+        if self.transport != "reticulum" or self._router is None or self._delivery_destination is None:
+            raise RuntimeError("transport_unavailable")
+
+        with self._lab_session_lock:
+            self._clean_lab_sessions()
+            session = self._lab_sessions.get(session_id)
+            if session is None:
+                raise KeyError("session_not_found")
+            if session.sent_count >= 1:
+                raise ValueError("session_message_limit")
+            session.sent_count += 1
+            session.state = "queued"
+
+        if self.settings.lab_sender_config_dir is None:
+            self._set_lab_session_state(session_id, "failed", "lab_sender_unconfigured")
+            raise RuntimeError("lab_sender_unconfigured")
+
+        threading.Thread(
+            target=self._send_lab_message_from_isolated_runtime,
+            args=(session_id, content),
+            daemon=True,
+        ).start()
+        return self.lab_session_status(session_id)
+
+    def _send_lab_message_from_isolated_runtime(self, session_id: str, content: str) -> None:
+        config_dir = self.settings.lab_sender_config_dir
+        if config_dir is None:
+            return
+        source_root = Path(__file__).resolve().parent.parent
+        environment = os.environ.copy()
+        environment["PYTHONPATH"] = str(source_root) + os.pathsep + environment.get("PYTHONPATH", "")
+        try:
+            process = subprocess.run(
+                [sys.executable, "-m", "signal_relay.lab_sender", str(config_dir)],
+                input=json.dumps({"destinationHash": self.public_address, "content": content}),
+                text=True,
+                capture_output=True,
+                timeout=70,
+                check=False,
+                env=environment,
+            )
+            result = json.loads(process.stdout)
+            with self._lab_session_lock:
+                session = self._lab_sessions.get(session_id)
+                if session and result.get("sourceHash"):
+                    session.source_hash = result["sourceHash"]
+            self._set_lab_session_state(session_id, result.get("state", "failed"), result.get("errorCode") or None)
+        except (subprocess.TimeoutExpired, json.JSONDecodeError):
+            self._set_lab_session_state(session_id, "failed", "delivery_timeout")
+
+    def _set_lab_session_state(self, session_id: str, state: str, error_code: str | None = None) -> None:
+        with self._lab_session_lock:
+            session = self._lab_sessions.get(session_id)
+            if session and session.expires_at > time.monotonic():
+                session.state = state
+                session.error_code = error_code
+
+    def _clean_lab_sessions(self) -> None:
+        now = time.monotonic()
+        for session_id, session in list(self._lab_sessions.items()):
+            if session.expires_at <= now:
+                del self._lab_sessions[session_id]
+
+    @staticmethod
+    def _lab_session_status(session_id: str, session: LabSession) -> dict[str, str]:
+        return {
+            "sessionId": session_id,
+            "sourceHash": session.source_hash,
+            "destinationHash": session.destination_hash,
+            "state": session.state,
+            "errorCode": session.error_code or "",
+            "expiresInSeconds": str(max(0, int(session.expires_at - time.monotonic()))),
+        }
 
     def _on_lxmf_delivery(self, message: Any) -> None:
         self.record_incoming_message(message.content_as_string() or "")

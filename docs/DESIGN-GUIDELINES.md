@@ -25,6 +25,12 @@ The portfolio demonstrates David Estaben's engineering judgement through clear c
 - Web input requires a documented rate limit, input validation, abuse controls, retention period, and kill switch before it is enabled.
 - The GitHub Pages site remains static. Persistent APIs and WebSockets live behind a separate, HTTPS-only public endpoint.
 
+## Labs
+
+- Signal Relay is the only published lab. It has a localized title, explicit availability state, and technology tags.
+- Its educational wizard may show a temporary sender hash only to the browser session that created it. It must never imply a real delivery when the relay has not returned one.
+- A future lab needs its own component and public contract. It must not reuse Signal Relay endpoints or imply that it runs on the same host.
+
 ## Accessibility
 
 - Keep semantic landmarks, visible keyboard focus, skip navigation, and reduced-motion support.

@@ -1,0 +1,209 @@
+---
+import type { RelayLab } from "../data/portfolio";
+import { CircleCheck, KeyRound, LockKeyhole, MessageSquareText, Radio, Send, Smartphone, X } from "@lucide/astro";
+
+interface Props {
+  lab: RelayLab;
+  locale: "es" | "en";
+}
+
+const { lab, locale } = Astro.props;
+---
+
+<article class="lab-card relay-panel" data-lab-state={lab.status} aria-labelledby={`${lab.id}-title`} data-relay-panel data-relay-local-url="http://127.0.0.1:8787" data-relay-production-url="https://lab.info.destaben.dev" data-copied-label={lab.copiedLabel} data-online-label={lab.onlineLabel} data-offline-label={lab.offlineLabel} data-preparing-label={lab.wizard.preparingLabel} data-unavailable-label={lab.wizard.unavailableLabel} data-queued-label={lab.wizard.queuedLabel} data-delivered-label={lab.wizard.deliveredLabel} data-failed-label={lab.wizard.failedLabel} data-route-waiting-label={lab.wizard.routeWaitingLabel} data-route-source-ready-label={lab.wizard.routeSourceReadyLabel} data-route-encrypted-label={lab.wizard.routeEncryptedLabel} data-route-routing-label={lab.wizard.routeRoutingLabel} data-route-received-label={lab.wizard.routeReceivedLabel} data-route-confirmed-label={lab.wizard.routeConfirmedLabel} data-route-delivery-failed-label={lab.wizard.routeDeliveryFailedLabel} data-route-outbound-failed-label={lab.wizard.routeOutboundFailedLabel} data-route-unknown-failed-label={lab.wizard.routeUnknownFailedLabel} data-telegram-configured-label={lab.wizard.telegramConfiguredLabel}>
+  <div class="lab-card-header">
+    <p class="lab-status">{lab.statusLabel}</p>
+    <span class="relay-availability" data-relay-availability data-state="checking" role="status"><span data-relay-status-dot></span><span data-relay-status-text>{lab.checkingLabel}</span></span>
+  </div>
+  <h3 id={`${lab.id}-title`}>{lab.title}</h3>
+  <p>{lab.summary}</p>
+  <div class="tag-list">{lab.technologies.map((technology) => <span class="tag">{technology}</span>)}</div>
+  <div class="relay-address"><div><p class="relay-label">{lab.addressLabel}</p><code data-relay-address>{lab.addressPending}</code></div><button type="button" data-copy-address aria-label={locale === "es" ? "Copiar dirección LXMF" : "Copy LXMF address"} disabled>{lab.copyLabel}</button></div>
+  <button class="relay-explore-button" type="button" data-open-wizard><MessageSquareText size={17} aria-hidden="true" />{lab.wizard.openLabel}</button>
+  <div class="relay-inbox"><p class="relay-label">{lab.inboxLabel}</p><ul data-relay-inbox aria-live="polite"><li>{lab.inboxEmpty}</li></ul><p class="relay-note">{lab.inboxNote}</p></div>
+</article>
+
+<dialog class="relay-dialog" data-relay-dialog aria-labelledby={`${lab.id}-wizard-title`}>
+  <div class="relay-dialog-surface">
+    <form method="dialog" class="relay-dialog-close"><button type="submit" aria-label={lab.wizard.closeLabel} title={lab.wizard.closeLabel}><X size={19} aria-hidden="true" /></button></form>
+    <header class="relay-wizard-heading"><p class="relay-label">{lab.wizard.title}</p><h4 id={`${lab.id}-wizard-title`}>{lab.wizard.copy}</h4></header>
+    <ol class="relay-route" aria-label={lab.wizard.title}>{lab.wizard.steps.map((step, index) => <li class="relay-route-step" data-route-step={index} data-state="waiting"><span class="relay-route-marker">{index === 0 ? <KeyRound size={20} aria-hidden="true" /> : index === 1 ? <Radio size={20} aria-hidden="true" /> : index === 2 ? <LockKeyhole size={20} aria-hidden="true" /> : <CircleCheck size={20} aria-hidden="true" />}</span><div><strong>{step}</strong><span data-route-state>{lab.wizard.routeWaitingLabel}</span></div></li>)}</ol>
+    <div class="relay-route-details">
+      <article><KeyRound size={19} aria-hidden="true" /><div><p>{lab.wizard.sourceLabel}</p><code data-relay-source>{lab.wizard.sourcePending}</code></div></article>
+      <article><Radio size={19} aria-hidden="true" /><div><p>{lab.wizard.destinationLabel}</p><code data-relay-destination>{lab.addressPending}</code></div></article>
+      <article><Smartphone size={19} aria-hidden="true" /><div><p>{lab.wizard.telegramLabel}</p><strong data-telegram-status>{lab.wizard.telegramUnavailableLabel}</strong><span>{lab.wizard.telegramCopy}</span></div></article>
+    </div>
+    <form class="relay-message-form" data-relay-message-form>
+      <label>{lab.wizard.messageLabel}<textarea data-relay-message maxlength="280" placeholder={lab.wizard.messagePlaceholder} required></textarea></label>
+      <div><button type="submit"><Send size={16} aria-hidden="true" />{lab.wizard.sendLabel}</button><p data-relay-session-status role="status"></p></div>
+    </form>
+  </div>
+</dialog>
+
+<script>
+  const relayPanel = document.querySelector<HTMLElement>("[data-relay-panel]");
+  if (relayPanel) {
+    type InboxMessage = { content?: string; receivedAt: string };
+    const localHosts = new Set(["127.0.0.1", "localhost"]);
+    const relayUrl = localHosts.has(window.location.hostname) ? relayPanel.dataset.relayLocalUrl : relayPanel.dataset.relayProductionUrl;
+    const address = relayPanel.querySelector<HTMLElement>("[data-relay-address]");
+    const inbox = relayPanel.querySelector<HTMLElement>("[data-relay-inbox]");
+    const copyButton = relayPanel.querySelector<HTMLButtonElement>("[data-copy-address]");
+    const availability = relayPanel.querySelector<HTMLElement>("[data-relay-availability]");
+    const availabilityText = relayPanel.querySelector<HTMLElement>("[data-relay-status-text]");
+    const openWizardButton = relayPanel.querySelector<HTMLButtonElement>("[data-open-wizard]");
+    const dialog = document.querySelector<HTMLDialogElement>("[data-relay-dialog]");
+    const sessionStatus = dialog?.querySelector<HTMLElement>("[data-relay-session-status]");
+    const source = dialog?.querySelector<HTMLElement>("[data-relay-source]");
+    const destination = dialog?.querySelector<HTMLElement>("[data-relay-destination]");
+    const telegramStatus = dialog?.querySelector<HTMLElement>("[data-telegram-status]");
+    const messageForm = dialog?.querySelector<HTMLFormElement>("[data-relay-message-form]");
+    const messageInput = dialog?.querySelector<HTMLTextAreaElement>("[data-relay-message]");
+    const routeSteps = Array.from(dialog?.querySelectorAll<HTMLElement>("[data-route-step]") || []);
+    let sessionId: string | undefined;
+
+    const setRelayAvailability = (isOnline: boolean) => {
+      if (availability) availability.dataset.state = isOnline ? "online" : "offline";
+      if (availabilityText) availabilityText.textContent = isOnline ? relayPanel.dataset.onlineLabel || "Signal Relay online" : relayPanel.dataset.offlineLabel || "Signal Relay offline";
+    };
+
+    const renderInbox = (inboxData: { messages?: InboxMessage[] }) => {
+      const messages = Array.isArray(inboxData.messages) ? inboxData.messages : [];
+      if (inbox && messages.length) inbox.replaceChildren(...messages.map((message) => {
+        const item = document.createElement("li");
+        const body = document.createElement("span");
+        body.textContent = message.content || "(empty message)";
+        const timestamp = document.createElement("time");
+        timestamp.dateTime = message.receivedAt;
+        timestamp.textContent = new Date(message.receivedAt).toLocaleString();
+        item.replaceChildren(body, timestamp);
+        return item;
+      }));
+    };
+
+    const refreshInbox = async () => {
+      if (!relayUrl) return;
+      try {
+        const response = await fetch(`${relayUrl}/v1/inbox`);
+        if (response.ok) renderInbox(await response.json());
+      } catch {
+        // The availability request remains the source of the relay health state.
+      }
+    };
+
+    if (relayUrl) {
+      Promise.all([fetch(`${relayUrl}/healthz`), fetch(`${relayUrl}/v1/contact`), fetch(`${relayUrl}/v1/inbox`), fetch(`${relayUrl}/v1/lab/capabilities`)])
+        .then(([healthResponse, contactResponse, inboxResponse, capabilitiesResponse]) => healthResponse.ok && contactResponse.ok && inboxResponse.ok ? Promise.all([healthResponse.json(), contactResponse.json(), inboxResponse.json(), capabilitiesResponse.ok ? capabilitiesResponse.json() : { telegramNotifications: false }]) : Promise.reject())
+        .then(([health, contact, inboxData, capabilities]) => {
+          setRelayAvailability(health.status === "ready");
+          if (address && contact.address) {
+            address.textContent = contact.address;
+            if (destination) destination.textContent = contact.address;
+            if (copyButton) copyButton.disabled = false;
+          }
+          renderInbox(inboxData);
+          if (telegramStatus && capabilities.telegramNotifications) telegramStatus.textContent = relayPanel.dataset.telegramConfiguredLabel || "Telegram configured";
+        })
+        .catch(() => setRelayAvailability(false));
+      window.setInterval(refreshInbox, 10_000);
+    }
+
+    copyButton?.addEventListener("click", async () => {
+      if (!address || !address.textContent || copyButton.disabled) return;
+      await navigator.clipboard.writeText(address.textContent);
+      copyButton.textContent = relayPanel.dataset.copiedLabel || "Copied";
+    });
+
+    const renderRoute = (state: string, errorCode = "") => {
+      const setStep = (index: number, stepState: "waiting" | "active" | "complete" | "failed", label: string) => {
+        const step = routeSteps[index];
+        if (!step) return;
+        step.dataset.state = stepState;
+        const status = step.querySelector<HTMLElement>("[data-route-state]");
+        if (status) status.textContent = label;
+      };
+      const labels = relayPanel.dataset;
+      setStep(0, state === "identity_ready" || state === "queued" || state === "delivered" || state === "failed" ? "complete" : "waiting", labels.routeSourceReadyLabel || "Ready");
+      setStep(1, state === "delivered" ? "complete" : state === "failed" ? "failed" : state === "queued" ? "active" : "waiting", state === "delivered" ? labels.routeReceivedLabel || "Received" : state === "failed" ? (errorCode === "outbound_error" ? labels.routeOutboundFailedLabel : errorCode === "delivery_failed" ? labels.routeDeliveryFailedLabel : labels.routeUnknownFailedLabel) || "Delivery failed" : state === "queued" ? labels.routeRoutingLabel || "Routing" : labels.routeWaitingLabel || "Waiting");
+      setStep(2, state === "queued" || state === "delivered" ? "complete" : "waiting", state === "queued" || state === "delivered" ? labels.routeEncryptedLabel || "Encrypted" : labels.routeWaitingLabel || "Waiting");
+      setStep(3, state === "delivered" ? "complete" : state === "failed" ? "failed" : state === "queued" ? "active" : "waiting", state === "delivered" ? labels.routeConfirmedLabel || "Confirmed" : state === "failed" ? (errorCode === "outbound_error" ? labels.routeOutboundFailedLabel : errorCode === "delivery_failed" ? labels.routeDeliveryFailedLabel : labels.routeUnknownFailedLabel) || "Delivery failed" : state === "queued" ? labels.routeRoutingLabel || "Routing" : labels.routeWaitingLabel || "Waiting");
+    };
+
+    const setSessionState = (state: string, errorCode = "") => {
+      if (!sessionStatus) return;
+      const labels: Record<string, string | undefined> = {
+        queued: relayPanel.dataset.queuedLabel,
+        delivered: relayPanel.dataset.deliveredLabel,
+        failed: relayPanel.dataset.failedLabel,
+      };
+      sessionStatus.textContent = labels[state] || state;
+      sessionStatus.dataset.state = state;
+      renderRoute(state, errorCode);
+    };
+
+    const displaySession = (session: { sessionId: string; sourceHash: string; destinationHash: string; state: string; errorCode?: string }) => {
+      sessionId = session.sessionId;
+      if (source) source.textContent = session.sourceHash;
+      if (destination) destination.textContent = session.destinationHash;
+      setSessionState(session.state, session.errorCode);
+    };
+
+    const pollSession = () => {
+      if (!relayUrl || !sessionId) return;
+      const timer = window.setInterval(async () => {
+        try {
+          const response = await fetch(`${relayUrl}/v1/lab/sessions/${sessionId}`);
+          if (!response.ok) throw new Error();
+          const session = await response.json();
+          if (source && session.sourceHash) source.textContent = session.sourceHash;
+          setSessionState(session.state, session.errorCode);
+          if (session.state === "delivered" || session.state === "failed") {
+            window.clearInterval(timer);
+            if (session.state === "delivered") refreshInbox();
+          }
+        } catch {
+          window.clearInterval(timer);
+          setSessionState("failed", "outbound_error");
+        }
+      }, 2000);
+    };
+
+    const createSession = async () => {
+      if (!relayUrl) return false;
+      if (sessionStatus) sessionStatus.textContent = relayPanel.dataset.preparingLabel || "Preparing session";
+      try {
+        const response = await fetch(`${relayUrl}/v1/lab/sessions`, { method: "POST" });
+        if (!response.ok) throw new Error();
+        displaySession(await response.json());
+        return true;
+      } catch {
+        if (sessionStatus) sessionStatus.textContent = relayPanel.dataset.unavailableLabel || "Educational sending is unavailable";
+        return false;
+      }
+    };
+
+    openWizardButton?.addEventListener("click", () => dialog?.showModal());
+
+    messageForm?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!relayUrl || !messageInput) return;
+      if (!sessionId && !(await createSession())) return;
+      const response = await fetch(`${relayUrl}/v1/lab/sessions/${sessionId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: messageInput.value }),
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        setSessionState("failed", error.detail || "outbound_error");
+        return;
+      }
+      const session = await response.json();
+      setSessionState(session.state, session.errorCode);
+      if (session.state === "queued") pollSession();
+      messageInput.disabled = true;
+      const submit = messageForm.querySelector<HTMLButtonElement>("button[type='submit']");
+      if (submit) submit.disabled = true;
+    });
+  }
+</script>

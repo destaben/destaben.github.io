@@ -13,6 +13,8 @@ class Settings:
     storage_dir: Path
     telegram_bot_token: str | None
     telegram_chat_id: str | None
+    lab_send_enabled: bool = False
+    lab_sender_config_dir: Path | None = None
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -36,4 +38,8 @@ class Settings:
             storage_dir=Path(os.environ.get("SIGNAL_RELAY_STORAGE_DIR", "./data")),
             telegram_bot_token=telegram_bot_token,
             telegram_chat_id=telegram_chat_id,
+            lab_send_enabled=os.environ.get("SIGNAL_RELAY_LAB_SEND_ENABLED", "false").lower() == "true",
+            lab_sender_config_dir=Path(os.environ["SIGNAL_RELAY_LAB_SENDER_CONFIG_DIR"])
+            if os.environ.get("SIGNAL_RELAY_LAB_SENDER_CONFIG_DIR")
+            else None,
         )

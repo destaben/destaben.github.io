@@ -1,5 +1,61 @@
 export type Locale = "es" | "en";
 
+export type LabStatus = "active";
+
+interface LabBase {
+  id: string;
+  title: string;
+  summary: string;
+  status: LabStatus;
+  statusLabel: string;
+  technologies: string[];
+}
+
+export interface RelayLab extends LabBase {
+  kind: "relay";
+  addressLabel: string;
+  addressPending: string;
+  copyLabel: string;
+  copiedLabel: string;
+  checkingLabel: string;
+  onlineLabel: string;
+  offlineLabel: string;
+  inboxLabel: string;
+  inboxEmpty: string;
+  inboxNote: string;
+  wizard: {
+    title: string;
+    copy: string;
+    steps: [string, string, string, string];
+    openLabel: string;
+    closeLabel: string;
+    sourcePending: string;
+    sourceLabel: string;
+    destinationLabel: string;
+    messageLabel: string;
+    messagePlaceholder: string;
+    sendLabel: string;
+    preparingLabel: string;
+    unavailableLabel: string;
+    queuedLabel: string;
+    deliveredLabel: string;
+    failedLabel: string;
+    routeWaitingLabel: string;
+    routeSourceReadyLabel: string;
+    routeEncryptedLabel: string;
+    routeRoutingLabel: string;
+    routeReceivedLabel: string;
+    routeConfirmedLabel: string;
+    routeDeliveryFailedLabel: string;
+    routeOutboundFailedLabel: string;
+    routeUnknownFailedLabel: string;
+    telegramLabel: string;
+    telegramConfiguredLabel: string;
+    telegramUnavailableLabel: string;
+    telegramCopy: string;
+  };
+}
+
 export const profile = {
   name: "David Estaben",
   email: "estaben.sti@gmail.com",
@@ -22,7 +78,10 @@ export const portfolio = {
       { number: "02", title: "Plataformas que escalan", context: "Entornos de entrega y ejecución que evolucionan sin depender de pasos manuales ni conocimiento aislado.", decision: "Aplicar infraestructura como código, estándares de entrega y automatización que simplifican el cambio.", tags: ["Kubernetes", "Terraform", "CI/CD"] },
       { number: "03", title: "Cloud con criterio", context: "Experiencia en infraestructura, integración y optimización de costes en distintos entornos cloud.", decision: "Equilibrar disponibilidad, seguridad, coste y mantenibilidad en cada decisión técnica.", tags: ["Cloud", "FinOps", "Integración"] },
     ] },
-    lab: { label: "Contacto Reticulum", title: "Un canal directo, fuera de las plataformas habituales.", copy: "Cualquiera puede enviar un mensaje a esta dirección LXMF desde un cliente compatible con Reticulum. Cuando llegue, el texto aparecerá aquí junto a la hora de recepción. La identidad del remitente no se publica.", addressLabel: "Dirección LXMF", addressPending: "Dirección disponible al publicar el nodo", copyLabel: "Copiar", copiedLabel: "Copiada", checkingLabel: "Comprobando Signal Relay", onlineLabel: "Signal Relay online", offlineLabel: "Signal Relay offline", inboxLabel: "Mensajes recibidos", inboxEmpty: "Todavía no hay mensajes registrados.", inboxNote: "Los mensajes se muestran como texto plano y se conservan de forma limitada." },
+    lab: { label: "Laboratorio", title: "Reticulum explicado desde el recorrido de un mensaje.", copy: "Signal Relay es un punto de contacto LXMF autohospedado. El recorrido guiado puede crear una identidad temporal para esta prueba y muestra cómo se prepara un mensaje antes de emitirlo." },
+    labs: [
+      { id: "signal-relay", kind: "relay", title: "Signal Relay", summary: "Un punto de contacto LXMF autohospedado para recibir mensajes desde clientes compatibles con Reticulum.", status: "active", statusLabel: "Activo", technologies: ["Reticulum", "LXMF", "FastAPI"], addressLabel: "Dirección LXMF", addressPending: "Dirección disponible al publicar el nodo", copyLabel: "Copiar", copiedLabel: "Copiada", checkingLabel: "Comprobando Signal Relay", onlineLabel: "Signal Relay online", offlineLabel: "Signal Relay offline", inboxLabel: "Mensajes recibidos", inboxEmpty: "Todavía no hay mensajes registrados.", inboxNote: "Los mensajes se muestran como texto plano y se conservan de forma limitada.", wizard: { title: "Recorrido LXMF", copy: "La identidad temporal se crea sólo al enviar esta prueba. El navegador no recibe claves privadas ni se conecta directamente a Reticulum.", steps: ["Origen temporal", "Destino LXMF", "Cifrado", "Confirmación"], openLabel: "Explorar recorrido LXMF", closeLabel: "Cerrar recorrido", sourcePending: "Se crea al enviar la prueba", sourceLabel: "Origen temporal", destinationLabel: "Destino de David", messageLabel: "Nota para esta prueba", messagePlaceholder: "Escribe un mensaje breve", sendLabel: "Enviar prueba", preparingLabel: "Preparando sesión segura", unavailableLabel: "El envío educativo no está habilitado en este relay.", queuedLabel: "Mensaje en cola", deliveredLabel: "Entrega confirmada", failedLabel: "No se pudo entregar", routeWaitingLabel: "Pendiente", routeSourceReadyLabel: "Identidad temporal preparada", routeEncryptedLabel: "Mensaje cifrado por LXMF", routeRoutingLabel: "Esperando acuse de la ruta", routeReceivedLabel: "Recibido por Signal Relay", routeConfirmedLabel: "Acuse LXMF confirmado", routeDeliveryFailedLabel: "El destino no confirmó la entrega", routeOutboundFailedLabel: "El relay no pudo emitir el mensaje", routeUnknownFailedLabel: "La entrega terminó con un error", telegramLabel: "Aviso Telegram", telegramConfiguredLabel: "Telegram configurado", telegramUnavailableLabel: "Telegram no configurado", telegramCopy: "Cuando el relay recibe el mensaje, puede enviar un aviso privado por Telegram." } },
+    ] satisfies RelayLab[],
     experience: { label: "Trayectoria", title: "Experiencia en software, cloud y operaciones.", items: [
       { period: "2021 - hoy", role: "Software Developer / SRE", company: "adidas", focus: "Observabilidad, automatización y orquestación." },
       { period: "2020 - 2021", role: "Cloud Engineer", company: "NTT Data", focus: "Infraestructura, optimización de costes e integración." },
@@ -43,7 +102,10 @@ export const portfolio = {
       { number: "02", title: "Platforms that scale", context: "Delivery and runtime environments that can evolve without manual steps or isolated knowledge.", decision: "Apply infrastructure as code, delivery standards, and automation that make change easier.", tags: ["Kubernetes", "Terraform", "CI/CD"] },
       { number: "03", title: "Cloud with judgement", context: "Experience across infrastructure, integration, and cost optimisation in varied cloud environments.", decision: "Balance availability, security, cost, and maintainability in every technical decision.", tags: ["Cloud", "FinOps", "Integration"] },
     ] },
-    lab: { label: "Reticulum contact", title: "A direct channel beyond the usual platforms.", copy: "Anyone can send a message to this LXMF address from a Reticulum-compatible client. When it arrives, its text appears here with the arrival time. Sender identity is not made public.", addressLabel: "LXMF address", addressPending: "Address available once the node is published", copyLabel: "Copy", copiedLabel: "Copied", checkingLabel: "Checking Signal Relay", onlineLabel: "Signal Relay online", offlineLabel: "Signal Relay offline", inboxLabel: "Received messages", inboxEmpty: "No messages have been recorded yet.", inboxNote: "Messages are shown as plain text and retained for a limited time." },
+    lab: { label: "Lab", title: "Reticulum explained through a message journey.", copy: "Signal Relay is a self-hosted LXMF contact point. The guided journey can create a temporary identity for this test and shows how a message is prepared before it is emitted." },
+    labs: [
+      { id: "signal-relay", kind: "relay", title: "Signal Relay", summary: "A self-hosted LXMF contact point for receiving messages from Reticulum-compatible clients.", status: "active", statusLabel: "Active", technologies: ["Reticulum", "LXMF", "FastAPI"], addressLabel: "LXMF address", addressPending: "Address available once the node is published", copyLabel: "Copy", copiedLabel: "Copied", checkingLabel: "Checking Signal Relay", onlineLabel: "Signal Relay online", offlineLabel: "Signal Relay offline", inboxLabel: "Received messages", inboxEmpty: "No messages have been recorded yet.", inboxNote: "Messages are shown as plain text and retained for a limited time.", wizard: { title: "LXMF journey", copy: "The temporary identity is created only when this test is sent. The browser never receives private keys or connects directly to Reticulum.", steps: ["Temporary source", "LXMF destination", "Encryption", "Confirmation"], openLabel: "Explore the LXMF journey", closeLabel: "Close journey", sourcePending: "Created when the test is sent", sourceLabel: "Temporary source", destinationLabel: "David's destination", messageLabel: "Note for this test", messagePlaceholder: "Write a short message", sendLabel: "Send test", preparingLabel: "Preparing secure session", unavailableLabel: "Educational sending is not enabled on this relay.", queuedLabel: "Message queued", deliveredLabel: "Delivery confirmed", failedLabel: "Delivery failed", routeWaitingLabel: "Waiting", routeSourceReadyLabel: "Temporary identity prepared", routeEncryptedLabel: "Message encrypted by LXMF", routeRoutingLabel: "Waiting for route acknowledgement", routeReceivedLabel: "Received by Signal Relay", routeConfirmedLabel: "LXMF acknowledgement confirmed", routeDeliveryFailedLabel: "The destination did not confirm delivery", routeOutboundFailedLabel: "The relay could not emit the message", routeUnknownFailedLabel: "Delivery ended with an error", telegramLabel: "Telegram notice", telegramConfiguredLabel: "Telegram configured", telegramUnavailableLabel: "Telegram not configured", telegramCopy: "When the relay receives the message, it can send a private Telegram notification." } },
+    ] satisfies RelayLab[],
     experience: { label: "Experience", title: "Experience across software, cloud, and operations.", items: [
       { period: "2021 - present", role: "Software Developer / SRE", company: "adidas", focus: "Observability, automation, and orchestration." },
       { period: "2020 - 2021", role: "Cloud Engineer", company: "NTT Data", focus: "Infrastructure, cost optimisation, and integration." },
