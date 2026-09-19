@@ -51,6 +51,13 @@ const { lab } = Astro.props;
     let visible = new Set<string>();
 
     const formatValue = (value: number) => metric === "cpu" ? `${(value * 100).toFixed(value < .1 ? 2 : 1)}%` : `${(value / 1024 / 1024).toFixed(0)} MiB`;
+    const scaleCeiling = (peak: number) => {
+      const target = Math.max(peak * 1.15, metric === "cpu" ? 0.005 : 1);
+      const magnitude = 10 ** Math.floor(Math.log10(target));
+      const normalized = target / magnitude;
+      const step = [1, 2, 2.5, 5, 10].find((candidate) => normalized <= candidate) || 10;
+      return step * magnitude;
+    };
     const dateInputValue = (timestamp: number) => {
       const date = new Date(timestamp * 1000);
       const pad = (value: number) => String(value).padStart(2, "0");
@@ -65,7 +72,7 @@ const { lab } = Astro.props;
       if (!chart) return;
       if (!active.length) { chart.textContent = panel.dataset.noDataLabel || "No samples"; return; }
       const points = active.flatMap((series) => series.values);
-      const max = Math.max(...points.map(([, value]) => value), 1);
+      const max = scaleCeiling(Math.max(...points.map(([, value]) => value)));
       const duration = end - start;
       const pathFor = (series: Series) => series.values.map(([time, value], index) => `${index ? "L" : "M"}${48 + ((time - start) / duration) * 780},${190 - (value / max) * 152}`).join(" ");
       const formatter = new Intl.DateTimeFormat(document.documentElement.lang, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
