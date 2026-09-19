@@ -143,6 +143,10 @@ def test_received_source_hash_confirms_matching_lab_session(tmp_path):
             return "Hello from Reticulum"
 
     bridge._on_lxmf_delivery(IncomingMessage(source_hash))
+    bridge._complete_lab_session(
+        "session",
+        {"sourceHash": source_hash, "state": "failed", "errorCode": "delivery_timeout"},
+    )
 
     assert bridge.inbox_notices()[0]["sourceHash"] == source_hash
     assert bridge.lab_session_status("session")["sourceHash"] == source_hash

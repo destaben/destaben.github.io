@@ -31,6 +31,7 @@ class LabSession:
     state: str = "identity_ready"
     error_code: str | None = None
     sent_count: int = 0
+    delivery_observed: bool = False
 
 
 class RelayBridge:
@@ -233,7 +234,7 @@ class RelayBridge:
             delivered_to_inbox = bool(source_hash) and any(
                 notice.get("sourceHash") == source_hash for notice in self.inbox
             )
-            if session.state == "delivered" or delivered_to_inbox:
+            if session.delivery_observed or session.state == "delivered" or delivered_to_inbox:
                 session.state = "delivered"
                 session.error_code = None
                 return
@@ -254,6 +255,7 @@ class RelayBridge:
                 if session.expires_at > time.monotonic() and (session_id or session.source_hash == source_hash):
                     if source_hash:
                         session.source_hash = source_hash
+                    session.delivery_observed = True
                     session.state = "delivered"
                     session.error_code = None
                     delivery_observed = True
