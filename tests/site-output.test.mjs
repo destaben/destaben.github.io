@@ -38,7 +38,8 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /Reticulum online/);
   assert.match(spanish, /abr 2021 - hoy/);
   assert.match(spanish, /Senior DevOps Engineer/);
-  assert.match(spanish, /Orbe Telecomunicaciones, S\.L\./);
+  assert.match(spanish, /NTT/);
+  assert.match(spanish, /Orbe/);
   assert.match(spanish, /mar 2012 - jun 2017/);
   assert.match(english, /Reticulum address/);
   assert.match(english, /Systems explained through use\./);
@@ -47,6 +48,8 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(english, /data-inbox-source-label="Source ID"/);
   assert.match(english, /Apr 2021 - present/);
   assert.match(english, /Systems Integrator/);
+  assert.match(english, /NTT/);
+  assert.match(english, /Orbe/);
   assert.match(english, /Mar 2012 - Jun 2017/);
   assert.doesNotMatch(spanish, /Simulador de coste y fiabilidad/);
   assert.match(english, /Service observability/);
@@ -57,6 +60,9 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(english, /Air quality/);
   assert.doesNotMatch(spanish, /profile\.jpg/);
   assert.doesNotMatch(english, /Portrait of/);
+  assert.match(spanish, /<dt>Red profesional<\/dt><dd><a /);
+  assert.doesNotMatch(spanish, /<footer class="shell site-footer">[\s\S]*?<a /);
+  assert.doesNotMatch(english, /<footer class="shell site-footer">[\s\S]*?<a /);
 });
 
 test("integrates projects and published technical notes into portfolio pages", async () => {
@@ -77,6 +83,7 @@ test("integrates projects and published technical notes into portfolio pages", a
   assert.match(englishArticle, /A browser is not a Reticulum client/);
   assert.match(englishArticle, /class="article-header"/);
   assert.match(englishArticle, /class="article-body"/);
+  assert.doesNotMatch(englishArticle, /<footer class="shell site-footer">[\s\S]*?<a /);
 });
 
 test("publishes a crawlable sitemap and RSS feed", async () => {

@@ -29,5 +29,5 @@ const date = new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", ye
   <main id="content" class="article-page">
     <article class="article-content shell"><header class="article-header"><p class="section-label">{copy.label}</p><h1>{post.data.title}</h1><p class="article-description">{post.data.description}</p><p class="period">{date.format(post.data.pubDate)}</p><div class="tag-list">{post.data.tags.map((tag: string) => <span class="tag">{tag}</span>)}</div></header><div class="article-body"><Content /></div></article>
   </main>
-  <footer class="shell site-footer"><p>{profile.name} / {content.footer}</p><div>{profile.socialLinks.map((link) => <a href={link.url} target="_blank" rel="noreferrer">{link.label}</a>)}</div></footer>
+  <footer class="shell site-footer"><p>{profile.name} / {content.footer}</p></footer>
 </BaseLayout>
