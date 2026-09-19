@@ -13,7 +13,7 @@ Source for [info.destaben.dev](https://info.destaben.dev), a bilingual static As
 - `src/components/`, `src/layouts/`, and `src/styles/` provide shared markup and presentation.
 - `src/data/portfolio.ts` contains localized portfolio content.
 - `src/lib/github.ts` fetches every public repository from `destaben` during each build.
-- `src/content/blog/` is reserved for future Markdown or MDX articles. The blog is intentionally not linked in the public navigation.
+- `src/content/blog/` contains localized Markdown or MDX technical notes published in the portfolio and RSS feed.
 - `public/` contains assets served unchanged, including `CNAME`, brand assets, and future downloadable files.
 - `docs/DESIGN-GUIDELINES.md` defines public content, branding, accessibility, and live-service rules.
 - `docs/SIGNAL-RELAY.md` defines the separate Reticulum bridge contract and self-hosted deployment boundary.
@@ -56,7 +56,7 @@ npm run preview
 
 Update the Spanish and English structured content in `src/data/portfolio.ts` together. Keep technical claims public, specific, and verifiable; do not add corporate or home-network details. The existing GitHub client can support a future project archive, but the landing page prioritizes selected engineering evidence.
 
-Add future articles as Markdown or MDX files in `src/content/blog/`, with `title`, `description`, `pubDate`, and optional `updatedDate` and `draft` frontmatter. Draft entries are excluded from the RSS feed. The feed is available at `/rss.xml`; add post routes and public navigation when articles are ready to publish.
+Add articles as Markdown or MDX files in `src/content/blog/`, with `title`, `description`, `locale`, and `pubDate` frontmatter; `tags`, `updatedDate`, and `draft` are optional. Published notes appear in the localized portfolio sections and at `/en/notes/<slug>/` or `/es/bitacora/<slug>/`. Draft entries are excluded from those routes and from `/rss.xml`.
 
 ## Signal Relay
 

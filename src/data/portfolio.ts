@@ -102,12 +102,12 @@ export const labSummaries: Record<Locale, Record<string, string>> = {
   es: {
     "signal-relay": "Un punto de contacto Reticulum autohospedado para recibir mensajes desde clientes compatibles. El recorrido guiado permite entender cómo se prepara, cifra y confirma una prueba antes de enviarla.",
     "container-metrics": "Uso de CPU y memoria agregado de los servicios de mi servidor personal, consultado a través de Prometheus. Puedes comparar ambos recursos, seleccionar servicios y revisar un intervalo concreto.",
-    "home-status": "Temperatura, humedad y calidad del aire interior como una lectura agregada del hogar. Sirve para consultar el estado actual sin publicar presencia, cámaras, dispositivos ni habitaciones.",
+    "home-status": "Temperatura, humedad y calidad del aire interior como una lectura agregada del hogar. Sirve para consultar el estado actual de mi hogar manteniendo la privacidad.",
   },
   en: {
     "signal-relay": "A self-hosted Reticulum contact point for receiving messages from compatible clients. The guided journey shows how a test is prepared, encrypted, and confirmed before it is sent.",
     "container-metrics": "Aggregated CPU and memory use from my personal server services, queried through Prometheus. Compare both resources, select services, and inspect a specific time range.",
-    "home-status": "Indoor temperature, humidity, and air quality as an aggregate home reading. Check the current state without publishing presence, cameras, devices, or rooms.",
+    "home-status": "Indoor temperature, humidity, and air quality as an aggregate home reading. Check the current state of my home while preserving privacy.",
   },
 };
 

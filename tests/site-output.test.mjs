@@ -26,7 +26,7 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /data-metrics-end/);
   assert.match(spanish, /metrics-time/);
   assert.match(spanish, /Monitorización y automatización del hogar/);
-  assert.match(spanish, /Sirve para consultar el estado actual sin publicar presencia, cámaras, dispositivos ni habitaciones\./);
+  assert.match(spanish, /Sirve para consultar el estado actual de mi hogar manteniendo la privacidad\./);
   assert.match(spanish, /data-home-status-panel/);
   assert.match(spanish, /Datos protegidos/);
   assert.match(spanish, /Calidad ambiental/);
@@ -52,7 +52,7 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(english, /Service observability/);
   assert.match(english, /Compare both resources, select services, and inspect a specific time range\./);
   assert.match(english, /Home monitoring and automation/);
-  assert.match(english, /Check the current state without publishing presence, cameras, devices, or rooms\./);
+  assert.match(english, /Check the current state of my home while preserving privacy\./);
   assert.match(english, /Protected data/);
   assert.match(english, /Air quality/);
   assert.doesNotMatch(spanish, /profile\.jpg/);
@@ -84,5 +84,8 @@ test("publishes a crawlable sitemap and RSS feed", async () => {
 
   assert.match(sitemap, /sitemap-/);
   assert.match(feed, /Reticulum/);
+  assert.match(feed, /https:\/\/info\.destaben\.dev\/en\/notes\/signal-relay\//);
+  assert.match(feed, /https:\/\/info\.destaben\.dev\/es\/bitacora\/signal-relay\//);
+  assert.doesNotMatch(feed, /\/posts\//);
   assert.match(notFound, /This route has no signal/);
 });
