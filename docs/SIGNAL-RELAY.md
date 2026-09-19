@@ -75,7 +75,7 @@ When enabled, `POST /v1/signals` accepts only a fixed action vocabulary. It does
 
 ## Deployment
 
-Run Reticulum, the bridge, and the tunnel under separate unprivileged service accounts or containers. Use an outbound HTTPS tunnel; do not forward residential ports and do not expose Reticulum's TCP interface. Keep secrets, Telegram credentials, and Reticulum identities outside Git and rotate tunnel credentials.
+Run Reticulum, the bridge, and the tunnel under separate unprivileged service accounts or containers. The Compose deployment runs `cloudflare/cloudflared` as a separate sidecar and reads `CLOUDFLARE_TUNNEL_TOKEN` only from the ignored `.env` file. Create the remotely managed tunnel in Cloudflare Zero Trust and map `lab.info.destaben.dev` to `http://signal-relay:8787`; do not forward residential ports or expose Reticulum's TCP interface. Keep secrets, Telegram credentials, and Reticulum identities outside Git and rotate tunnel credentials.
 
 The default `AutoInterface` supports local discovery only. For off-LAN LXMF delivery, configure a trusted Reticulum transport interface that both peers can reach. Announcing a destination alone does not create an Internet route.
 

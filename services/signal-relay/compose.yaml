@@ -31,5 +31,22 @@ services:
       retries: 3
       start_period: 15s
 
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    pull_policy: always
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN in .env}
+    depends_on:
+      signal-relay:
+        condition: service_healthy
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+
 volumes:
   signal-relay-data:

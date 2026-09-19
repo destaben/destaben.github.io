@@ -56,7 +56,7 @@ chmod 600 .env
 sudo chown 10001:10001 reticulum lab-sender-reticulum
 ```
 
-Set `SIGNAL_RELAY_TELEGRAM_BOT_TOKEN` and `SIGNAL_RELAY_TELEGRAM_CHAT_ID` in `.env` when Telegram notifications are required. Start and update the service with:
+Set `SIGNAL_RELAY_TELEGRAM_BOT_TOKEN` and `SIGNAL_RELAY_TELEGRAM_CHAT_ID` in `.env` when Telegram notifications are required. In Cloudflare Zero Trust, create a remotely managed tunnel and assign `lab.info.destaben.dev` to `http://signal-relay:8787`. Copy its token into `.env` as `CLOUDFLARE_TUNNEL_TOKEN`; do not quote it in shell output or commit it. Start and update the service with:
 
 ```sh
 docker compose pull
@@ -64,7 +64,7 @@ docker compose up -d
 docker compose ps
 ```
 
-The Compose file binds the HTTP API to `127.0.0.1:8787` only. Put a reverse proxy or outbound HTTPS tunnel in front of it if the portfolio needs browser access. The `reticulum/` directory contains the persistent Reticulum configuration; the named volume retains the LXMF identity and inbox across image upgrades.
+The Compose file binds the HTTP API to `127.0.0.1:8787` only. Its `cloudflared` sidecar creates the outbound HTTPS tunnel when `CLOUDFLARE_TUNNEL_TOKEN` is set. The `reticulum/` directory contains the persistent Reticulum configuration; the named volume retains the LXMF identity and inbox across image upgrades.
 
 Keep the optional `lab-sender-reticulum/` configuration separate and give it an interface that reaches the relay's configured transport. Leave `SIGNAL_RELAY_LAB_SEND_ENABLED=false` until that route and the public anti-bot control are verified.
 
