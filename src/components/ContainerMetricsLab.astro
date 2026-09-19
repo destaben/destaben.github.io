@@ -21,6 +21,11 @@ const { lab } = Astro.props;
       <button type="button" data-offset="1" aria-label={lab.nextLabel} title={lab.nextLabel}><ChevronRight size={17} aria-hidden="true" /></button>
     </div>
   </div>
+  <form class="metrics-range" data-metrics-range>
+    <label>{lab.startLabel}<input type="datetime-local" data-metrics-start required /></label>
+    <label>{lab.endLabel}<input type="datetime-local" data-metrics-end required /></label>
+    <button type="submit">{lab.applyLabel}</button>
+  </form>
   <div class="metrics-chart" data-metrics-chart role="img" aria-live="polite"></div>
   <fieldset class="metrics-services"><legend>{lab.servicesLabel}</legend><div data-metrics-services></div></fieldset>
 </article>
@@ -34,23 +39,42 @@ const { lab } = Astro.props;
     const chart = panel.querySelector<HTMLElement>("[data-metrics-chart]");
     const services = panel.querySelector<HTMLElement>("[data-metrics-services]");
     const windowLabel = panel.querySelector<HTMLElement>("[data-metrics-window]");
+    const rangeForm = panel.querySelector<HTMLFormElement>("[data-metrics-range]");
+    const startInput = panel.querySelector<HTMLInputElement>("[data-metrics-start]");
+    const endInput = panel.querySelector<HTMLInputElement>("[data-metrics-end]");
     const colors = ["#d8f04b", "#ff7955", "#577075", "#0b1f23", "#198754", "#b28a20"];
     const range = 6 * 60 * 60;
     let metric = "cpu";
     let end = Math.floor(Date.now() / 1000);
+    let start = end - range;
     let allSeries: Series[] = [];
     let visible = new Set<string>();
 
     const formatValue = (value: number) => metric === "cpu" ? `${(value * 100).toFixed(value < .1 ? 2 : 1)}%` : `${(value / 1024 / 1024).toFixed(0)} MiB`;
+    const dateInputValue = (timestamp: number) => {
+      const date = new Date(timestamp * 1000);
+      const pad = (value: number) => String(value).padStart(2, "0");
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    };
+    const syncRangeInputs = () => {
+      if (startInput) startInput.value = dateInputValue(start);
+      if (endInput) endInput.value = dateInputValue(end);
+    };
     const render = () => {
       const active = allSeries.filter((series) => visible.has(series.name));
       if (!chart) return;
       if (!active.length) { chart.textContent = panel.dataset.noDataLabel || "No samples"; return; }
       const points = active.flatMap((series) => series.values);
       const max = Math.max(...points.map(([, value]) => value), 1);
-      const minTime = end - range;
-      const pathFor = (series: Series) => series.values.map(([time, value], index) => `${index ? "L" : "M"}${48 + ((time - minTime) / range) * 780},${202 - (value / max) * 164}`).join(" ");
-      chart.innerHTML = `<svg viewBox="0 0 860 230" preserveAspectRatio="none" aria-hidden="true"><path class="metrics-grid-line" d="M48 38H828M48 120H828M48 202H828"/><path class="metrics-axis" d="M48 22V202H828"/>${active.map((series, index) => `<path class="metrics-line" style="stroke:${colors[index % colors.length]}" d="${pathFor(series)}"/>`).join("")}<text x="0" y="42">${formatValue(max)}</text><text x="18" y="206">0</text></svg>`;
+      const duration = end - start;
+      const pathFor = (series: Series) => series.values.map(([time, value], index) => `${index ? "L" : "M"}${48 + ((time - start) / duration) * 780},${190 - (value / max) * 152}`).join(" ");
+      const formatter = new Intl.DateTimeFormat(document.documentElement.lang, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+      const ticks = Array.from({ length: 5 }, (_, index) => {
+        const time = start + (duration * index) / 4;
+        const x = 48 + (780 * index) / 4;
+        return `<text class="metrics-time" x="${x}" y="218" text-anchor="${index === 0 ? "start" : index === 4 ? "end" : "middle"}">${formatter.format(new Date(time * 1000))}</text>`;
+      }).join("");
+      chart.innerHTML = `<svg viewBox="0 0 860 240" preserveAspectRatio="none" aria-hidden="true"><path class="metrics-grid-line" d="M48 38H828M48 114H828M48 190H828"/><path class="metrics-axis" d="M48 22V190H828"/>${active.map((series, index) => `<path class="metrics-line" style="stroke:${colors[index % colors.length]}" d="${pathFor(series)}"/>`).join("")}<text x="0" y="42">${formatValue(max)}</text><text x="18" y="194">0</text>${ticks}</svg>`;
     };
     const renderServices = () => {
       if (!services) return;
@@ -70,7 +94,6 @@ const { lab } = Astro.props;
     const load = async () => {
       if (!baseUrl || !chart) return;
       chart.textContent = panel.dataset.loadingLabel || "Loading";
-      const start = end - range;
       try {
         const response = await fetch(`${baseUrl}/v1/lab/metrics?metric=${metric}&start=${start}&end=${end}&step=120`);
         if (!response.ok) throw new Error();
@@ -83,7 +106,16 @@ const { lab } = Astro.props;
       } catch { chart.textContent = panel.dataset.unavailableLabel || "Metrics unavailable"; }
     };
     panel.querySelectorAll<HTMLButtonElement>("[data-metric]").forEach((button) => button.addEventListener("click", () => { metric = button.dataset.metric || "cpu"; panel.querySelectorAll("[data-metric]").forEach((item) => item.setAttribute("aria-pressed", String(item === button))); load(); }));
-    panel.querySelectorAll<HTMLButtonElement>("[data-offset]").forEach((button) => button.addEventListener("click", () => { const offset = Number(button.dataset.offset); end = offset === 0 ? Math.floor(Date.now() / 1000) : Math.min(Math.floor(Date.now() / 1000), end + offset * range); load(); }));
+    rangeForm?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const requestedStart = startInput?.valueAsNumber ? Math.floor(startInput.valueAsNumber / 1000) : NaN;
+      const requestedEnd = endInput?.valueAsNumber ? Math.floor(endInput.valueAsNumber / 1000) : NaN;
+      const now = Math.floor(Date.now() / 1000);
+      if (!Number.isFinite(requestedStart) || !Number.isFinite(requestedEnd) || requestedStart >= requestedEnd || requestedEnd > now || requestedEnd - requestedStart > 604800) return;
+      start = requestedStart; end = requestedEnd; load();
+    });
+    panel.querySelectorAll<HTMLButtonElement>("[data-offset]").forEach((button) => button.addEventListener("click", () => { const offset = Number(button.dataset.offset); const duration = end - start; end = offset === 0 ? Math.floor(Date.now() / 1000) : Math.min(Math.floor(Date.now() / 1000), end + offset * duration); start = end - duration; syncRangeInputs(); load(); }));
+    syncRangeInputs();
     load();
   }
 </script>
