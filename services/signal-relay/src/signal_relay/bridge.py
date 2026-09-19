@@ -220,6 +220,8 @@ class RelayBridge:
         with self._lab_session_lock:
             session = self._lab_sessions.get(session_id)
             if session and session.expires_at > time.monotonic():
+                if session.delivery_observed and state == "failed":
+                    return
                 session.state = state
                 session.error_code = error_code
 
