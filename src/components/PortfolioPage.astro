@@ -1,0 +1,105 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { portfolio, profile, type Locale } from "../data/portfolio";
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const content = portfolio[locale];
+const sectionIds = locale === "es"
+  ? { work: "trabajo", lab: "laboratorio", experience: "trayectoria", contact: "contacto" }
+  : { work: "work", lab: "lab", experience: "experience", contact: "contact" };
+---
+
+<BaseLayout title={`David Estaben | ${locale === "es" ? "Sistemas y fiabilidad" : "Systems & Reliability"}`} description={content.description} locale={locale}>
+  <a class="skip-link" href="#content">{locale === "es" ? "Ir al contenido" : "Skip to content"}</a>
+  <header class="site-header">
+    <nav class="shell nav" aria-label={locale === "es" ? "Navegación principal" : "Primary navigation"}>
+      <a class="brand" href={`/${locale}/`} aria-label="David Estaben home">David Estaben</a>
+      <div class="nav-links">
+        {content.navigation.map((item) => <a href={item.href}>{item.label}</a>)}
+        <a href={locale === "es" ? "/es/proyectos/" : "/en/projects/"}>{content.archive.projects}</a>
+        <a href={locale === "es" ? "/es/bitacora/" : "/en/notes/"}>{content.archive.writing}</a>
+        <a class="language-link" href={content.switchHref} lang={locale === "es" ? "en" : "es"}>{content.switchLanguage}</a>
+      </div>
+    </nav>
+  </header>
+  <main id="content">
+    <section class="shell hero" aria-labelledby="hero-title">
+      <div class="hero-copy-wrap">
+        <p class="eyebrow"><span class="signal-dot"></span>{content.hero.eyebrow}</p>
+        <h1 id="hero-title">{content.hero.title}</h1>
+        <p class="hero-copy">{content.hero.copy}</p>
+        <div class="actions"><a class="button button-primary" href={`#${sectionIds.work}`}>{content.hero.primary}</a><a class="button" href={`#${sectionIds.lab}`}>{content.hero.secondary}</a></div>
+        <ul class="proof-list">{content.proof.map((item) => <li>{item}</li>)}</ul>
+      </div>
+      <div class="system-graphic" aria-hidden="true"><span class="system-label system-label-top">OBSERVE</span><span class="system-label system-label-bottom">RESPOND</span><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="node node-core">DE</div><div class="node node-one"></div><div class="node node-two"></div><div class="node node-three"></div></div>
+    </section>
+
+    <section class="section section-ink" id={sectionIds.work} aria-labelledby="work-title"><div class="shell"><div class="section-heading"><p class="section-label">01 / {content.work.label}</p><h2 id="work-title">{content.work.title}</h2></div><p class="section-copy">{content.work.copy}</p><div class="case-grid">{content.work.cases.map((study) => <article class="case-study"><p class="case-number">{study.number}</p><h3>{study.title}</h3><p>{study.context}</p><p class="decision">{study.decision}</p><div class="tag-list">{study.tags.map((tag) => <span class="tag">{tag}</span>)}</div></article>)}</div></div></section>
+
+    <section class="section" id={sectionIds.lab} aria-labelledby="lab-title"><div class="shell lab-layout"><div><p class="section-label">02 / {content.lab.label}</p><h2 id="lab-title">{content.lab.title}</h2><p class="section-copy">{content.lab.copy}</p></div><aside class="relay-panel" aria-label={content.lab.label} data-relay-panel data-relay-local-url="http://127.0.0.1:8787" data-relay-production-url="https://lab.info.destaben.dev" data-copied-label={content.lab.copiedLabel} data-online-label={content.lab.onlineLabel} data-offline-label={content.lab.offlineLabel}><div class="relay-panel-heading"><p class="relay-label">{content.lab.addressLabel}</p><span class="relay-availability" data-relay-availability data-state="checking" role="status"><span data-relay-status-dot></span><span data-relay-status-text>{content.lab.checkingLabel}</span></span></div><div class="relay-address"><code data-relay-address>{content.lab.addressPending}</code><button type="button" data-copy-address aria-label={locale === "es" ? "Copiar dirección LXMF" : "Copy LXMF address"} disabled>{content.lab.copyLabel}</button></div><div class="relay-inbox"><p class="relay-label">{content.lab.inboxLabel}</p><ul data-relay-inbox><li>{content.lab.inboxEmpty}</li></ul><p class="relay-note">{content.lab.inboxNote}</p></div></aside></div></section>
+
+    <section class="section section-warm" id={sectionIds.experience} aria-labelledby="experience-title"><div class="shell"><div class="section-heading"><p class="section-label">03 / {content.experience.label}</p><h2 id="experience-title">{content.experience.title}</h2></div><ol class="timeline">{content.experience.items.map((item) => <li class="entry"><p class="period">{item.period}</p><article><h3>{item.role}</h3><p class="meta">{item.company}</p><p>{item.focus}</p></article></li>)}</ol></div></section>
+    <section class="section contact-section" id={sectionIds.contact} aria-labelledby="contact-title"><div class="shell contact-layout"><p class="section-label">04 / {content.contact.label}</p><div><h2 id="contact-title">{content.contact.title}</h2><p class="section-copy">{content.contact.copy}</p><dl class="contact-channels"><div><dt>{content.contact.emailLabel}</dt><dd><a href={`mailto:${profile.email}`}>{profile.email}</a></dd></div><div><dt>{content.contact.networkLabel}</dt><dd>{profile.socialLinks.map((link) => <a href={link.url} target="_blank" rel="noreferrer">{link.label}</a>)}</dd></div></dl><p class="contact-response">{content.contact.response}</p><a class="button button-primary" href={`mailto:${profile.email}`}>{content.contact.action}</a></div></div></section>
+  </main>
+  <footer class="shell site-footer"><p>{profile.name} / {content.footer}</p><div>{profile.socialLinks.map((link) => <a href={link.url} target="_blank" rel="noreferrer">{link.label}</a>)}</div></footer>
+  <script>
+    const relayPanel = document.querySelector<HTMLElement>("[data-relay-panel]");
+    if (relayPanel) {
+      type InboxMessage = { content?: string; receivedAt: string };
+      const localHosts = new Set(["127.0.0.1", "localhost"]);
+      const relayUrl = localHosts.has(window.location.hostname)
+        ? relayPanel.dataset.relayLocalUrl
+        : relayPanel.dataset.relayProductionUrl;
+      const address = relayPanel.querySelector<HTMLElement>("[data-relay-address]");
+      const inbox = relayPanel.querySelector<HTMLElement>("[data-relay-inbox]");
+      const copyButton = relayPanel.querySelector<HTMLButtonElement>("[data-copy-address]");
+      const availability = relayPanel.querySelector<HTMLElement>("[data-relay-availability]");
+      const availabilityText = relayPanel.querySelector<HTMLElement>("[data-relay-status-text]");
+
+      const setRelayAvailability = (isOnline: boolean) => {
+        if (availability) availability.dataset.state = isOnline ? "online" : "offline";
+        if (availabilityText) {
+          availabilityText.textContent = isOnline
+            ? relayPanel.dataset.onlineLabel || "Signal Relay online"
+            : relayPanel.dataset.offlineLabel || "Signal Relay offline";
+        }
+      };
+
+      if (relayUrl) {
+        Promise.all([fetch(`${relayUrl}/healthz`), fetch(`${relayUrl}/v1/contact`), fetch(`${relayUrl}/v1/inbox`)])
+          .then(([healthResponse, contactResponse, inboxResponse]) => healthResponse.ok && contactResponse.ok && inboxResponse.ok ? Promise.all([healthResponse.json(), contactResponse.json(), inboxResponse.json()]) : Promise.reject())
+          .then(([health, contact, inboxData]) => {
+            setRelayAvailability(health.status === "ready");
+            if (address && contact.address) {
+              address.textContent = contact.address;
+              if (copyButton) copyButton.disabled = false;
+            }
+            const messages = Array.isArray(inboxData.messages) ? inboxData.messages as InboxMessage[] : [];
+            if (inbox && messages.length) {
+              inbox.replaceChildren(...messages.map((message) => {
+                const item = document.createElement("li");
+                const body = document.createElement("span");
+                body.textContent = message.content || "(empty message)";
+                const timestamp = document.createElement("time");
+                timestamp.dateTime = message.receivedAt;
+                timestamp.textContent = new Date(message.receivedAt).toLocaleString();
+                item.replaceChildren(body, timestamp);
+                return item;
+              }));
+            }
+          })
+          .catch(() => setRelayAvailability(false));
+      }
+
+      copyButton?.addEventListener("click", async () => {
+        if (!address || !address.textContent || copyButton.disabled) return;
+        await navigator.clipboard.writeText(address.textContent);
+        copyButton.textContent = relayPanel.dataset.copiedLabel || "Copied";
+      });
+    }
+  </script>
+</BaseLayout>

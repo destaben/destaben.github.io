@@ -26,8 +26,14 @@ interface GitHubRepositoryResponse {
 }
 
 const GITHUB_USER = "destaben";
+let repositoriesPromise: Promise<PublicRepository[]> | undefined;
 
 export async function getPublicRepositories(): Promise<PublicRepository[]> {
+  repositoriesPromise ??= loadPublicRepositories();
+  return repositoriesPromise;
+}
+
+async function loadPublicRepositories(): Promise<PublicRepository[]> {
   const repositories: PublicRepository[] = [];
   let nextUrl: string | undefined = `https://api.github.com/users/${GITHUB_USER}/repos?per_page=100&sort=updated&direction=desc`;
 

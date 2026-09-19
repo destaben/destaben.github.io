@@ -18,4 +18,10 @@ npm-debug.log*
 .env.*
 !.env.example
 coverage/
+.venv/
+.pytest_cache/
+__pycache__/
+*.egg-info/
+services/signal-relay/data/
+data/
 !package-lock.json

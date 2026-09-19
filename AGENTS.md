@@ -9,8 +9,11 @@ This repository is the source for `https://info.destaben.dev`. It is a static As
 - `astro.config.mjs` contains Astro site configuration.
 - `src/config/site.ts` contains the site identity and global SEO metadata.
 - `src/data/portfolio.ts` contains structured portfolio data.
+- `src/components/` and `src/layouts/` contain shared Astro UI and browser-side integration code.
 - `src/content/` contains type-checked future content collections.
 - `public/` contains static source assets; `public/CNAME` declares the production custom domain.
+- `services/signal-relay/` contains the separate FastAPI/LXMF bridge, its tests, Docker image, and Compose deployment manifest.
+- `.github/workflows/publish-signal-relay.yml` publishes the relay image to GitHub Container Registry.
 
 ## Working Rules
 
@@ -19,4 +22,7 @@ This repository is the source for `https://info.destaben.dev`. It is a static As
 - Keep `site` set to `https://info.destaben.dev` in `astro.config.mjs`; this is the production canonical URL even though GitHub Pages hosts the site.
 - Keep the deployment least-privilege and artifact-based. Changes to deployment behavior must update both the workflow and `README.md`.
 - Do not commit credentials, tokens, or non-public personal data to this publicly deployed repository. Any portfolio contact detail must be intentionally public.
+- The Signal Relay is not part of GitHub Pages. Keep its Reticulum identity, inbox data, Telegram credentials, tunnel configuration, and deployment `.env` files outside Git.
+- Validate relay changes with `services/signal-relay/.venv/bin/python -m pytest`; validate the site with `npm run verify`. Validate Compose with `docker compose -f services/signal-relay/compose.yaml config` using a local, ignored `.env`.
+- Keep the relay image compatible with `linux/amd64` and `linux/arm64`, and preserve its loopback-only HTTP binding in Compose. Changes to its public API, container deployment, or security boundary must update `docs/SIGNAL-RELAY.md` and `services/signal-relay/README.md`.
 - Do not reintroduce AWS deployment resources. Retired cloud resources must be destroyed only after the GitHub Pages site, DNS, and HTTPS are verified.

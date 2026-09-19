@@ -1,0 +1,25 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import type { CollectionEntry } from "astro:content";
+import type { Locale } from "../data/portfolio";
+
+interface Props {
+  locale: Locale;
+  posts: CollectionEntry<"blog">[];
+}
+
+const { locale, posts } = Astro.props as Props;
+const copy = locale === "es"
+  ? { title: "Bitácora", description: "Notas breves sobre sistemas, operación y decisiones de arquitectura.", home: "Inicio", heading: "Notas desde el trabajo de sistemas.", read: "Leer nota" }
+  : { title: "Notes", description: "Short notes on systems, operations, and architecture decisions.", home: "Home", heading: "Notes from systems work.", read: "Read note" };
+const date = new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric" });
+const prefix = locale === "es" ? "/es/bitacora/" : "/en/notes/";
+---
+
+<BaseLayout title={`David Estaben | ${copy.title}`} description={copy.description} locale={locale}>
+  <main class="archive-page">
+    <nav class="shell archive-nav" aria-label={locale === "es" ? "Navegación" : "Navigation"}><a class="brand" href={`/${locale}/`}><img src="/images/site/brand-mark.svg" alt="" /><span>DE<span class="brand-muted">/SYS</span></span></a><div><a href={`/${locale}/`}>{copy.home}</a><a class="language-link" href={locale === "es" ? "/en/notes/" : "/es/bitacora/"}>{locale === "es" ? "English" : "Español"}</a></div></nav>
+    <section class="shell archive-hero"><p class="section-label">01 / {copy.title}</p><h1>{copy.heading}</h1><p class="section-copy">{copy.description}</p></section>
+    <section class="shell writing-list" aria-label={copy.title}>{posts.map((post) => <article class="note-card"><p class="period">{date.format(post.data.pubDate)}</p><h2><a href={`${prefix}${post.id.split("/").at(-1)}/`}>{post.data.title}</a></h2><p>{post.data.description}</p><div class="tag-list">{post.data.tags.map((tag: string) => <span class="tag">{tag}</span>)}</div><a class="text-link" href={`${prefix}${post.id.split("/").at(-1)}/`}>{copy.read}</a></article>)}</section>
+  </main>
+</BaseLayout>

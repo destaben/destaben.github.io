@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">David Estaben</title>
+  <rect width="64" height="64" rx="12" fill="#000000" />
+  <path fill="#ffffff" d="M17 14h14c12 0 19 7 19 18s-7 18-19 18H17V14Zm9 8v20h5c7 0 11-3 11-10s-4-10-11-10h-5Z" />
+</svg>

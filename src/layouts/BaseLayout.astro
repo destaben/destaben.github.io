@@ -4,14 +4,15 @@ import "../styles/global.css";
 
 interface Props {
   description?: string;
+  locale?: string;
   title?: string;
 }
 
-const { description = site.description, title = site.title } = Astro.props;
+const { description = site.description, locale = site.locale, title = site.title } = Astro.props;
 ---
 
 <!doctype html>
-<html lang={site.locale}>
+<html lang={locale}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -22,7 +23,7 @@ const { description = site.description, title = site.title } = Astro.props;
     <meta property="og:description" content={description} />
     <meta property="og:url" content={new URL(Astro.url.pathname, site.url)} />
     <meta property="og:image" content={new URL(site.image, site.url)} />
-    <link rel="icon" href="/images/site/logo.png" />
+    <link rel="icon" href="/images/site/favicon.svg" type="image/svg+xml" />
     <title>{title}</title>
   </head>
   <body>

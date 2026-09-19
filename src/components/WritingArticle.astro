@@ -1,0 +1,23 @@
+---
+import { render, type CollectionEntry } from "astro:content";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import type { Locale } from "../data/portfolio";
+
+interface Props {
+  locale: Locale;
+  post: CollectionEntry<"blog">;
+}
+
+const { locale, post } = Astro.props as Props;
+const { Content } = await render(post);
+const copy = locale === "es" ? { home: "Inicio", index: "Bitácora", label: "Nota técnica" } : { home: "Home", index: "Notes", label: "Technical note" };
+const indexHref = locale === "es" ? "/es/bitacora/" : "/en/notes/";
+const date = new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric" });
+---
+
+<BaseLayout title={`${post.data.title} | David Estaben`} description={post.data.description} locale={locale}>
+  <main class="article-page">
+    <nav class="shell archive-nav" aria-label={locale === "es" ? "Navegación" : "Navigation"}><a class="brand" href={`/${locale}/`}><img src="/images/site/brand-mark.svg" alt="" /><span>DE<span class="brand-muted">/SYS</span></span></a><div><a href={indexHref}>{copy.index}</a><a href={`/${locale}/`}>{copy.home}</a></div></nav>
+    <article class="article shell"><header><p class="section-label">{copy.label}</p><h1>{post.data.title}</h1><p class="article-description">{post.data.description}</p><p class="period">{date.format(post.data.pubDate)}</p><div class="tag-list">{post.data.tags.map((tag: string) => <span class="tag">{tag}</span>)}</div></header><div class="prose"><Content /></div></article>
+  </main>
+</BaseLayout>

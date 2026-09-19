@@ -1,8 +1,8 @@
 export const site = {
-  title: "David Estabén | Site Reliability Engineer",
+  title: "David Estabén | Systems & Reliability",
   description:
-    "Portfolio of David Estabén, a Site Reliability Engineer focused on observability, automation, and cloud infrastructure.",
+    "Portfolio of David Estabén, a Site Reliability Engineer focused on observable, repeatable, and resilient systems.",
   url: "https://info.destaben.dev",
-  locale: "en",
-  image: "/images/author/profile.jpg",
+  locale: "es",
+  image: "/images/site/brand-mark.svg",
 };

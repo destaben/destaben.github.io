@@ -1,0 +1,14 @@
+---
+import { getCollection, type CollectionEntry } from "astro:content";
+import WritingArticle from "../../../components/WritingArticle.astro";
+
+export async function getStaticPaths() {
+  const posts = (await getCollection("blog") as CollectionEntry<"blog">[])
+    .filter((post: CollectionEntry<"blog">) => !post.data.draft && post.data.locale === "en");
+  return posts.map((post: CollectionEntry<"blog">) => ({ params: { slug: post.id.split("/").at(-1) }, props: { post } }));
+}
+
+const { post } = Astro.props;
+---
+
+<WritingArticle locale="en" post={post} />

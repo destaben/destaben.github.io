@@ -2,9 +2,11 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 ---
 
-<BaseLayout title="Page not found | David Estaben">
-  <main>
-    <h1>Page not found</h1>
-    <p><a href="/">Return to the homepage</a></p>
+<BaseLayout title="Page not found | David Estaben" description="The requested page does not exist.">
+  <main class="not-found shell">
+    <p class="section-label">404 / Route unavailable</p>
+    <h1>This route has no signal.</h1>
+    <p class="section-copy">The requested page does not exist or has moved.</p>
+    <a class="button button-primary" href="/">Return to the homepage</a>
   </main>
 </BaseLayout>

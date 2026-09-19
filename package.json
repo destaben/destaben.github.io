@@ -12,7 +12,9 @@
     "dev": "astro dev",
     "check": "astro check",
     "build": "astro build",
-    "preview": "astro preview"
+    "preview": "astro preview",
+    "test": "npm run build && node --test tests/*.test.mjs",
+    "verify": "npm run check && npm run test"
   },
   "dependencies": {
     "@astrojs/rss": "4.0.19",

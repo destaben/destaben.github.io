@@ -1,0 +1,33 @@
+services:
+  signal-relay:
+    image: ghcr.io/destaben/signal-relay:latest
+    pull_policy: always
+    env_file: .env
+    environment:
+      SIGNAL_RELAY_MODE: reticulum
+      SIGNAL_RELAY_ALLOWED_ORIGINS: https://info.destaben.dev
+      SIGNAL_RELAY_RETICULUM_CONFIG_DIR: /reticulum
+      SIGNAL_RELAY_STORAGE_DIR: /data
+    ports:
+      - "127.0.0.1:8787:8787"
+    volumes:
+      - ./reticulum:/reticulum
+      - signal-relay-data:/data
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; assert urlopen('http://127.0.0.1:8787/healthz').status == 200"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  signal-relay-data:

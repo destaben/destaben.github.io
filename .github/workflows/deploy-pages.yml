@@ -27,6 +27,11 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Configure Pages
         id: pages
         uses: actions/configure-pages@v5
@@ -34,8 +39,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build site
-        run: npm run build
+      - name: Test Signal Relay
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[test]'
+          python -m pytest
+        working-directory: services/signal-relay
+
+      - name: Check, test, and build site
+        run: npm run verify
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
