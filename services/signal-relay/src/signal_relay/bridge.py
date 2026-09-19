@@ -4,6 +4,7 @@ from collections import defaultdict, deque
 from dataclasses import dataclass
 from datetime import UTC, datetime
 import json
+import logging
 import os
 from pathlib import Path
 import secrets
@@ -19,6 +20,7 @@ from .config import Settings
 from .telegram import TelegramNotifier
 
 LAB_SESSION_FIELD = "signal_relay_session"
+logger = logging.getLogger("uvicorn.error")
 
 
 @dataclass
@@ -238,9 +240,10 @@ class RelayBridge:
             session.state = result.get("state", "failed")
             session.error_code = result.get("errorCode") or None
 
-    def _mark_lab_delivery_observed(self, source_hash: str, session_id: str = "") -> None:
+    def _mark_lab_delivery_observed(self, source_hash: str, session_id: str = "") -> bool:
         if not source_hash and not session_id:
-            return
+            return False
+        delivery_observed = False
         with self._lab_session_lock:
             sessions = (
                 [self._lab_sessions[session_id]]
@@ -253,6 +256,8 @@ class RelayBridge:
                         session.source_hash = source_hash
                     session.state = "delivered"
                     session.error_code = None
+                    delivery_observed = True
+        return delivery_observed
 
     def _clean_lab_sessions(self) -> None:
         now = time.monotonic()
@@ -274,14 +279,32 @@ class RelayBridge:
     def _on_lxmf_delivery(self, message: Any) -> None:
         source_hash = getattr(message, "source_hash", b"")
         fields = getattr(message, "fields", {})
-        session_id = fields.get(LAB_SESSION_FIELD, "") if isinstance(fields, dict) else ""
-        self.record_incoming_message(
+        session_id = self._lab_session_marker(fields)
+        observed = self.record_incoming_message(
             message.content_as_string() or "",
             source_hash.hex() if isinstance(source_hash, bytes) else "",
-            session_id if isinstance(session_id, str) else "",
+            session_id,
+        )
+        logger.info(
+            "LXMF delivery received: source=%s session_marker=%s correlated=%s",
+            source_hash.hex() if isinstance(source_hash, bytes) else "unknown",
+            bool(session_id),
+            observed,
         )
 
-    def record_incoming_message(self, content: str, source_hash: str = "", session_id: str = "") -> None:
+    @staticmethod
+    def _lab_session_marker(fields: Any) -> str:
+        if not isinstance(fields, dict):
+            return ""
+        marker = fields.get(LAB_SESSION_FIELD, fields.get(LAB_SESSION_FIELD.encode(), b""))
+        if isinstance(marker, bytes):
+            try:
+                return marker.decode("utf-8")
+            except UnicodeDecodeError:
+                return ""
+        return marker if isinstance(marker, str) else ""
+
+    def record_incoming_message(self, content: str, source_hash: str = "", session_id: str = "") -> bool:
         notice = {
             "id": secrets.token_urlsafe(8),
             "receivedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
@@ -294,8 +317,9 @@ class RelayBridge:
         self.inbound_messages.inc()
         self.inbox_size.set(len(self.inbox))
         self._save_inbox()
-        self._mark_lab_delivery_observed(source_hash, session_id)
+        observed = self._mark_lab_delivery_observed(source_hash, session_id)
         self._notify_telegram(notice["content"], source_hash)
+        return observed
 
     def _notify_telegram(self, content: str, source_hash: str = "") -> None:
         if not self._telegram:

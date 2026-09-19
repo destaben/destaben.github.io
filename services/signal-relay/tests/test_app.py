@@ -136,7 +136,7 @@ def test_received_source_hash_confirms_matching_lab_session(tmp_path):
     class IncomingMessage:
         def __init__(self, incoming_source_hash: str):
             self.source_hash = bytes.fromhex(incoming_source_hash)
-            self.fields = {LAB_SESSION_FIELD: "session"}
+            self.fields = {LAB_SESSION_FIELD.encode(): b"session"}
 
         @staticmethod
         def content_as_string():
