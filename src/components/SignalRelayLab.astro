@@ -153,6 +153,7 @@ const { lab, locale } = Astro.props;
 
     const pollSession = () => {
       if (!relayUrl || !sessionId) return;
+      let failedAt: number | undefined;
       const timer = window.setInterval(async () => {
         try {
           const response = await fetch(`${relayUrl}/v1/lab/sessions/${sessionId}`);
@@ -160,9 +161,15 @@ const { lab, locale } = Astro.props;
           const session = await response.json();
           if (source && session.sourceHash) source.textContent = session.sourceHash;
           setSessionState(session.state, session.errorCode);
-          if (session.state === "delivered" || session.state === "failed") {
+          if (session.state === "delivered") {
             window.clearInterval(timer);
             if (session.state === "delivered") refreshInbox();
+          }
+          if (session.state === "failed") {
+            failedAt ||= Date.now();
+            if (Date.now() - failedAt >= 15_000) window.clearInterval(timer);
+          } else {
+            failedAt = undefined;
           }
         } catch {
           window.clearInterval(timer);
