@@ -17,7 +17,7 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /<h3 id="signal-relay-title"><a href="https:\/\/reticulum\.network"/);
   assert.match(spanish, /Origen temporal/);
   assert.match(spanish, /Aviso Telegram/);
-  assert.match(spanish, /Métricas de contenedores/);
+  assert.match(spanish, /Observabilidad de servicios/);
   assert.match(spanish, /data-metrics-panel/);
   assert.match(spanish, /Servicios/);
   assert.match(spanish, /data-inbox-source-label="ID de origen"/);
@@ -26,7 +26,7 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(english, /Explore the Reticulum journey/);
   assert.match(english, /data-inbox-source-label="Source ID"/);
   assert.doesNotMatch(spanish, /Simulador de coste y fiabilidad/);
-  assert.match(english, /Container metrics/);
+  assert.match(english, /Service observability/);
   assert.doesNotMatch(spanish, /profile\.jpg/);
   assert.doesNotMatch(english, /Portrait of/);
 });

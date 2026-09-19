@@ -75,8 +75,9 @@ const { lab } = Astro.props;
         const response = await fetch(`${baseUrl}/v1/lab/metrics?metric=${metric}&start=${start}&end=${end}&step=120`);
         if (!response.ok) throw new Error();
         const data = await response.json() as { series?: Series[] };
+        const selected = visible;
         allSeries = Array.isArray(data.series) ? data.series : [];
-        visible = new Set(allSeries.map((series) => series.name));
+        visible = selected.size ? new Set(allSeries.filter((series) => selected.has(series.name)).map((series) => series.name)) : new Set(allSeries.map((series) => series.name));
         if (windowLabel) windowLabel.textContent = new Intl.DateTimeFormat(document.documentElement.lang, { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" }).formatRange(new Date(start * 1000), new Date(end * 1000));
         renderServices(); render();
       } catch { chart.textContent = panel.dataset.unavailableLabel || "Metrics unavailable"; }
