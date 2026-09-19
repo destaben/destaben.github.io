@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
 from signal_relay.app import create_app
-from signal_relay.bridge import RelayBridge
+from signal_relay.bridge import LabSession, RelayBridge
 from signal_relay.config import Settings
 
 
@@ -110,3 +110,35 @@ def test_initialises_the_official_reticulum_runtime(tmp_path):
     assert bridge.inbox_notices() == []
     assert "identity" not in session
     bridge.stop()
+
+
+def test_received_source_hash_confirms_matching_lab_session(tmp_path):
+    bridge = RelayBridge(
+        Settings(
+            mode="demo",
+            allowed_origins={"http://127.0.0.1:4321"},
+            rate_limit=1,
+            rate_window_seconds=60,
+            reticulum_config_dir=None,
+            storage_dir=tmp_path,
+            telegram_bot_token=None,
+            telegram_chat_id=None,
+        )
+    )
+    source_hash = "a3fa0fe454aea978747d86c7142c6210"
+    bridge._lab_sessions["session"] = LabSession(
+        expires_at=9999999999,
+        source_hash="",
+        destination_hash="destination",
+        state="queued",
+    )
+
+    bridge.record_incoming_message("Hello from Reticulum", source_hash)
+    bridge._complete_lab_session(
+        "session",
+        {"sourceHash": source_hash, "state": "failed", "errorCode": "delivery_timeout"},
+    )
+
+    assert bridge.inbox_notices()[0]["sourceHash"] == source_hash
+    assert bridge.lab_session_status("session")["sourceHash"] == source_hash
+    assert bridge.lab_session_status("session")["state"] == "delivered"

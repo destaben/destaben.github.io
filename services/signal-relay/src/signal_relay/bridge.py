@@ -205,11 +205,7 @@ class RelayBridge:
                 env=environment,
             )
             result = json.loads(process.stdout)
-            with self._lab_session_lock:
-                session = self._lab_sessions.get(session_id)
-                if session and result.get("sourceHash"):
-                    session.source_hash = result["sourceHash"]
-            self._set_lab_session_state(session_id, result.get("state", "failed"), result.get("errorCode") or None)
+            self._complete_lab_session(session_id, result)
         except (subprocess.TimeoutExpired, json.JSONDecodeError):
             self._set_lab_session_state(session_id, "failed", "delivery_timeout")
 
@@ -219,6 +215,33 @@ class RelayBridge:
             if session and session.expires_at > time.monotonic():
                 session.state = state
                 session.error_code = error_code
+
+    def _complete_lab_session(self, session_id: str, result: dict[str, str]) -> None:
+        source_hash = result.get("sourceHash", "")
+        with self._lab_session_lock:
+            session = self._lab_sessions.get(session_id)
+            if session is None or session.expires_at <= time.monotonic():
+                return
+            if source_hash:
+                session.source_hash = source_hash
+            delivered_to_inbox = bool(source_hash) and any(
+                notice.get("sourceHash") == source_hash for notice in self.inbox
+            )
+            if session.state == "delivered" or delivered_to_inbox:
+                session.state = "delivered"
+                session.error_code = None
+                return
+            session.state = result.get("state", "failed")
+            session.error_code = result.get("errorCode") or None
+
+    def _mark_lab_delivery_observed(self, source_hash: str) -> None:
+        if not source_hash:
+            return
+        with self._lab_session_lock:
+            for session in self._lab_sessions.values():
+                if session.expires_at > time.monotonic() and session.source_hash == source_hash:
+                    session.state = "delivered"
+                    session.error_code = None
 
     def _clean_lab_sessions(self) -> None:
         now = time.monotonic()
@@ -238,28 +261,35 @@ class RelayBridge:
         }
 
     def _on_lxmf_delivery(self, message: Any) -> None:
-        self.record_incoming_message(message.content_as_string() or "")
+        source_hash = getattr(message, "source_hash", b"")
+        self.record_incoming_message(
+            message.content_as_string() or "",
+            source_hash.hex() if isinstance(source_hash, bytes) else "",
+        )
 
-    def record_incoming_message(self, content: str) -> None:
+    def record_incoming_message(self, content: str, source_hash: str = "") -> None:
         notice = {
             "id": secrets.token_urlsafe(8),
             "receivedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             "content": " ".join(content.split())[:1000],
         }
+        if source_hash:
+            notice["sourceHash"] = source_hash
         self.inbox.insert(0, notice)
         del self.inbox[20:]
         self.inbound_messages.inc()
         self.inbox_size.set(len(self.inbox))
         self._save_inbox()
-        self._notify_telegram(notice["content"])
+        self._mark_lab_delivery_observed(source_hash)
+        self._notify_telegram(notice["content"], source_hash)
 
-    def _notify_telegram(self, content: str) -> None:
+    def _notify_telegram(self, content: str, source_hash: str = "") -> None:
         if not self._telegram:
             return
 
         def notify() -> None:
             try:
-                self._telegram.send_message(content)
+                self._telegram.send_message(content, source_hash)
                 self.telegram_notifications.labels(result="sent").inc()
             except Exception:
                 self.telegram_notifications.labels(result="failed").inc()

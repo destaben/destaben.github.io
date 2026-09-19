@@ -17,9 +17,11 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /<h3 id="signal-relay-title"><a href="https:\/\/reticulum\.network"/);
   assert.match(spanish, /Origen temporal/);
   assert.match(spanish, /Aviso Telegram/);
+  assert.match(spanish, /data-inbox-source-label="ID de origen"/);
   assert.match(spanish, /Reticulum online/);
   assert.match(english, /Reticulum address/);
   assert.match(english, /Explore the Reticulum journey/);
+  assert.match(english, /data-inbox-source-label="Source ID"/);
   assert.doesNotMatch(spanish, /Simulador de coste y fiabilidad/);
   assert.doesNotMatch(spanish, /Prometheus \/metrics/);
   assert.doesNotMatch(spanish, /mini PC/i);

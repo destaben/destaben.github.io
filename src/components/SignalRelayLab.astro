@@ -10,7 +10,7 @@ interface Props {
 const { lab, locale } = Astro.props;
 ---
 
-<article class="lab-card relay-panel" data-lab-state={lab.status} aria-labelledby={`${lab.id}-title`} data-relay-panel data-relay-local-url="http://127.0.0.1:8787" data-relay-production-url="https://lab.destaben.dev" data-copied-label={lab.copiedLabel} data-online-label={lab.onlineLabel} data-offline-label={lab.offlineLabel} data-preparing-label={lab.wizard.preparingLabel} data-unavailable-label={lab.wizard.unavailableLabel} data-queued-label={lab.wizard.queuedLabel} data-delivered-label={lab.wizard.deliveredLabel} data-failed-label={lab.wizard.failedLabel} data-route-waiting-label={lab.wizard.routeWaitingLabel} data-route-source-ready-label={lab.wizard.routeSourceReadyLabel} data-route-encrypted-label={lab.wizard.routeEncryptedLabel} data-route-routing-label={lab.wizard.routeRoutingLabel} data-route-received-label={lab.wizard.routeReceivedLabel} data-route-confirmed-label={lab.wizard.routeConfirmedLabel} data-route-delivery-failed-label={lab.wizard.routeDeliveryFailedLabel} data-route-outbound-failed-label={lab.wizard.routeOutboundFailedLabel} data-route-unknown-failed-label={lab.wizard.routeUnknownFailedLabel} data-telegram-configured-label={lab.wizard.telegramConfiguredLabel}>
+<article class="lab-card relay-panel" data-lab-state={lab.status} aria-labelledby={`${lab.id}-title`} data-relay-panel data-relay-local-url="http://127.0.0.1:8787" data-relay-production-url="https://lab.destaben.dev" data-copied-label={lab.copiedLabel} data-online-label={lab.onlineLabel} data-offline-label={lab.offlineLabel} data-inbox-source-label={locale === "es" ? "ID de origen" : "Source ID"} data-preparing-label={lab.wizard.preparingLabel} data-unavailable-label={lab.wizard.unavailableLabel} data-queued-label={lab.wizard.queuedLabel} data-delivered-label={lab.wizard.deliveredLabel} data-failed-label={lab.wizard.failedLabel} data-route-waiting-label={lab.wizard.routeWaitingLabel} data-route-source-ready-label={lab.wizard.routeSourceReadyLabel} data-route-encrypted-label={lab.wizard.routeEncryptedLabel} data-route-routing-label={lab.wizard.routeRoutingLabel} data-route-received-label={lab.wizard.routeReceivedLabel} data-route-confirmed-label={lab.wizard.routeConfirmedLabel} data-route-delivery-failed-label={lab.wizard.routeDeliveryFailedLabel} data-route-outbound-failed-label={lab.wizard.routeOutboundFailedLabel} data-route-unknown-failed-label={lab.wizard.routeUnknownFailedLabel} data-telegram-configured-label={lab.wizard.telegramConfiguredLabel}>
   <div class="lab-card-header">
     <p class="lab-status">{lab.statusLabel}</p>
     <span class="relay-availability" data-relay-availability data-state="checking" role="status"><span data-relay-status-dot></span><span data-relay-status-text>{lab.checkingLabel}</span></span>
@@ -43,7 +43,7 @@ const { lab, locale } = Astro.props;
 <script>
   const relayPanel = document.querySelector<HTMLElement>("[data-relay-panel]");
   if (relayPanel) {
-    type InboxMessage = { content?: string; receivedAt: string };
+    type InboxMessage = { content?: string; receivedAt: string; sourceHash?: string };
     const localHosts = new Set(["127.0.0.1", "localhost"]);
     const relayUrl = localHosts.has(window.location.hostname) ? relayPanel.dataset.relayLocalUrl : relayPanel.dataset.relayProductionUrl;
     const address = relayPanel.querySelector<HTMLElement>("[data-relay-address]");
@@ -73,10 +73,13 @@ const { lab, locale } = Astro.props;
         const item = document.createElement("li");
         const body = document.createElement("span");
         body.textContent = message.content || "(empty message)";
+        const sourceId = document.createElement("code");
+        sourceId.className = "relay-inbox-source";
+        sourceId.textContent = `${relayPanel.dataset.inboxSourceLabel || "Source ID"}: ${message.sourceHash}`;
         const timestamp = document.createElement("time");
         timestamp.dateTime = message.receivedAt;
         timestamp.textContent = new Date(message.receivedAt).toLocaleString();
-        item.replaceChildren(body, timestamp);
+        item.replaceChildren(body, ...(message.sourceHash ? [sourceId] : []), timestamp);
         return item;
       }));
     };

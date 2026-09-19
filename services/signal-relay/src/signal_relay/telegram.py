@@ -9,9 +9,10 @@ class TelegramNotifier:
         self._bot_token = bot_token
         self._chat_id = chat_id
 
-    def send_message(self, content: str) -> None:
+    def send_message(self, content: str, source_hash: str = "") -> None:
+        source = f"\nSource ID: {source_hash}" if source_hash else ""
         payload = json.dumps(
-            {"chat_id": self._chat_id, "text": f"New Reticulum message\n\n{content}"}
+            {"chat_id": self._chat_id, "text": f"New Reticulum message{source}\n\n{content}"}
         ).encode("utf-8")
         request = Request(
             f"https://api.telegram.org/bot{self._bot_token}/sendMessage",
