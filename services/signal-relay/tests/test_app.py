@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
 from signal_relay.app import create_app
-from signal_relay.bridge import LabSession, RelayBridge
+from signal_relay.bridge import LAB_SESSION_FIELD, LabSession, RelayBridge
 from signal_relay.config import Settings
 
 
@@ -133,11 +133,16 @@ def test_received_source_hash_confirms_matching_lab_session(tmp_path):
         state="queued",
     )
 
-    bridge.record_incoming_message("Hello from Reticulum", source_hash)
-    bridge._complete_lab_session(
-        "session",
-        {"sourceHash": source_hash, "state": "failed", "errorCode": "delivery_timeout"},
-    )
+    class IncomingMessage:
+        def __init__(self, incoming_source_hash: str):
+            self.source_hash = bytes.fromhex(incoming_source_hash)
+            self.fields = {LAB_SESSION_FIELD: "session"}
+
+        @staticmethod
+        def content_as_string():
+            return "Hello from Reticulum"
+
+    bridge._on_lxmf_delivery(IncomingMessage(source_hash))
 
     assert bridge.inbox_notices()[0]["sourceHash"] == source_hash
     assert bridge.lab_session_status("session")["sourceHash"] == source_hash

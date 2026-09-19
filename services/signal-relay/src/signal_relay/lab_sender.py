@@ -7,6 +7,8 @@ import tempfile
 import threading
 import time
 
+LAB_SESSION_FIELD = "signal_relay_session"
+
 
 def main() -> None:
     import LXMF
@@ -38,7 +40,12 @@ def main() -> None:
         source = RNS.Destination(source_identity, RNS.Destination.OUT, RNS.Destination.SINGLE, "lxmf", "delivery")
         destination = RNS.Destination(destination_identity, RNS.Destination.OUT, RNS.Destination.SINGLE, "lxmf", "delivery")
         router = LXMF.LXMRouter(identity=source_identity, storagepath=storage_dir)
-        message = LXMF.LXMessage(destination, source, payload["content"])
+        message = LXMF.LXMessage(
+            destination,
+            source,
+            payload["content"],
+            fields={LAB_SESSION_FIELD: payload["sessionId"]},
+        )
         completed = threading.Event()
         result["sourceHash"] = RNS.hexrep(source.hash, delimit=False)
         message.register_delivery_callback(lambda _: (result.update(state="delivered", errorCode=""), completed.set()))

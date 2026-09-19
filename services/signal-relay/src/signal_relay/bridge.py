@@ -18,6 +18,8 @@ from prometheus_client import CollectorRegistry, Counter, Gauge
 from .config import Settings
 from .telegram import TelegramNotifier
 
+LAB_SESSION_FIELD = "signal_relay_session"
+
 
 @dataclass
 class LabSession:
@@ -197,7 +199,9 @@ class RelayBridge:
         try:
             process = subprocess.run(
                 [sys.executable, "-m", "signal_relay.lab_sender", str(config_dir)],
-                input=json.dumps({"destinationHash": self.public_address, "content": content}),
+                input=json.dumps(
+                    {"destinationHash": self.public_address, "content": content, "sessionId": session_id}
+                ),
                 text=True,
                 capture_output=True,
                 timeout=70,
@@ -234,12 +238,19 @@ class RelayBridge:
             session.state = result.get("state", "failed")
             session.error_code = result.get("errorCode") or None
 
-    def _mark_lab_delivery_observed(self, source_hash: str) -> None:
-        if not source_hash:
+    def _mark_lab_delivery_observed(self, source_hash: str, session_id: str = "") -> None:
+        if not source_hash and not session_id:
             return
         with self._lab_session_lock:
-            for session in self._lab_sessions.values():
-                if session.expires_at > time.monotonic() and session.source_hash == source_hash:
+            sessions = (
+                [self._lab_sessions[session_id]]
+                if session_id in self._lab_sessions
+                else self._lab_sessions.values()
+            )
+            for session in sessions:
+                if session.expires_at > time.monotonic() and (session_id or session.source_hash == source_hash):
+                    if source_hash:
+                        session.source_hash = source_hash
                     session.state = "delivered"
                     session.error_code = None
 
@@ -262,12 +273,15 @@ class RelayBridge:
 
     def _on_lxmf_delivery(self, message: Any) -> None:
         source_hash = getattr(message, "source_hash", b"")
+        fields = getattr(message, "fields", {})
+        session_id = fields.get(LAB_SESSION_FIELD, "") if isinstance(fields, dict) else ""
         self.record_incoming_message(
             message.content_as_string() or "",
             source_hash.hex() if isinstance(source_hash, bytes) else "",
+            session_id if isinstance(session_id, str) else "",
         )
 
-    def record_incoming_message(self, content: str, source_hash: str = "") -> None:
+    def record_incoming_message(self, content: str, source_hash: str = "", session_id: str = "") -> None:
         notice = {
             "id": secrets.token_urlsafe(8),
             "receivedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
@@ -280,7 +294,7 @@ class RelayBridge:
         self.inbound_messages.inc()
         self.inbox_size.set(len(self.inbox))
         self._save_inbox()
-        self._mark_lab_delivery_observed(source_hash)
+        self._mark_lab_delivery_observed(source_hash, session_id)
         self._notify_telegram(notice["content"], source_hash)
 
     def _notify_telegram(self, content: str, source_hash: str = "") -> None:
