@@ -1,0 +1,51 @@
+# Public bootstrap transports for Signal Relay Reticulum mode.
+# Merge these entries into your private deployment directory's reticulum/config.
+# Keep deployment-specific identities and additional interfaces outside Git.
+
+[[RNS Testnet Amsterdam]]
+  type = TCPClientInterface
+  enabled = yes
+  target_host = amsterdam.connect.reticulum.network
+  target_port = 4965
+
+[[RNS Testnet Dublin]]
+  type = TCPClientInterface
+  enabled = yes
+  target_host = dublin.connect.reticulum.network
+  target_port = 4965
+
+[[RNS Spain Quixote]]
+  type = TCPClientInterface
+  enabled = yes
+  target_host = reticulum.quixote.network
+  target_port = 4242
+
+[[RNS - Derpy Cloud]]
+  type = TCPClientInterface
+  enabled = yes
+  target_host = rns.derps.me
+  target_port = 34242
+
+[[RNS Spain - Javi]]
+  type = TCPClientInterface
+  enabled = yes
+  target_host = 87.106.179.125
+  target_port = 4242
+
+[[MKLabs]]
+  type = TCPClientInterface
+  enabled = yes
+  target_host = lab.mikelcalvo.net
+  target_port = 4242
+
+[[RNS reticulum.pt]]
+  type = TCPClientInterface
+  enabled = yes
+  target_host = network.reticulum.pt
+  target_port = 4242
+
+[[BSDHell]]
+  type = TCPClientInterface
+  enabled = yes
+  target_host = reticulum.bsdhell.com
+  target_port = 4242

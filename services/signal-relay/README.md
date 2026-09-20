@@ -18,7 +18,7 @@ The default `demo` mode is an explicitly labelled local acknowledgement loop. It
 
 Set `SIGNAL_RELAY_MODE=reticulum` and optionally `SIGNAL_RELAY_RETICULUM_CONFIG_DIR` to initialise the official `rns` runtime. The service persists a private delivery identity under `SIGNAL_RELAY_STORAGE_DIR`, announces its LXMF destination hash, and retains the newest 20 message bodies as bounded plain text. Keep the storage directory and service configuration outside Git.
 
-The default Reticulum configuration only enables link-local discovery. To accept messages from a device outside the local network, configure a Reticulum interface that both devices can reach, such as a trusted `TCPClientInterface` transport. Do not expose the service HTTP port or Reticulum's TCP interface directly to the Internet.
+The default Reticulum configuration only enables link-local discovery. To accept messages from a device outside the local network, configure a Reticulum interface that both devices can reach, such as a trusted `TCPClientInterface` transport. Use `reticulum-config.example` as the starter for the public bootstrap transports configured for this deployment. Do not expose the service HTTP port or Reticulum's TCP interface directly to the Internet.
 
 ## Telegram notifications
 
@@ -53,6 +53,7 @@ cd /opt/signal-relay
 curl -fsSLo compose.yaml https://raw.githubusercontent.com/destaben/destaben.github.io/main/services/signal-relay/compose.yaml
 curl -fsSLo nginx/nginx.conf https://raw.githubusercontent.com/destaben/destaben.github.io/main/services/signal-relay/nginx/nginx.conf
 curl -fsSLo .env https://raw.githubusercontent.com/destaben/destaben.github.io/main/services/signal-relay/.env.example
+curl -fsSLo reticulum/config https://raw.githubusercontent.com/destaben/destaben.github.io/main/services/signal-relay/reticulum-config.example
 chmod 600 .env
 sudo chown 10001:10001 reticulum lab-sender-reticulum
 ```
@@ -66,6 +67,17 @@ docker compose ps
 ```
 
 To update an existing deployment, download only `compose.yaml` and `nginx/nginx.conf` from the same URLs, then run `docker compose up -d --remove-orphans`. Do not replace `.env`, `reticulum/`, or `lab-sender-reticulum/`: they contain local secrets and persistent identities.
+
+When the public bootstrap transports change, download the refreshed example to a temporary file, then manually merge its bootstrap interface entries into `reticulum/config`:
+
+```sh
+curl -fsSLo /tmp/signal-relay-reticulum-config.example https://raw.githubusercontent.com/destaben/destaben.github.io/main/services/signal-relay/reticulum-config.example
+sudoedit reticulum/config
+rm -f /tmp/signal-relay-reticulum-config.example
+docker compose up -d --remove-orphans
+```
+
+Preserve any deployment-specific interfaces. Do not replace the `reticulum/` directory or copy over the existing configuration wholesale.
 
 To diagnose the latest browser laboratory send without copying a session ID, download and run the diagnostic after the test:
 
