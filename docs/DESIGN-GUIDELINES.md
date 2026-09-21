@@ -29,7 +29,7 @@ The portfolio demonstrates David Estaben's engineering judgement through clear c
 ## Labs
 
 - Every published lab has a localized title, explicit availability state, and technology tags. The Labs section provides a shared explanation of its purpose and boundaries.
-- The Reticulum educational wizard may show a temporary sender hash only to the browser session that created it. It must never imply a real delivery when the relay has not returned one.
+- The Reticulum educational wizard may show only its opaque session ID, bounded state, error code, expiry, and observed public node alias. It must never expose source or destination hashes, or imply a real delivery when the relay has not returned one.
 - Each non-Reticulum lab needs its own component and public contract. It must not reuse Reticulum endpoints or imply that it runs on the same host.
 
 ## Accessibility

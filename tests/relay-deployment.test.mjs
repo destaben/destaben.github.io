@@ -20,6 +20,6 @@ test("ships a standalone Reticulum template with an interfaces section", async (
   const config = await readRepositoryFile("services/signal-relay/reticulum-config.example");
 
   assert.match(config, /^\[reticulum\]/m);
-  assert.match(config, /^\[interfaces\]\n\n\[\[RNS Testnet Amsterdam\]\]/m);
+  assert.match(config, /^\[interfaces\]\n\n\[\[RNS Arborisis\]\]/m);
   assert.doesNotMatch(config, /TCPServerInterface/);
 });

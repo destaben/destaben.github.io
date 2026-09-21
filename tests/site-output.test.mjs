@@ -18,8 +18,9 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /<h3 id="signal-relay-title"><a href="https:\/\/reticulum\.network"/);
   assert.match(spanish, /Origen temporal/);
   assert.match(spanish, /Aviso Telegram/);
-  assert.match(spanish, /Nodos TCP Reticulum/);
-  assert.match(spanish, /Pendiente de confirmación de ruta/);
+  assert.match(spanish, /Conexiones TCP Reticulum/);
+  assert.match(spanish, /La dirección LXMF no pertenece a un nodo concreto/);
+  assert.match(spanish, /Pendiente de selección de ruta/);
   assert.match(spanish, /Observabilidad de servicios/);
   assert.match(spanish, /Puedes comparar ambos recursos, seleccionar servicios y revisar un intervalo concreto\./);
   assert.match(spanish, /data-metrics-panel/);
@@ -48,8 +49,9 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(english, /Explore the Reticulum journey/);
   assert.match(english, /The guided journey shows how a test is prepared, encrypted, and confirmed before it is sent\./);
   assert.doesNotMatch(english, /data-inbox-source-label/);
-  assert.match(english, /Reticulum TCP nodes/);
-  assert.match(english, /Waiting for route confirmation/);
+  assert.match(english, /Reticulum TCP connections/);
+  assert.match(english, /The LXMF address does not belong to one specific node/);
+  assert.match(english, /Waiting for route selection/);
   assert.match(english, /Apr 2021 - present/);
   assert.match(english, /Systems Integrator/);
   assert.match(english, /NTT/);

@@ -58,7 +58,6 @@ const nodeCopy = relayNodeCopy[locale];
     const openWizardButton = relayPanel.querySelector<HTMLButtonElement>("[data-open-wizard]");
     const dialog = document.querySelector<HTMLDialogElement>("[data-relay-dialog]");
     const sessionStatus = dialog?.querySelector<HTMLElement>("[data-relay-session-status]");
-    const source = dialog?.querySelector<HTMLElement>("[data-relay-source]");
     const destination = dialog?.querySelector<HTMLElement>("[data-relay-destination]");
     const telegramStatus = dialog?.querySelector<HTMLElement>("[data-telegram-status]");
     const sessionNode = dialog?.querySelector<HTMLElement>("[data-relay-session-node]");
@@ -178,10 +177,8 @@ const nodeCopy = relayNodeCopy[locale];
       renderRoute(state, errorCode);
     };
 
-    const displaySession = (session: { sessionId: string; sourceHash: string; destinationHash: string; state: string; errorCode?: string; nodeAlias?: string }) => {
+    const displaySession = (session: { sessionId: string; state: string; errorCode?: string; nodeAlias?: string }) => {
       sessionId = session.sessionId;
-      if (source) source.textContent = session.sourceHash;
-      if (destination) destination.textContent = session.destinationHash;
       if (sessionNode) sessionNode.textContent = session.nodeAlias || relayPanel.dataset.nodePendingLabel || "Waiting for route confirmation";
       setSessionState(session.state, session.errorCode);
     };
@@ -194,7 +191,6 @@ const nodeCopy = relayNodeCopy[locale];
           const response = await fetch(`${relayUrl}/v1/lab/sessions/${sessionId}`);
           if (!response.ok) throw new Error();
           const session = await response.json();
-          if (source && session.sourceHash) source.textContent = session.sourceHash;
           if (sessionNode) sessionNode.textContent = session.nodeAlias || relayPanel.dataset.nodePendingLabel || "Waiting for route confirmation";
           setSessionState(session.state, session.errorCode);
           if (session.state === "delivered") {

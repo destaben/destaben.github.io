@@ -64,6 +64,8 @@ The portfolio presents a public LXMF destination backed by a separate, self-host
 
 For local bridge setup, API/WebSocket tests, and end-to-end verification, use [services/signal-relay/README.md](services/signal-relay/README.md). GitHub Actions runs both the Astro suite and Signal Relay's Python suite before publishing the Pages artifact.
 
+When refreshing Reticulum bootstrap transports or recovering a broken private configuration, follow the relay README's host procedure: preserve `.env`, the persistent relay data volume, and `lab-sender-reticulum/`; refresh both `compose.yaml` and `nginx/nginx.conf`; then recreate `signal-relay` and `nginx`. Update the private `SIGNAL_RELAY_PUBLIC_TCP_NODE_ALIASES` mapping whenever configured interface names change.
+
 ## Deployment
 
 Every push to `main` runs [.github/workflows/deploy-pages.yml](.github/workflows/deploy-pages.yml). The workflow uses Node 22, runs `npm ci`, builds `dist/`, and deploys the generated artifact to GitHub Pages. GitHub Actions is the only publishing path; do not commit generated files or publish from a branch.

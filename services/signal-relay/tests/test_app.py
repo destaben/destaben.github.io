@@ -209,9 +209,11 @@ def test_initialises_the_official_reticulum_runtime(tmp_path):
     assert bridge._delivery_destination.hash
     assert bridge.lab_capabilities()["educationalSending"] is False
     session = bridge.create_lab_session()
+    assert set(session) == {"sessionId", "state", "errorCode", "nodeAlias", "expiresInSeconds"}
     assert session["state"] == "identity_ready"
     assert session["errorCode"] == ""
-    assert session["sourceHash"] != session["destinationHash"]
+    assert "sourceHash" not in session
+    assert "destinationHash" not in session
     assert bridge.inbox_notices() == []
     assert "identity" not in session
     bridge.stop()
@@ -255,7 +257,8 @@ def test_received_source_hash_confirms_matching_lab_session(tmp_path):
     bridge._set_lab_session_state("session", "failed", "delivery_timeout")
 
     assert "sourceHash" not in bridge.inbox_notices()[0]
-    assert bridge.lab_session_status("session")["sourceHash"] == source_hash
+    assert "sourceHash" not in bridge.lab_session_status("session")
+    assert bridge._lab_sessions["session"].source_hash == source_hash
     assert bridge.lab_session_status("session")["state"] == "delivered"
 
 

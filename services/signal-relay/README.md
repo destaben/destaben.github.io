@@ -37,7 +37,7 @@ Every received LXMF message is then forwarded to that chat after it is stored lo
 
 The portfolio includes an optional Reticulum walkthrough. It needs both `SIGNAL_RELAY_LAB_SEND_ENABLED=true` and `SIGNAL_RELAY_LAB_SENDER_CONFIG_DIR` pointing to a second, reachable Reticulum client configuration. Each send starts an isolated official Reticulum runtime with a new temporary identity, sends one short Reticulum message to the configured destination, then removes its temporary storage. The second runtime is necessary: a Reticulum runtime cannot establish a route to its own delivery destination.
 
-This is disabled by default. Enable it only after configuring both Reticulum clients to reach the same trusted transport. The sender configuration must be separate from the relay configuration. Nginx limits public session creation and sends to five requests per Cloudflare client IP per minute; the limit lives in `nginx/nginx.conf` with the rest of the public edge policy. Session identities, private keys, message text, and session capabilities are never persisted, forwarded to Telegram, returned through the public inbox, or exported as metrics. A session reports `identity_ready`, `queued`, `delivered`, or `failed`; failures include a bounded public `errorCode` such as `path_unavailable`, `delivery_failed`, or `delivery_timeout`.
+This is disabled by default. Enable it only after configuring both Reticulum clients to reach the same trusted transport. The sender configuration must be separate from the relay configuration. Nginx limits public session creation and sends to five requests per Cloudflare client IP per minute; the limit lives in `nginx/nginx.conf` with the rest of the public edge policy. Session identities, private keys, message text, and session capabilities are never persisted, forwarded to Telegram, returned through the public inbox, or exported as metrics. A public session response contains an opaque session ID plus only its `identity_ready`, `queued`, `delivered`, or `failed` state, bounded `errorCode`, `expiresInSeconds`, and public `nodeAlias`; it never includes a source or destination hash. The browser obtains the delivery address only from `GET /v1/contact`. Internal source-hash correlation remains inside the relay. Failures include a bounded public `errorCode` such as `path_unavailable`, `delivery_failed`, or `delivery_timeout`.
 
 `nodeAlias` is populated only when the isolated sender's actual Reticulum route selects a TCP client interface present in `SIGNAL_RELAY_PUBLIC_TCP_NODE_ALIASES`. Otherwise it remains empty; private interface names, route details, and topology are never returned.
 
@@ -87,17 +87,27 @@ To discard a broken `reticulum/config` and replace it with the current repositor
 
 ```sh
 cd /opt/signal-relay
+sudo curl -fsSLo compose.yaml https://raw.githubusercontent.com/destaben/destaben.github.io/main/services/signal-relay/compose.yaml
+sudo curl -fsSLo nginx/nginx.conf https://raw.githubusercontent.com/destaben/destaben.github.io/main/services/signal-relay/nginx/nginx.conf
 sudo rm -f reticulum/config
 sudo curl -fsSLo reticulum/config https://raw.githubusercontent.com/destaben/destaben.github.io/main/services/signal-relay/reticulum-config.example
 sudo chown 10001:10001 reticulum/config
 sudo chmod 600 reticulum/config
 sudo docker compose config
 sudo docker compose pull signal-relay
-sudo docker compose up -d --force-recreate signal-relay
-sudo docker compose logs --tail=100 signal-relay
+sudo docker compose up -d --force-recreate signal-relay nginx
+sudo docker compose logs --tail=100 signal-relay nginx
 ```
 
-This removes only the Reticulum configuration file. It does not remove the persistent LXMF identity and inbox stored in the `signal-relay-data` volume. Reapply any intentional private interface additions after the service starts.
+This removes only the Reticulum configuration file. It refreshes the public Compose and Nginx inputs so the node-status route is available, but does not replace `.env`, the persistent LXMF identity and inbox in the `signal-relay-data` volume, or `lab-sender-reticulum/`. Reapply any intentional private interface additions after the service starts.
+
+After replacing the template, update the private `SIGNAL_RELAY_PUBLIC_TCP_NODE_ALIASES` JSON in `.env` so every configured interface name has a unique public alias. To expose the current template connections under public names, use:
+
+```sh
+SIGNAL_RELAY_PUBLIC_TCP_NODE_ALIASES={"RNS Arborisis":"Arborisis","RNS NodeRage":"NodeRage","RNS Spain Quixote":"Quixote","RNS Mari-El":"Mari-El","RNS UTN":"UTN","MKLabs":"MKLabs","RNS Wisco":"Wisco","BSDHell":"BSDHell"}
+```
+
+The monitor records only the alias and `up` or `down`; it cannot report a successful connection while this mapping is empty or still refers to removed interface names. These aliases are public names for configured TCP connections, not an LXMF destination assignment. An LXMF address belongs to its destination identity, not a specific bootstrap node: a sender needs Reticulum connectivity and path discovery, so no single node is published as the server for incoming messages. The only route-specific alias is `nodeAlias` for an educational send after its isolated sender observes and selects an outbound route; it is otherwise empty. Recreate `signal-relay` after changing `.env`.
 
 If the relay restarts with `Could not parse the configuration at /reticulum/config`, inspect the private file before restarting it again:
 

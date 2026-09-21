@@ -8,17 +8,17 @@
 
 [interfaces]
 
-[[RNS Testnet Amsterdam]]
+[[RNS Arborisis]]
   type = TCPClientInterface
   enabled = yes
-  target_host = amsterdam.connect.reticulum.network
-  target_port = 4965
+  target_host = rns.arborisis.com
+  target_port = 4242
 
-[[RNS Testnet Dublin]]
+[[RNS NodeRage]]
   type = TCPClientInterface
   enabled = yes
-  target_host = dublin.connect.reticulum.network
-  target_port = 4965
+  target_host = rns.noderage.org
+  target_port = 4242
 
 [[RNS Spain Quixote]]
   type = TCPClientInterface
@@ -26,17 +26,17 @@
   target_host = reticulum.quixote.network
   target_port = 4242
 
-[[RNS - Derpy Cloud]]
+[[RNS Mari-El]]
   type = TCPClientInterface
   enabled = yes
-  target_host = rns.derps.me
-  target_port = 34242
-
-[[RNS Spain - Javi]]
-  type = TCPClientInterface
-  enabled = yes
-  target_host = 87.106.179.125
+  target_host = rns.mari-el.net
   target_port = 4242
+
+[[RNS UTN]]
+  type = TCPClientInterface
+  enabled = yes
+  target_host = rns.utn.lol
+  target_port = 4965
 
 [[MKLabs]]
   type = TCPClientInterface
@@ -44,10 +44,10 @@
   target_host = lab.mikelcalvo.net
   target_port = 4242
 
-[[RNS reticulum.pt]]
+[[RNS Wisco]]
   type = TCPClientInterface
   enabled = yes
-  target_host = network.reticulum.pt
+  target_host = rns.wisco.network
   target_port = 4242
 
 [[BSDHell]]

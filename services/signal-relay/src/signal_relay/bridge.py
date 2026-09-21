@@ -339,8 +339,6 @@ class RelayBridge:
     def _lab_session_status(session_id: str, session: LabSession) -> dict[str, str]:
         return {
             "sessionId": session_id,
-            "sourceHash": session.source_hash,
-            "destinationHash": session.destination_hash,
             "state": session.state,
             "errorCode": session.error_code or "",
             "nodeAlias": session.node_alias,
