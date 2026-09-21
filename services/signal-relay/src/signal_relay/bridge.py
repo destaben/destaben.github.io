@@ -32,6 +32,7 @@ class LabSession:
     error_code: str | None = None
     sent_count: int = 0
     delivery_observed: bool = False
+    node_alias: str = ""
 
 
 class RelayBridge:
@@ -51,6 +52,10 @@ class RelayBridge:
         self.inbox: list[dict[str, str]] = []
         self._lab_sessions: dict[str, LabSession] = {}
         self._lab_session_lock = threading.Lock()
+        self._tcp_node_statuses: dict[str, str] = {}
+        self._tcp_node_lock = threading.Lock()
+        self._tcp_node_monitor_stop = threading.Event()
+        self._tcp_node_monitor: threading.Thread | None = None
         self.transport = "demo"
         self.state = "ready"
         self.metrics = CollectorRegistry()
@@ -100,8 +105,15 @@ class RelayBridge:
         self._delivery_destination.announce()
         self.public_address = RNS.hexrep(self._delivery_destination.hash, delimit=False)
         self.transport = "reticulum"
+        self._refresh_tcp_node_statuses()
+        if self.settings.public_tcp_node_aliases:
+            self._tcp_node_monitor = threading.Thread(target=self._monitor_tcp_nodes, daemon=True)
+            self._tcp_node_monitor.start()
 
     def stop(self) -> None:
+        self._tcp_node_monitor_stop.set()
+        if self._tcp_node_monitor:
+            self._tcp_node_monitor.join(timeout=1)
         self._clients.clear()
         self._lab_sessions.clear()
 
@@ -135,6 +147,45 @@ class RelayBridge:
             ),
             "telegramNotifications": self._telegram is not None,
         }
+
+    def reticulum_nodes(self) -> dict[str, object]:
+        if self.transport != "reticulum" or not self.settings.public_tcp_node_aliases:
+            return {"status": "unavailable", "nodes": []}
+        with self._tcp_node_lock:
+            nodes = [
+                {"alias": alias, "status": self._tcp_node_statuses.get(alias, "down")}
+                for alias in self.settings.public_tcp_node_aliases.values()
+            ]
+        return {"status": "available", "nodes": nodes}
+
+    def _monitor_tcp_nodes(self) -> None:
+        while not self._tcp_node_monitor_stop.wait(20):
+            self._refresh_tcp_node_statuses()
+
+    def _refresh_tcp_node_statuses(self) -> None:
+        aliases = self.settings.public_tcp_node_aliases or {}
+        if not aliases:
+            return
+        try:
+            import RNS
+
+            connected_names = {
+                str(interface.name)
+                for interface in RNS.Transport.interfaces
+                if type(interface).__name__ == "TCPClientInterface" and getattr(interface, "online", False)
+            }
+        except Exception:
+            for alias in aliases.values():
+                logger.warning("Reticulum TCP node connection check failed: node=%s", alias)
+            connected_names = set()
+
+        with self._tcp_node_lock:
+            for interface_name, alias in aliases.items():
+                status = "up" if interface_name in connected_names else "down"
+                previous = self._tcp_node_statuses.get(alias)
+                self._tcp_node_statuses[alias] = status
+                if previous != status:
+                    logger.info("Reticulum TCP node connection changed: node=%s status=%s", alias, status)
 
     def inbox_notices(self) -> list[dict[str, str]]:
         return self.inbox
@@ -203,7 +254,12 @@ class RelayBridge:
             process = subprocess.run(
                 [sys.executable, "-m", "signal_relay.lab_sender", str(config_dir)],
                 input=json.dumps(
-                    {"destinationHash": self.public_address, "content": content, "sessionId": session_id}
+                    {
+                        "destinationHash": self.public_address,
+                        "content": content,
+                        "sessionId": session_id,
+                        "nodeAliases": self.settings.public_tcp_node_aliases or {},
+                    }
                 ),
                 text=True,
                 capture_output=True,
@@ -227,21 +283,31 @@ class RelayBridge:
 
     def _complete_lab_session(self, session_id: str, result: dict[str, str]) -> None:
         source_hash = result.get("sourceHash", "")
+        node_alias = result.get("nodeAlias", "")
+        allowed_aliases = set((self.settings.public_tcp_node_aliases or {}).values())
         with self._lab_session_lock:
             session = self._lab_sessions.get(session_id)
             if session is None or session.expires_at <= time.monotonic():
                 return
             if source_hash:
                 session.source_hash = source_hash
+            if node_alias in allowed_aliases:
+                session.node_alias = node_alias
             delivered_to_inbox = bool(source_hash) and any(
                 notice.get("sourceHash") == source_hash for notice in self.inbox
             )
             if session.delivery_observed or session.state == "delivered" or delivered_to_inbox:
                 session.state = "delivered"
                 session.error_code = None
+                logger.info("Reticulum lab delivery completed: node=%s", session.node_alias or "unconfirmed")
                 return
             session.state = result.get("state", "failed")
             session.error_code = result.get("errorCode") or None
+            logger.info(
+                "Reticulum lab delivery finished: node=%s state=%s",
+                session.node_alias or "unconfirmed",
+                session.state,
+            )
 
     def _mark_lab_delivery_observed(self, source_hash: str, session_id: str = "") -> bool:
         if not source_hash and not session_id:
@@ -277,6 +343,7 @@ class RelayBridge:
             "destinationHash": session.destination_hash,
             "state": session.state,
             "errorCode": session.error_code or "",
+            "nodeAlias": session.node_alias,
             "expiresInSeconds": str(max(0, int(session.expires_at - time.monotonic()))),
         }
 
@@ -289,12 +356,7 @@ class RelayBridge:
             source_hash.hex() if isinstance(source_hash, bytes) else "",
             session_id,
         )
-        logger.info(
-            "LXMF delivery received: source=%s session_marker=%s correlated=%s",
-            source_hash.hex() if isinstance(source_hash, bytes) else "unknown",
-            bool(session_id),
-            observed,
-        )
+        logger.info("LXMF delivery received: correlated=%s", observed)
 
     @staticmethod
     def _lab_session_marker(fields: Any) -> str:
@@ -314,8 +376,6 @@ class RelayBridge:
             "receivedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             "content": " ".join(content.split())[:1000],
         }
-        if source_hash:
-            notice["sourceHash"] = source_hash
         self.inbox.insert(0, notice)
         del self.inbox[20:]
         self.inbound_messages.inc()

@@ -16,9 +16,11 @@ The default `demo` mode is an explicitly labelled local acknowledgement loop. It
 
 ## Reticulum mode
 
-Set `SIGNAL_RELAY_MODE=reticulum` and optionally `SIGNAL_RELAY_RETICULUM_CONFIG_DIR` to initialise the official `rns` runtime. The service persists a private delivery identity under `SIGNAL_RELAY_STORAGE_DIR`, announces its LXMF destination hash, and retains the newest 20 message bodies as bounded plain text. Keep the storage directory and service configuration outside Git.
+Set `SIGNAL_RELAY_MODE=reticulum` and optionally `SIGNAL_RELAY_RETICULUM_CONFIG_DIR` to initialise the official `rns` runtime. The service persists a private delivery identity under `SIGNAL_RELAY_STORAGE_DIR`, announces its LXMF destination hash, and retains the newest 20 message bodies as bounded plain text. Inbox notices contain only an opaque ID, receipt timestamp, and message body; they exclude source hashes, sender identities, and network metadata. Keep the storage directory and service configuration outside Git.
 
-The default Reticulum configuration only enables link-local discovery. To accept messages from a device outside the local network, configure a Reticulum interface that both devices can reach, such as a trusted `TCPClientInterface` transport. Use `reticulum-config.example` as the starter for the public bootstrap transports configured for this deployment. Do not expose the service HTTP port or Reticulum's TCP interface directly to the Internet.
+The default Reticulum configuration uses outbound `TCPClientInterface` bootstrap transports. This works behind CGNAT because the relay initiates those connections; compatible clients cannot connect directly to this node over Reticulum TCP. Cloudflare Tunnel carries the public HTTP laboratory API only and cannot expose a standard Reticulum TCP endpoint. Use `reticulum-config.example` as the starter for public bootstrap transports. Do not expose the service HTTP port or a Reticulum TCP port.
+
+The optional `GET /v1/lab/reticulum-nodes` projection reports only configured public aliases and `up` or `down` connection states. Set `SIGNAL_RELAY_PUBLIC_TCP_NODE_ALIASES` to a private JSON mapping from configured TCP client interface names to unique public aliases; Compose passes this value from the private `.env` file and defaults it to `{}`. Keep the mapping only in the deployment environment. The mapping accepts at most 12 aliases. Each public alias must be 1-48 ASCII letters, digits, spaces, periods, underscores, or hyphens, begin with a letter or digit, and be unique. When Reticulum is inactive or no aliases are configured, the endpoint returns `{"status":"unavailable","nodes":[]}`. An `up` status only means the bridge observed `TCPClientInterface.online`; it does not guarantee a route, path, or message delivery. Logs record each alias's initial observed connection status, later status changes, and observation failures. They contain only the public alias and status where applicable, never private topology.
 
 ## Telegram notifications
 
@@ -36,6 +38,8 @@ Every received LXMF message is then forwarded to that chat after it is stored lo
 The portfolio includes an optional Reticulum walkthrough. It needs both `SIGNAL_RELAY_LAB_SEND_ENABLED=true` and `SIGNAL_RELAY_LAB_SENDER_CONFIG_DIR` pointing to a second, reachable Reticulum client configuration. Each send starts an isolated official Reticulum runtime with a new temporary identity, sends one short Reticulum message to the configured destination, then removes its temporary storage. The second runtime is necessary: a Reticulum runtime cannot establish a route to its own delivery destination.
 
 This is disabled by default. Enable it only after configuring both Reticulum clients to reach the same trusted transport. The sender configuration must be separate from the relay configuration. Nginx limits public session creation and sends to five requests per Cloudflare client IP per minute; the limit lives in `nginx/nginx.conf` with the rest of the public edge policy. Session identities, private keys, message text, and session capabilities are never persisted, forwarded to Telegram, returned through the public inbox, or exported as metrics. A session reports `identity_ready`, `queued`, `delivered`, or `failed`; failures include a bounded public `errorCode` such as `path_unavailable`, `delivery_failed`, or `delivery_timeout`.
+
+`nodeAlias` is populated only when the isolated sender's actual Reticulum route selects a TCP client interface present in `SIGNAL_RELAY_PUBLIC_TCP_NODE_ALIASES`. Otherwise it remains empty; private interface names, route details, and topology are never returned.
 
 ## Container deployment
 
@@ -58,15 +62,15 @@ chmod 600 .env
 sudo chown 10001:10001 reticulum lab-sender-reticulum
 ```
 
-Set `SIGNAL_RELAY_TELEGRAM_BOT_TOKEN` and `SIGNAL_RELAY_TELEGRAM_CHAT_ID` in `.env` when Telegram notifications are required. In Cloudflare Zero Trust, create a remotely managed tunnel and assign `lab.destaben.dev` to `http://nginx:8080`. Copy its token into `.env` as `CLOUDFLARE_TUNNEL_TOKEN`; do not quote it in shell output or commit it. Start and update the service with:
+Set `SIGNAL_RELAY_TELEGRAM_BOT_TOKEN` and `SIGNAL_RELAY_TELEGRAM_CHAT_ID` in `.env` when Telegram notifications are required. In Cloudflare Zero Trust, create a remotely managed tunnel and assign `lab.destaben.dev` to `http://nginx:8080`. Copy its token into `.env` as `CLOUDFLARE_TUNNEL_TOKEN`; do not quote it in shell output or commit it. This deployment uses Docker through `sudo`; start and update the service with:
 
 ```sh
-docker compose pull
-docker compose up -d
-docker compose ps
+sudo docker compose pull
+sudo docker compose up -d
+sudo docker compose ps
 ```
 
-To update an existing deployment, download only `compose.yaml` and `nginx/nginx.conf` from the same URLs, then run `docker compose up -d --remove-orphans`. Do not replace `.env`, `reticulum/`, or `lab-sender-reticulum/`: they contain local secrets and persistent identities.
+To update an existing deployment, download only `compose.yaml` and `nginx/nginx.conf` from the same URLs, then run `sudo docker compose up -d --remove-orphans`. Do not replace `.env`, `reticulum/`, or `lab-sender-reticulum/`: they contain local secrets and persistent identities.
 
 When the public bootstrap transports change, download the refreshed example to a temporary file, then manually merge its bootstrap interface entries into `reticulum/config`:
 
@@ -74,10 +78,42 @@ When the public bootstrap transports change, download the refreshed example to a
 curl -fsSLo /tmp/signal-relay-reticulum-config.example https://raw.githubusercontent.com/destaben/destaben.github.io/main/services/signal-relay/reticulum-config.example
 sudoedit reticulum/config
 rm -f /tmp/signal-relay-reticulum-config.example
-docker compose up -d --remove-orphans
+sudo docker compose up -d --remove-orphans
 ```
 
 Preserve any deployment-specific interfaces. Do not replace the `reticulum/` directory or copy over the existing configuration wholesale.
+
+To discard a broken `reticulum/config` and replace it with the current repository template, keep `.env`, `lab-sender-reticulum/`, and the relay data volume intact, then run on the deployment host:
+
+```sh
+cd /opt/signal-relay
+sudo rm -f reticulum/config
+sudo curl -fsSLo reticulum/config https://raw.githubusercontent.com/destaben/destaben.github.io/main/services/signal-relay/reticulum-config.example
+sudo chown 10001:10001 reticulum/config
+sudo chmod 600 reticulum/config
+sudo docker compose config
+sudo docker compose pull signal-relay
+sudo docker compose up -d --force-recreate signal-relay
+sudo docker compose logs --tail=100 signal-relay
+```
+
+This removes only the Reticulum configuration file. It does not remove the persistent LXMF identity and inbox stored in the `signal-relay-data` volume. Reapply any intentional private interface additions after the service starts.
+
+If the relay restarts with `Could not parse the configuration at /reticulum/config`, inspect the private file before restarting it again:
+
+```sh
+sudo nl -ba reticulum/config
+sudo docker compose logs --tail=100 signal-relay
+```
+
+The configuration must contain both `[reticulum]` and `[interfaces]` root sections, with `[interfaces]` before every `[[Interface name]]` block. `SIGNAL_RELAY_*` values belong in `.env`, never in `reticulum/config`. After repairing the file, validate the Compose input and restart:
+
+```sh
+sudo docker compose config
+sudo docker compose up -d --force-recreate signal-relay
+sudo docker compose logs --tail=100 signal-relay
+```
+
 
 To diagnose the latest browser laboratory send without copying a session ID, download and run the diagnostic after the test:
 
@@ -86,7 +122,7 @@ curl -fsSLo diagnose-last-lab-session.sh https://raw.githubusercontent.com/desta
 sudo sh diagnose-last-lab-session.sh
 ```
 
-The relay has no host port. Nginx is the only HTTP entry point and binds to `127.0.0.1:8080` for host diagnostics; it exposes only the portfolio routes, limits laboratory POSTs, and rejects all other paths. Its `destaben-edge` Docker network can be joined by future services, then routed explicitly in `nginx/nginx.conf`. The `cloudflared` sidecar creates the outbound HTTPS tunnel when `CLOUDFLARE_TUNNEL_TOKEN` is set. The `reticulum/` directory contains the persistent Reticulum configuration; the named volume retains the LXMF identity and inbox across image upgrades.
+The relay has no host port. Nginx is the only HTTP entry point and binds to `127.0.0.1:8080` for host diagnostics; it exposes only the portfolio routes, including `GET /v1/lab/reticulum-nodes`, limits laboratory POSTs, and rejects all other paths. Its `destaben-edge` Docker network can be joined by future services, then routed explicitly in `nginx/nginx.conf`. The `cloudflared` sidecar creates the outbound HTTPS tunnel when `CLOUDFLARE_TUNNEL_TOKEN` is set. The `reticulum/` directory contains the persistent Reticulum configuration; the named volume retains the LXMF identity and inbox across image upgrades.
 
 ## Home Assistant environment lab
 

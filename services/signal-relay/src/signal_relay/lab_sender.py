@@ -10,6 +10,14 @@ import time
 LAB_SESSION_FIELD = "signal_relay_session"
 
 
+def public_node_alias(route_interface: object | None, node_aliases: object) -> str:
+    interface_name = getattr(route_interface, "name", "")
+    if not isinstance(node_aliases, dict) or not isinstance(interface_name, str):
+        return ""
+    node_alias = node_aliases.get(interface_name, "")
+    return node_alias if isinstance(node_alias, str) else ""
+
+
 def main() -> None:
     import LXMF
     import RNS
@@ -17,7 +25,7 @@ def main() -> None:
     config_dir = sys.argv[1]
     payload = json.loads(sys.stdin.read())
     destination_hash = bytes.fromhex(payload["destinationHash"])
-    result: dict[str, str] = {"state": "failed", "errorCode": "outbound_error", "sourceHash": ""}
+    result: dict[str, str] = {"state": "failed", "errorCode": "outbound_error", "sourceHash": "", "nodeAlias": ""}
     storage_dir = tempfile.mkdtemp(prefix="signal-relay-lab-")
 
     try:
@@ -30,6 +38,9 @@ def main() -> None:
         else:
             result["errorCode"] = "path_unavailable"
             return
+
+        route_interface = RNS.Transport.next_hop_interface(destination_hash)
+        result["nodeAlias"] = public_node_alias(route_interface, payload.get("nodeAliases", {}))
 
         destination_identity = RNS.Identity.recall(destination_hash)
         if destination_identity is None:

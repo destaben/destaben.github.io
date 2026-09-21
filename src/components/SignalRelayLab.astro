@@ -1,5 +1,5 @@
 ---
-import type { RelayLab } from "../data/portfolio";
+import { relayNodeCopy, type RelayLab } from "../data/portfolio";
 import { CircleCheck, KeyRound, LockKeyhole, MessageSquareText, Radio, Send, Smartphone, X } from "@lucide/astro";
 
 interface Props {
@@ -8,9 +8,10 @@ interface Props {
 }
 
 const { lab, locale } = Astro.props;
+const nodeCopy = relayNodeCopy[locale];
 ---
 
-<article class="lab-card relay-panel" data-lab-state={lab.status} aria-labelledby={`${lab.id}-title`} data-relay-panel data-relay-local-url="http://127.0.0.1:8787" data-relay-production-url="https://lab.destaben.dev" data-copied-label={lab.copiedLabel} data-online-label={lab.onlineLabel} data-offline-label={lab.offlineLabel} data-inbox-source-label={locale === "es" ? "ID de origen" : "Source ID"} data-preparing-label={lab.wizard.preparingLabel} data-unavailable-label={lab.wizard.unavailableLabel} data-queued-label={lab.wizard.queuedLabel} data-delivered-label={lab.wizard.deliveredLabel} data-failed-label={lab.wizard.failedLabel} data-route-waiting-label={lab.wizard.routeWaitingLabel} data-route-source-ready-label={lab.wizard.routeSourceReadyLabel} data-route-encrypted-label={lab.wizard.routeEncryptedLabel} data-route-routing-label={lab.wizard.routeRoutingLabel} data-route-received-label={lab.wizard.routeReceivedLabel} data-route-confirmed-label={lab.wizard.routeConfirmedLabel} data-route-delivery-failed-label={lab.wizard.routeDeliveryFailedLabel} data-route-outbound-failed-label={lab.wizard.routeOutboundFailedLabel} data-route-unknown-failed-label={lab.wizard.routeUnknownFailedLabel} data-telegram-configured-label={lab.wizard.telegramConfiguredLabel}>
+<article class="lab-card relay-panel" data-lab-state={lab.status} aria-labelledby={`${lab.id}-title`} data-relay-panel data-relay-local-url="http://127.0.0.1:8787" data-relay-production-url="https://lab.destaben.dev" data-copied-label={lab.copiedLabel} data-online-label={lab.onlineLabel} data-offline-label={lab.offlineLabel} data-node-up-label={nodeCopy.up} data-node-down-label={nodeCopy.down} data-node-unavailable-label={nodeCopy.unavailable} data-node-pending-label={nodeCopy.sessionPending} data-preparing-label={lab.wizard.preparingLabel} data-unavailable-label={lab.wizard.unavailableLabel} data-queued-label={lab.wizard.queuedLabel} data-delivered-label={lab.wizard.deliveredLabel} data-failed-label={lab.wizard.failedLabel} data-route-waiting-label={lab.wizard.routeWaitingLabel} data-route-source-ready-label={lab.wizard.routeSourceReadyLabel} data-route-encrypted-label={lab.wizard.routeEncryptedLabel} data-route-routing-label={lab.wizard.routeRoutingLabel} data-route-received-label={lab.wizard.routeReceivedLabel} data-route-confirmed-label={lab.wizard.routeConfirmedLabel} data-route-delivery-failed-label={lab.wizard.routeDeliveryFailedLabel} data-route-outbound-failed-label={lab.wizard.routeOutboundFailedLabel} data-route-unknown-failed-label={lab.wizard.routeUnknownFailedLabel} data-telegram-configured-label={lab.wizard.telegramConfiguredLabel}>
   <div class="lab-card-header">
     <p class="lab-status">{lab.statusLabel}</p>
     <span class="relay-availability" data-relay-availability data-state="checking" role="status"><span data-relay-status-dot></span><span data-relay-status-text>{lab.checkingLabel}</span></span>
@@ -19,6 +20,7 @@ const { lab, locale } = Astro.props;
   <p>{lab.summary}</p>
   <div class="tag-list">{lab.technologies.map((technology) => <span class="tag">{technology}</span>)}</div>
   <div class="relay-address"><div><p class="relay-label">{lab.addressLabel}</p><code data-relay-address>{lab.addressPending}</code></div><button type="button" data-copy-address aria-label={locale === "es" ? "Copiar dirección Reticulum" : "Copy Reticulum address"} disabled>{lab.copyLabel}</button></div>
+  <section class="relay-nodes" aria-labelledby={`${lab.id}-nodes`}><p id={`${lab.id}-nodes`} class="relay-label">{nodeCopy.label}</p><ul data-relay-nodes aria-live="polite"><li>{nodeCopy.unavailable}</li></ul><p class="relay-note">{nodeCopy.note}</p></section>
   <button class="relay-explore-button" type="button" data-open-wizard><MessageSquareText size={17} aria-hidden="true" />{lab.wizard.openLabel}</button>
   <div class="relay-inbox"><p class="relay-label">{lab.inboxLabel}</p><ul data-relay-inbox aria-live="polite"><li>{lab.inboxEmpty}</li></ul><p class="relay-note">{lab.inboxNote}</p></div>
 </article>
@@ -31,6 +33,7 @@ const { lab, locale } = Astro.props;
     <div class="relay-route-details">
       <article><KeyRound size={19} aria-hidden="true" /><div><p>{lab.wizard.sourceLabel}</p><code data-relay-source>{lab.wizard.sourcePending}</code></div></article>
       <article><Radio size={19} aria-hidden="true" /><div><p>{lab.wizard.destinationLabel}</p><code data-relay-destination>{lab.addressPending}</code></div></article>
+      <article><Radio size={19} aria-hidden="true" /><div><p>{nodeCopy.sessionLabel}</p><strong data-relay-session-node>{nodeCopy.sessionPending}</strong></div></article>
       <article><Smartphone size={19} aria-hidden="true" /><div><p>{lab.wizard.telegramLabel}</p><strong data-telegram-status>{lab.wizard.telegramUnavailableLabel}</strong><span>{lab.wizard.telegramCopy}</span></div></article>
     </div>
     <form class="relay-message-form" data-relay-message-form>
@@ -43,11 +46,12 @@ const { lab, locale } = Astro.props;
 <script>
   const relayPanel = document.querySelector<HTMLElement>("[data-relay-panel]");
   if (relayPanel) {
-    type InboxMessage = { content?: string; receivedAt: string; sourceHash?: string };
+    type InboxMessage = { content?: string; receivedAt: string };
     const localHosts = new Set(["127.0.0.1", "localhost"]);
     const relayUrl = localHosts.has(window.location.hostname) ? relayPanel.dataset.relayLocalUrl : relayPanel.dataset.relayProductionUrl;
     const address = relayPanel.querySelector<HTMLElement>("[data-relay-address]");
     const inbox = relayPanel.querySelector<HTMLElement>("[data-relay-inbox]");
+    const nodes = relayPanel.querySelector<HTMLElement>("[data-relay-nodes]");
     const copyButton = relayPanel.querySelector<HTMLButtonElement>("[data-copy-address]");
     const availability = relayPanel.querySelector<HTMLElement>("[data-relay-availability]");
     const availabilityText = relayPanel.querySelector<HTMLElement>("[data-relay-status-text]");
@@ -57,6 +61,7 @@ const { lab, locale } = Astro.props;
     const source = dialog?.querySelector<HTMLElement>("[data-relay-source]");
     const destination = dialog?.querySelector<HTMLElement>("[data-relay-destination]");
     const telegramStatus = dialog?.querySelector<HTMLElement>("[data-telegram-status]");
+    const sessionNode = dialog?.querySelector<HTMLElement>("[data-relay-session-node]");
     const messageForm = dialog?.querySelector<HTMLFormElement>("[data-relay-message-form]");
     const messageInput = dialog?.querySelector<HTMLTextAreaElement>("[data-relay-message]");
     const routeSteps = Array.from(dialog?.querySelectorAll<HTMLElement>("[data-route-step]") || []);
@@ -73,13 +78,10 @@ const { lab, locale } = Astro.props;
         const item = document.createElement("li");
         const body = document.createElement("span");
         body.textContent = message.content || "(empty message)";
-        const sourceId = document.createElement("code");
-        sourceId.className = "relay-inbox-source";
-        sourceId.textContent = `${relayPanel.dataset.inboxSourceLabel || "Source ID"}: ${message.sourceHash}`;
         const timestamp = document.createElement("time");
         timestamp.dateTime = message.receivedAt;
         timestamp.textContent = new Date(message.receivedAt).toLocaleString();
-        item.replaceChildren(body, ...(message.sourceHash ? [sourceId] : []), timestamp);
+        item.replaceChildren(body, timestamp);
         return item;
       }));
     };
@@ -94,10 +96,40 @@ const { lab, locale } = Astro.props;
       }
     };
 
+    const renderNodes = (nodeData: { status?: string; nodes?: { alias?: string; status?: string }[] }) => {
+      const publicNodes = nodeData.status === "available" && Array.isArray(nodeData.nodes) ? nodeData.nodes : [];
+      if (!nodes) return;
+      if (!publicNodes.length) {
+        nodes.replaceChildren(Object.assign(document.createElement("li"), { textContent: relayPanel.dataset.nodeUnavailableLabel || "Node status is unavailable." }));
+        return;
+      }
+      nodes.replaceChildren(...publicNodes.map((node) => {
+        const item = document.createElement("li");
+        const alias = document.createElement("strong");
+        alias.textContent = node.alias || "";
+        const status = document.createElement("span");
+        const isUp = node.status === "up";
+        status.dataset.state = isUp ? "up" : "down";
+        status.textContent = isUp ? relayPanel.dataset.nodeUpLabel || "Connected" : relayPanel.dataset.nodeDownLabel || "Disconnected";
+        item.replaceChildren(alias, status);
+        return item;
+      }));
+    };
+
+    const refreshNodes = async () => {
+      if (!relayUrl) return;
+      try {
+        const response = await fetch(`${relayUrl}/v1/lab/reticulum-nodes`);
+        renderNodes(response.ok ? await response.json() : {});
+      } catch {
+        renderNodes({});
+      }
+    };
+
     if (relayUrl) {
-      Promise.all([fetch(`${relayUrl}/healthz`), fetch(`${relayUrl}/v1/contact`), fetch(`${relayUrl}/v1/inbox`), fetch(`${relayUrl}/v1/lab/capabilities`)])
-        .then(([healthResponse, contactResponse, inboxResponse, capabilitiesResponse]) => healthResponse.ok && contactResponse.ok && inboxResponse.ok ? Promise.all([healthResponse.json(), contactResponse.json(), inboxResponse.json(), capabilitiesResponse.ok ? capabilitiesResponse.json() : { telegramNotifications: false }]) : Promise.reject())
-        .then(([health, contact, inboxData, capabilities]) => {
+      Promise.all([fetch(`${relayUrl}/healthz`), fetch(`${relayUrl}/v1/contact`), fetch(`${relayUrl}/v1/inbox`), fetch(`${relayUrl}/v1/lab/capabilities`), fetch(`${relayUrl}/v1/lab/reticulum-nodes`)])
+        .then(([healthResponse, contactResponse, inboxResponse, capabilitiesResponse, nodesResponse]) => healthResponse.ok && contactResponse.ok && inboxResponse.ok ? Promise.all([healthResponse.json(), contactResponse.json(), inboxResponse.json(), capabilitiesResponse.ok ? capabilitiesResponse.json() : { telegramNotifications: false }, nodesResponse.ok ? nodesResponse.json() : {}]) : Promise.reject())
+        .then(([health, contact, inboxData, capabilities, nodeData]) => {
           setRelayAvailability(health.status === "ready");
           if (address && contact.address) {
             address.textContent = contact.address;
@@ -105,10 +137,12 @@ const { lab, locale } = Astro.props;
             if (copyButton) copyButton.disabled = false;
           }
           renderInbox(inboxData);
+          renderNodes(nodeData);
           if (telegramStatus && capabilities.telegramNotifications) telegramStatus.textContent = relayPanel.dataset.telegramConfiguredLabel || "Telegram configured";
         })
         .catch(() => setRelayAvailability(false));
       window.setInterval(refreshInbox, 10_000);
+      window.setInterval(refreshNodes, 20_000);
     }
 
     copyButton?.addEventListener("click", async () => {
@@ -144,10 +178,11 @@ const { lab, locale } = Astro.props;
       renderRoute(state, errorCode);
     };
 
-    const displaySession = (session: { sessionId: string; sourceHash: string; destinationHash: string; state: string; errorCode?: string }) => {
+    const displaySession = (session: { sessionId: string; sourceHash: string; destinationHash: string; state: string; errorCode?: string; nodeAlias?: string }) => {
       sessionId = session.sessionId;
       if (source) source.textContent = session.sourceHash;
       if (destination) destination.textContent = session.destinationHash;
+      if (sessionNode) sessionNode.textContent = session.nodeAlias || relayPanel.dataset.nodePendingLabel || "Waiting for route confirmation";
       setSessionState(session.state, session.errorCode);
     };
 
@@ -160,6 +195,7 @@ const { lab, locale } = Astro.props;
           if (!response.ok) throw new Error();
           const session = await response.json();
           if (source && session.sourceHash) source.textContent = session.sourceHash;
+          if (sessionNode) sessionNode.textContent = session.nodeAlias || relayPanel.dataset.nodePendingLabel || "Waiting for route confirmation";
           setSessionState(session.state, session.errorCode);
           if (session.state === "delivered") {
             window.clearInterval(timer);

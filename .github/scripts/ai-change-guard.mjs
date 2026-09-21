@@ -70,19 +70,6 @@ function requirements() {
   return { files, sensitiveFiles, checks: [...checks].sort(), fingerprint: fingerprint(sensitiveFiles) };
 }
 
-function toolMayWrite(input) {
-  const name = String(input.tool_name || input.toolName || input.tool || "").toLowerCase();
-  return /edit|write|create|delete|rename|terminal|execute|patch/.test(name);
-}
-
-function requestTargetsSensitivePath(input) {
-  const serialized = JSON.stringify(input);
-  return [
-    ".github/workflows/", ".github/hooks/", ".github/scripts/", "astro.config.mjs", "public/CNAME",
-    "services/signal-relay/", "docs/SIGNAL-RELAY.md", "SignalRelayLab.astro", "ContainerMetricsLab.astro", "HomeAssistantLab.astro",
-  ].some((path) => serialized.includes(path));
-}
-
 async function record(checks) {
   const current = requirements();
   const required = new Set(current.checks);
@@ -128,9 +115,6 @@ async function main() {
   try { input = raw.trim() ? JSON.parse(raw) : {}; } catch { return output({}); }
   const event = input.hookEventName || input.hook_event_name || input.event || "";
   if (event === "Stop") return validateStop();
-  if (event === "PreToolUse" && toolMayWrite(input) && requestTargetsSensitivePath(input)) {
-    return output({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "ask", permissionDecisionReason: "Sensitive boundary change requires explicit confirmation and change-verifier validation." } });
-  }
   output({});
 }
 

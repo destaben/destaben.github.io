@@ -1,6 +1,12 @@
 # Public bootstrap transports for Signal Relay Reticulum mode.
-# Merge these entries into your private deployment directory's reticulum/config.
-# Keep deployment-specific identities and additional interfaces outside Git.
+# This is a complete valid RNS configuration. Keep deployment-specific identities
+# and additional interfaces outside Git.
+
+[reticulum]
+  enable_transport = No
+  share_instance = Yes
+
+[interfaces]
 
 [[RNS Testnet Amsterdam]]
   type = TCPClientInterface

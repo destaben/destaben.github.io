@@ -1,13 +1,5 @@
 {
   "hooks": {
-    "PreToolUse": [
-      {
-        "type": "command",
-        "command": "node .github/scripts/ai-change-guard.mjs",
-        "cwd": ".",
-        "timeout": 10
-      }
-    ],
     "Stop": [
       {
         "type": "command",

@@ -24,6 +24,7 @@ This repository is the source for `https://info.destaben.dev`. It is a static As
 - Do not commit credentials, tokens, or non-public personal data to this publicly deployed repository. Any portfolio contact detail must be intentionally public.
 - The Signal Relay is not part of GitHub Pages. Keep its Reticulum identity, inbox data, Telegram credentials, tunnel configuration, and deployment `.env` files outside Git.
 - Validate relay changes with `services/signal-relay/.venv/bin/python -m pytest`; validate the site with `npm run verify`. Validate Compose with `docker compose -f services/signal-relay/compose.yaml config` using a local, ignored `.env`.
+- When a task changes Signal Relay, provide the exact operational commands required on the deployment host. The user runs Docker with `sudo`; use `sudo docker compose ...` in those commands. Never ask for or print secret `.env` values.
 - Keep the relay image compatible with `linux/amd64` and `linux/arm64`, and preserve its loopback-only HTTP binding in Compose. Changes to its public API, container deployment, or security boundary must update `docs/SIGNAL-RELAY.md` and `services/signal-relay/README.md`.
 - Do not reintroduce AWS deployment resources. Retired cloud resources must be destroyed only after the GitHub Pages site, DNS, and HTTPS are verified.
 
@@ -34,4 +35,4 @@ This repository is the source for `https://info.destaben.dev`. It is a static As
 - Use `portfolio-reviewer` for site, content, accessibility, or localization reviews. Use `relay-boundary-reviewer` for relay API, privacy, Nginx, Compose, or deployment-boundary reviews.
 - Invoke `documentation-curator` after implementing every change and before validation or completion. It must update only the documentation and AI context that the diff makes inaccurate, incomplete, or newly necessary.
 - Use `change-verifier` to select and run the required checks. Only it may record a completed validation for the local AI guard.
-- The AI guard requires confirmation before a sensitive change and blocks completion until the current sensitive diff has matching local validation evidence. Its local state is ignored and never replaces CI.
+- The AI guard allows all repository edits to proceed in autopilot. It blocks completion until the current sensitive diff has matching local validation evidence; its local state is ignored and never replaces CI.

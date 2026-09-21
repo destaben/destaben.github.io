@@ -1,6 +1,27 @@
 from dataclasses import dataclass
+import json
 from pathlib import Path
 import os
+import re
+
+
+_PUBLIC_NODE_ALIAS = re.compile(r"[A-Za-z0-9][A-Za-z0-9 ._-]{0,47}")
+
+
+def _public_tcp_node_aliases(value: str | None) -> dict[str, str]:
+    if not value:
+        return {}
+    try:
+        aliases = json.loads(value)
+    except json.JSONDecodeError as error:
+        raise ValueError("SIGNAL_RELAY_PUBLIC_TCP_NODE_ALIASES must be JSON") from error
+    if not isinstance(aliases, dict) or len(aliases) > 12:
+        raise ValueError("SIGNAL_RELAY_PUBLIC_TCP_NODE_ALIASES must contain at most 12 aliases")
+    if not all(isinstance(name, str) and isinstance(alias, str) and _PUBLIC_NODE_ALIAS.fullmatch(alias) for name, alias in aliases.items()):
+        raise ValueError("SIGNAL_RELAY_PUBLIC_TCP_NODE_ALIASES contains an invalid alias")
+    if len(set(aliases.values())) != len(aliases):
+        raise ValueError("SIGNAL_RELAY_PUBLIC_TCP_NODE_ALIASES aliases must be unique")
+    return aliases
 
 
 @dataclass(frozen=True)
@@ -22,6 +43,7 @@ class Settings:
     home_assistant_humidity_entity_id: str | None = None
     home_assistant_air_quality_entity_id: str | None = None
     home_assistant_cache_seconds: int = 900
+    public_tcp_node_aliases: dict[str, str] | None = None
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -56,4 +78,7 @@ class Settings:
             home_assistant_humidity_entity_id=os.environ.get("SIGNAL_RELAY_HOME_ASSISTANT_HUMIDITY_ENTITY_ID") or None,
             home_assistant_air_quality_entity_id=os.environ.get("SIGNAL_RELAY_HOME_ASSISTANT_AIR_QUALITY_ENTITY_ID") or None,
             home_assistant_cache_seconds=int(os.environ.get("SIGNAL_RELAY_HOME_ASSISTANT_CACHE_SECONDS", "900")),
+            public_tcp_node_aliases=_public_tcp_node_aliases(
+                os.environ.get("SIGNAL_RELAY_PUBLIC_TCP_NODE_ALIASES")
+            ),
         )

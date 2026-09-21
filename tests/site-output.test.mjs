@@ -18,6 +18,8 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /<h3 id="signal-relay-title"><a href="https:\/\/reticulum\.network"/);
   assert.match(spanish, /Origen temporal/);
   assert.match(spanish, /Aviso Telegram/);
+  assert.match(spanish, /Nodos TCP Reticulum/);
+  assert.match(spanish, /Pendiente de confirmación de ruta/);
   assert.match(spanish, /Observabilidad de servicios/);
   assert.match(spanish, /Puedes comparar ambos recursos, seleccionar servicios y revisar un intervalo concreto\./);
   assert.match(spanish, /data-metrics-panel/);
@@ -34,7 +36,7 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /data-good-label="Buena"/);
   assert.match(spanish, /data-regular-label="Regular"/);
   assert.match(spanish, /data-bad-label="Mala"/);
-  assert.match(spanish, /data-inbox-source-label="ID de origen"/);
+  assert.doesNotMatch(spanish, /data-inbox-source-label/);
   assert.match(spanish, /Reticulum online/);
   assert.match(spanish, /abr 2021 - hoy/);
   assert.match(spanish, /Senior DevOps Engineer/);
@@ -45,7 +47,9 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(english, /Systems explained through use\./);
   assert.match(english, /Explore the Reticulum journey/);
   assert.match(english, /The guided journey shows how a test is prepared, encrypted, and confirmed before it is sent\./);
-  assert.match(english, /data-inbox-source-label="Source ID"/);
+  assert.doesNotMatch(english, /data-inbox-source-label/);
+  assert.match(english, /Reticulum TCP nodes/);
+  assert.match(english, /Waiting for route confirmation/);
   assert.match(english, /Apr 2021 - present/);
   assert.match(english, /Systems Integrator/);
   assert.match(english, /NTT/);

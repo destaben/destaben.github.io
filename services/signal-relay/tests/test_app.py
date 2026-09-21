@@ -1,8 +1,11 @@
 from fastapi.testclient import TestClient
+import logging
+import RNS
 
 from signal_relay.app import create_app
 from signal_relay.bridge import LAB_SESSION_FIELD, LabSession, RelayBridge
 from signal_relay.config import Settings
+from signal_relay.lab_sender import public_node_alias
 
 
 def test_metrics_endpoint_only_returns_fixed_container_series(tmp_path):
@@ -90,6 +93,7 @@ def test_health_status_and_signal_acknowledgement(tmp_path):
     with TestClient(app) as client:
         assert client.get("/healthz").json()["transport"] == "demo"
         assert client.get("/v1/contact").json()["address"] is None
+        assert client.get("/v1/lab/reticulum-nodes").json() == {"status": "unavailable", "nodes": []}
         assert client.get("/v1/lab/capabilities").json() == {
             "educationalSending": False,
             "telegramNotifications": False,
@@ -113,6 +117,38 @@ def test_health_status_and_signal_acknowledgement(tmp_path):
         demo_message = client.post("/v1/demo/inbox", json={"content": "Hello from curl"})
         assert demo_message.status_code == 201
         assert demo_message.json()["messages"][0]["content"] == "Hello from curl"
+
+
+def test_tcp_node_projection_uses_only_configured_aliases_and_logs_transitions(tmp_path, monkeypatch, caplog):
+    caplog.set_level(logging.INFO, logger="uvicorn.error")
+    bridge = RelayBridge(
+        Settings(
+            mode="demo", allowed_origins={"http://127.0.0.1:4321"}, rate_limit=1,
+            rate_window_seconds=60, reticulum_config_dir=None, storage_dir=tmp_path,
+            telegram_bot_token=None, telegram_chat_id=None,
+            public_tcp_node_aliases={"internal-tcp": "Node One"},
+        )
+    )
+
+    class TCPClientInterface:
+        name = "internal-tcp"
+        online = True
+
+    class PrivateInterface:
+        name = "private-tcp"
+        online = True
+
+    monkeypatch.setattr(RNS.Transport, "interfaces", [TCPClientInterface(), PrivateInterface()])
+    bridge.transport = "reticulum"
+    bridge._refresh_tcp_node_statuses()
+    assert bridge.reticulum_nodes() == {"status": "available", "nodes": [{"alias": "Node One", "status": "up"}]}
+    assert "node=Node One status=up" in caplog.text
+
+    TCPClientInterface.online = False
+    bridge._refresh_tcp_node_statuses()
+    assert bridge.reticulum_nodes()["nodes"][0]["status"] == "down"
+    assert "node=Node One status=down" in caplog.text
+    assert "internal-tcp" not in caplog.text
 
 
 def test_rejects_invalid_and_rate_limited_signals(tmp_path):
@@ -218,6 +254,36 @@ def test_received_source_hash_confirms_matching_lab_session(tmp_path):
     )
     bridge._set_lab_session_state("session", "failed", "delivery_timeout")
 
-    assert bridge.inbox_notices()[0]["sourceHash"] == source_hash
+    assert "sourceHash" not in bridge.inbox_notices()[0]
     assert bridge.lab_session_status("session")["sourceHash"] == source_hash
     assert bridge.lab_session_status("session")["state"] == "delivered"
+
+
+def test_lab_session_only_returns_configured_node_alias(tmp_path):
+    bridge = RelayBridge(
+        Settings(
+            mode="demo", allowed_origins={"http://127.0.0.1:4321"}, rate_limit=1,
+            rate_window_seconds=60, reticulum_config_dir=None, storage_dir=tmp_path,
+            telegram_bot_token=None, telegram_chat_id=None,
+            public_tcp_node_aliases={"internal-tcp": "Node One"},
+        )
+    )
+    bridge._lab_sessions["session"] = LabSession(
+        expires_at=9999999999, source_hash="", destination_hash="destination", state="queued"
+    )
+
+    bridge._complete_lab_session("session", {"state": "failed", "errorCode": "delivery_failed", "nodeAlias": "private-tcp"})
+    assert bridge.lab_session_status("session")["nodeAlias"] == ""
+
+    bridge._complete_lab_session("session", {"state": "failed", "errorCode": "delivery_failed", "nodeAlias": "Node One"})
+    assert bridge.lab_session_status("session")["nodeAlias"] == "Node One"
+
+
+def test_isolated_sender_only_translates_the_selected_configured_route_interface():
+    route_interface = type("RouteInterface", (), {"name": "internal-tcp"})()
+    aliases = {"internal-tcp": "Node One"}
+
+    assert public_node_alias(route_interface, aliases) == "Node One"
+    assert public_node_alias(None, aliases) == ""
+    assert public_node_alias(type("RouteInterface", (), {"name": "private-tcp"})(), aliases) == ""
+    assert public_node_alias(route_interface, ["Node One"]) == ""

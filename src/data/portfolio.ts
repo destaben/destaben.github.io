@@ -57,6 +57,27 @@ export interface RelayLab extends LabBase {
   };
 }
 
+export const relayNodeCopy = {
+  es: {
+    label: "Nodos TCP Reticulum",
+    unavailable: "El estado de los nodos no está disponible.",
+    up: "Conectado",
+    down: "Sin conexión",
+    note: "El estado refleja la conexión TCP observada; no garantiza una ruta ni una entrega.",
+    sessionLabel: "Nodo de conexión",
+    sessionPending: "Pendiente de confirmación de ruta",
+  },
+  en: {
+    label: "Reticulum TCP nodes",
+    unavailable: "Node status is unavailable.",
+    up: "Connected",
+    down: "Disconnected",
+    note: "This reflects observed TCP connectivity; it does not guarantee a route or delivery.",
+    sessionLabel: "Connection node",
+    sessionPending: "Waiting for route confirmation",
+  },
+} as const;
+
 export interface MetricsLab extends LabBase {
   kind: "metrics";
   titleLabel: string;

@@ -35,11 +35,26 @@ The browser receives only the public Reticulum destination hash. It never receiv
 
 `GET /v1/lab/capabilities` returns only whether educational sending is currently enabled and whether Telegram notifications are configured. It never reveals notification credentials or destinations.
 
+`GET /v1/lab/reticulum-nodes` returns a fixed public projection of the configured Reticulum TCP node aliases and their current connection states:
+
+```json
+{
+  "status": "available",
+  "nodes": [
+    {"alias": "Node One", "status": "up"}
+  ]
+}
+```
+
+It returns `{"status":"unavailable","nodes":[]}` when Reticulum is not active or no aliases are configured. The projection contains only configured public aliases and `up` or `down` statuses, with at most 12 aliases. Public aliases must be unique, begin with an ASCII letter or digit, and contain only ASCII letters, digits, spaces, periods, underscores, or hyphens, with a maximum of 48 characters. `up` means the bridge currently observes the corresponding `TCPClientInterface.online` state; it is not a route, path, or delivery guarantee. Configure the private JSON mapping in `SIGNAL_RELAY_PUBLIC_TCP_NODE_ALIASES`, where private TCP client interface names map to unique public aliases. Never return, log, or publish that mapping, interface names, addresses, or other topology. Logs record each alias's initial observed connection status, later status changes, and observation failures. They contain only the public alias and status where applicable.
+
 ## Educational Reticulum sessions
 
 The portfolio may create a short-lived, browser-scoped educational session only when `SIGNAL_RELAY_LAB_SEND_ENABLED=true` and `SIGNAL_RELAY_LAB_SENDER_CONFIG_DIR` identifies a separate, reachable Reticulum client configuration. On send, the bridge starts an isolated official Reticulum runtime with a new temporary identity. It returns the public source hash only to that browser session, sends once through the configured transport, and removes its temporary storage on exit. The separate runtime is required because one Reticulum runtime cannot route to its own delivery destination.
 
 The endpoints are disabled by default and must remain disabled until both Reticulum configurations have a verified external route. When enabled, a session expires after 15 minutes and may emit one Reticulum message at most. The Nginx edge limits laboratory POSTs to five requests per Cloudflare client IP per minute, while status polling remains unrestricted. The browser reports only the actual `identity_ready`, `queued`, `delivered`, or `failed` state from the official Reticulum runtime; it does not simulate delivery. A `failed` session includes a bounded public `errorCode`, currently `lab_sender_unconfigured`, `path_unavailable`, `destination_unavailable`, `delivery_failed`, `delivery_timeout`, or `outbound_error`.
+
+An educational session may include `nodeAlias` only after its isolated sender selects an actual Reticulum route whose TCP client interface has a configured public alias. The field is otherwise empty and never reveals a private interface name, route, path, address, or topology.
 
 `GET /metrics` exposes Prometheus-format operational counters. It is intended for the operator's scraper, not for the portfolio interface.
 
@@ -91,9 +106,11 @@ When enabled, `POST /v1/signals` accepts only a fixed action vocabulary. It does
 
 ## Deployment
 
-Run Reticulum, the bridge, Nginx, and the tunnel under separate unprivileged containers. The Compose deployment runs `cloudflare/cloudflared` as a separate sidecar and reads `CLOUDFLARE_TUNNEL_TOKEN` only from the ignored `.env` file. Create the remotely managed tunnel in Cloudflare Zero Trust and map `lab.destaben.dev` to `http://nginx:8080`; do not forward residential ports or expose Reticulum's TCP interface. Nginx is the sole public HTTP policy point: it allowlists portfolio API routes, limits laboratory POSTs and trusts the Cloudflare client-IP header only because it has no public host binding. Its internal `8081` listener has no host port or Cloudflare ingress and proxies the relay's fixed Home Assistant reads to `host.docker.internal:8123`; it is not a Home Assistant public proxy. Keep secrets, Home Assistant credentials and entity IDs, Telegram credentials, and Reticulum identities outside Git and rotate tunnel credentials.
+Run Reticulum, the bridge, Nginx, and the tunnel under separate unprivileged containers. The Compose deployment runs `cloudflare/cloudflared` as a separate sidecar and reads `CLOUDFLARE_TUNNEL_TOKEN` only from the ignored `.env` file. It also passes `SIGNAL_RELAY_PUBLIC_TCP_NODE_ALIASES` from that private file, defaulting to an empty mapping. Create the remotely managed tunnel in Cloudflare Zero Trust and map `lab.destaben.dev` to `http://nginx:8080`. Nginx remains the sole public HTTP policy point: it allowlists portfolio API routes, including `GET /v1/lab/reticulum-nodes`, limits laboratory POSTs and trusts the Cloudflare client-IP header only because it has no public host binding. Its internal `8081` listener has no host port or Cloudflare ingress and proxies the relay's fixed Home Assistant reads to `host.docker.internal:8123`; it is not a Home Assistant public proxy.
 
-The default `AutoInterface` supports local discovery only. For off-LAN LXMF delivery, configure a trusted Reticulum transport interface that both peers can reach. `services/signal-relay/reticulum-config.example` provides the current public bootstrap transports as the deployment starter. Existing deployments must merge refreshed bootstrap entries into their private `reticulum/config`; they must not replace the Reticulum directory or remove deployment-specific interfaces. Announcing a destination alone does not create an Internet route.
+The deployment supports CGNAT through outbound Reticulum `TCPClientInterface` transports and the outbound Cloudflare HTTP tunnel. Cloudflare Tunnel cannot expose arbitrary Reticulum TCP clients; a standard public `TCPServerInterface` would require a reachable public port or a separately operated TCP relay on a VPS. Do not publish the relay HTTP API, Reticulum TCP, Home Assistant, or any other host port. Keep secrets, Home Assistant credentials and entity IDs, Telegram credentials, and Reticulum identities outside Git and rotate tunnel credentials.
+
+The default `AutoInterface` supports local discovery only. For off-LAN LXMF delivery, configure a trusted Reticulum transport interface that both peers can reach. `services/signal-relay/reticulum-config.example` provides the current public bootstrap transports as the deployment starter. Existing deployments must merge refreshed bootstrap entries into their private `reticulum/config`; they must not replace the Reticulum directory or remove deployment-specific interfaces. When recovering from a broken configuration, the exact procedure in `services/signal-relay/README.md` may replace only `reticulum/config` with the current template. It must preserve `.env`, `lab-sender-reticulum/`, and the `signal-relay-data` volume; reapply any intentional private interface additions afterward. Announcing a destination alone does not create an Internet route.
 
 The supported container image is `ghcr.io/destaben/signal-relay:latest`. It is published for `linux/amd64` and `linux/arm64` by `.github/workflows/publish-signal-relay.yml`. The companion Compose file keeps the relay off the host network, binds the Nginx diagnostics entry point to loopback, persists Reticulum configuration and service state, and drops Linux capabilities. Future services can join the `destaben-edge` Docker network, then be routed explicitly by Nginx. See `services/signal-relay/README.md` for the exact host setup and update commands.
 

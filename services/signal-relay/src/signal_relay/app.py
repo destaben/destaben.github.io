@@ -86,6 +86,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lab_capabilities() -> dict[str, bool]:
         return bridge.lab_capabilities()
 
+    @app.get("/v1/lab/reticulum-nodes", include_in_schema=False)
+    async def reticulum_nodes() -> dict[str, object]:
+        return bridge.reticulum_nodes()
+
     @app.get("/v1/lab/metrics", include_in_schema=False)
     async def lab_metrics(metric: Literal["cpu", "memory"], start: int, end: int, step: int = 120) -> dict[str, object]:
         prometheus = app.state.prometheus
