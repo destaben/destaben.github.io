@@ -23,7 +23,7 @@ services:
       SIGNAL_RELAY_HOME_ASSISTANT_CACHE_SECONDS: ${SIGNAL_RELAY_HOME_ASSISTANT_CACHE_SECONDS:-900}
       SIGNAL_RELAY_PUBLIC_TCP_NODE_ALIASES: "${SIGNAL_RELAY_PUBLIC_TCP_NODE_ALIASES:-{}}"
     networks:
-      - relay
+      - edge
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -46,63 +46,10 @@ services:
       retries: 3
       start_period: 15s
 
-  nginx:
-    container_name: lab-edge
-    image: nginxinc/nginx-unprivileged:stable-alpine
-    pull_policy: always
-    depends_on:
-      signal-relay:
-        condition: service_healthy
-    ports:
-      - "127.0.0.1:8080:8080"
-    networks:
-      - edge
-      - relay
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-    init: true
-    read_only: true
-    tmpfs:
-      - /tmp
-      - /var/cache/nginx
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/healthz"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
-
-  cloudflared:
-    container_name: reticulum-tunnel
-    image: cloudflare/cloudflared:latest
-    pull_policy: always
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN in .env}
-    depends_on:
-      nginx:
-        condition: service_healthy
-    networks:
-      - edge
-    init: true
-    read_only: true
-    tmpfs:
-      - /tmp
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    restart: unless-stopped
-
 volumes:
   signal-relay-data:
 
 networks:
   edge:
     name: destaben-edge
-  relay:
+    external: true
