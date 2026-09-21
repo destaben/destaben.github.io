@@ -20,9 +20,8 @@ const nodeCopy = relayNodeCopy[locale];
   <p>{lab.summary}</p>
   <div class="tag-list">{lab.technologies.map((technology) => <span class="tag">{technology}</span>)}</div>
   <div class="relay-address"><div><p class="relay-label">{lab.addressLabel}</p><code data-relay-address>{lab.addressPending}</code></div><button type="button" data-copy-address aria-label={locale === "es" ? "Copiar dirección Reticulum" : "Copy Reticulum address"} disabled>{lab.copyLabel}</button></div>
-  <section class="relay-nodes" aria-labelledby={`${lab.id}-nodes`}><p id={`${lab.id}-nodes`} class="relay-label">{nodeCopy.label}</p><ul data-relay-nodes aria-live="polite"><li>{nodeCopy.unavailable}</li></ul><p class="relay-note">{nodeCopy.note}</p></section>
   <button class="relay-explore-button" type="button" data-open-wizard><MessageSquareText size={17} aria-hidden="true" />{lab.wizard.openLabel}</button>
-  <div class="relay-inbox"><p class="relay-label">{lab.inboxLabel}</p><ul data-relay-inbox aria-live="polite"><li>{lab.inboxEmpty}</li></ul><p class="relay-note">{lab.inboxNote}</p></div>
+  <div class="relay-inbox"><p class="relay-label">{lab.inboxLabel}</p><ul data-relay-inbox aria-live="polite"><li>{lab.inboxEmpty}</li></ul><p class="relay-note">{lab.inboxNote}</p><section class="relay-nodes" aria-labelledby={`${lab.id}-nodes`}><p id={`${lab.id}-nodes`} class="relay-label">{nodeCopy.label}</p><ul data-relay-nodes aria-live="polite"><li>{nodeCopy.unavailable}</li></ul><p class="relay-note">{nodeCopy.note}</p></section></div>
 </article>
 
 <dialog class="relay-dialog" data-relay-dialog aria-labelledby={`${lab.id}-wizard-title`}>
@@ -73,7 +72,7 @@ const nodeCopy = relayNodeCopy[locale];
 
     const renderInbox = (inboxData: { messages?: InboxMessage[] }) => {
       const messages = Array.isArray(inboxData.messages) ? inboxData.messages : [];
-      if (inbox && messages.length) inbox.replaceChildren(...messages.map((message) => {
+      if (inbox && messages.length) inbox.replaceChildren(...messages.slice(0, 5).map((message) => {
         const item = document.createElement("li");
         const body = document.createElement("span");
         body.textContent = message.content || "(empty message)";

@@ -18,6 +18,7 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /<h3 id="signal-relay-title"><a href="https:\/\/reticulum\.network"/);
   assert.match(spanish, /Origen temporal/);
   assert.match(spanish, /Aviso Telegram/);
+  assert.match(spanish, /Se muestran los cinco mensajes más recientes como texto plano\./);
   assert.match(spanish, /Conexiones TCP Reticulum/);
   assert.match(spanish, /data-node-up-label="Online"/);
   assert.match(spanish, /data-node-down-label="Offline"/);
@@ -49,6 +50,7 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(english, /Reticulum address/);
   assert.match(english, /Systems explained through use\./);
   assert.match(english, /Explore the Reticulum journey/);
+  assert.match(english, /The five most recent messages are shown as plain text\./);
   assert.match(english, /The guided journey shows how a test is prepared, encrypted, and confirmed before it is sent\./);
   assert.doesNotMatch(english, /data-inbox-source-label/);
   assert.match(english, /Reticulum TCP connections/);
