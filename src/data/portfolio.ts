@@ -61,8 +61,8 @@ export const relayNodeCopy = {
   es: {
     label: "Conexiones TCP Reticulum",
     unavailable: "El estado de los nodos no está disponible.",
-    up: "Conectado",
-    down: "Sin conexión",
+    up: "Online",
+    down: "Offline",
     note: "Los nombres identifican conexiones TCP configuradas. La dirección LXMF no pertenece a un nodo concreto: cualquier cliente con conectividad Reticulum puede descubrirla. El estado no garantiza una ruta ni una entrega.",
     sessionLabel: "Nodo seleccionado para esta prueba",
     sessionPending: "Pendiente de selección de ruta",
@@ -70,8 +70,8 @@ export const relayNodeCopy = {
   en: {
     label: "Reticulum TCP connections",
     unavailable: "Node status is unavailable.",
-    up: "Connected",
-    down: "Disconnected",
+    up: "Online",
+    down: "Offline",
     note: "Names identify configured TCP connections. The LXMF address does not belong to one specific node: any client with Reticulum connectivity can discover it. This state does not guarantee a route or delivery.",
     sessionLabel: "Node selected for this test",
     sessionPending: "Waiting for route selection",

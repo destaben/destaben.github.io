@@ -64,7 +64,7 @@ The portfolio presents a public LXMF destination backed by a separate, self-host
 
 For local bridge setup, API/WebSocket tests, and end-to-end verification, use [services/signal-relay/README.md](services/signal-relay/README.md). GitHub Actions runs both the Astro suite and Signal Relay's Python suite before publishing the Pages artifact.
 
-When refreshing Reticulum bootstrap transports or recovering a broken private configuration, follow the relay README's host procedure: preserve `.env`, the persistent relay data volume, and `lab-sender-reticulum/`; refresh the relay `compose.yaml` and merge the current Reticulum template, then recreate only `signal-relay`. Update the edge independently from [`destaben/lab-inverse-proxy`](https://github.com/destaben/lab-inverse-proxy). Update the private `SIGNAL_RELAY_PUBLIC_TCP_NODE_ALIASES` mapping whenever configured interface names change.
+When refreshing Reticulum bootstrap transports or recovering a broken private configuration, follow the relay README's host procedure: preserve `.env`, the persistent relay data volume, and `lab-sender-reticulum/`; refresh the relay `compose.yaml` and merge the current Reticulum template, then recreate only `signal-relay`. Update the edge independently from [`destaben/lab-inverse-proxy`](https://github.com/destaben/lab-inverse-proxy). Update the private `SIGNAL_RELAY_PUBLIC_TCP_NODE_ALIASES` mapping whenever configured interface names change, and keep its public aliases aligned with `SIGNAL_RELAY_PUBLIC_TCP_NODE_URLS`.
 
 ## Deployment
 

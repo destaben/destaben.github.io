@@ -4,7 +4,7 @@ import RNS
 
 from signal_relay.app import create_app
 from signal_relay.bridge import LAB_SESSION_FIELD, LabSession, RelayBridge
-from signal_relay.config import Settings
+from signal_relay.config import Settings, _public_tcp_node_urls
 from signal_relay.lab_sender import public_node_alias
 
 
@@ -127,6 +127,7 @@ def test_tcp_node_projection_uses_only_configured_aliases_and_logs_transitions(t
             rate_window_seconds=60, reticulum_config_dir=None, storage_dir=tmp_path,
             telegram_bot_token=None, telegram_chat_id=None,
             public_tcp_node_aliases={"internal-tcp": "Node One"},
+            public_tcp_node_urls={"Node One": "tcp://node-one.example:4242"},
         )
     )
 
@@ -141,7 +142,10 @@ def test_tcp_node_projection_uses_only_configured_aliases_and_logs_transitions(t
     monkeypatch.setattr(RNS.Transport, "interfaces", [TCPClientInterface(), PrivateInterface()])
     bridge.transport = "reticulum"
     bridge._refresh_tcp_node_statuses()
-    assert bridge.reticulum_nodes() == {"status": "available", "nodes": [{"alias": "Node One", "status": "up"}]}
+    assert bridge.reticulum_nodes() == {
+        "status": "available",
+        "nodes": [{"alias": "Node One", "url": "tcp://node-one.example:4242", "status": "up"}],
+    }
     assert "node=Node One status=up" in caplog.text
 
     TCPClientInterface.online = False
@@ -149,6 +153,33 @@ def test_tcp_node_projection_uses_only_configured_aliases_and_logs_transitions(t
     assert bridge.reticulum_nodes()["nodes"][0]["status"] == "down"
     assert "node=Node One status=down" in caplog.text
     assert "internal-tcp" not in caplog.text
+
+
+def test_public_tcp_node_urls_require_safe_complete_tcp_endpoints(monkeypatch):
+    monkeypatch.setenv("SIGNAL_RELAY_PUBLIC_TCP_NODE_ALIASES", '{"private-interface": "Node One"}')
+    monkeypatch.setenv("SIGNAL_RELAY_PUBLIC_TCP_NODE_URLS", '{"Node One": "tcp://node-one.example:4242"}')
+    settings = Settings.from_environment()
+    assert settings.public_tcp_node_urls == {"Node One": "tcp://node-one.example:4242"}
+
+    for value in (
+        '{"Node One": "https://node-one.example:4242"}',
+        '{"Node One": "tcp://127.0.0.1:4242"}',
+        '{"Node One": "tcp://node-one.example"}',
+        '{"Node One": "tcp://node-one.example:4242/path"}',
+    ):
+        try:
+            _public_tcp_node_urls(value)
+        except ValueError:
+            continue
+        raise AssertionError(f"expected invalid public TCP URL: {value}")
+
+    monkeypatch.setenv("SIGNAL_RELAY_PUBLIC_TCP_NODE_URLS", '{"Other Node": "tcp://node-one.example:4242"}')
+    try:
+        Settings.from_environment()
+    except ValueError as error:
+        assert "one URL for every public alias" in str(error)
+    else:
+        raise AssertionError("expected URL aliases to match public aliases")
 
 
 def test_rejects_invalid_and_rate_limited_signals(tmp_path):

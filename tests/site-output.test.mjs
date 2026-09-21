@@ -19,6 +19,8 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /Origen temporal/);
   assert.match(spanish, /Aviso Telegram/);
   assert.match(spanish, /Conexiones TCP Reticulum/);
+  assert.match(spanish, /data-node-up-label="Online"/);
+  assert.match(spanish, /data-node-down-label="Offline"/);
   assert.match(spanish, /La dirección LXMF no pertenece a un nodo concreto/);
   assert.match(spanish, /Pendiente de selección de ruta/);
   assert.match(spanish, /Observabilidad de servicios/);
@@ -50,6 +52,8 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(english, /The guided journey shows how a test is prepared, encrypted, and confirmed before it is sent\./);
   assert.doesNotMatch(english, /data-inbox-source-label/);
   assert.match(english, /Reticulum TCP connections/);
+  assert.match(english, /data-node-up-label="Online"/);
+  assert.match(english, /data-node-down-label="Offline"/);
   assert.match(english, /The LXMF address does not belong to one specific node/);
   assert.match(english, /Waiting for route selection/);
   assert.match(english, /Apr 2021 - present/);

@@ -95,22 +95,33 @@ const nodeCopy = relayNodeCopy[locale];
       }
     };
 
-    const renderNodes = (nodeData: { status?: string; nodes?: { alias?: string; status?: string }[] }) => {
-      const publicNodes = nodeData.status === "available" && Array.isArray(nodeData.nodes) ? nodeData.nodes : [];
+    const renderNodes = (nodeData: { status?: string; nodes?: { alias?: string; url?: string; status?: string }[] }) => {
+      const publicNodes = nodeData.status === "available" && Array.isArray(nodeData.nodes)
+        ? nodeData.nodes.filter((node) => node.alias && node.url)
+        : [];
       if (!nodes) return;
       if (!publicNodes.length) {
-        nodes.replaceChildren(Object.assign(document.createElement("li"), { textContent: relayPanel.dataset.nodeUnavailableLabel || "Node status is unavailable." }));
+        const unavailable = Object.assign(document.createElement("li"), {
+          className: "relay-nodes-unavailable",
+          textContent: relayPanel.dataset.nodeUnavailableLabel || "Node status is unavailable.",
+        });
+        nodes.replaceChildren(unavailable);
         return;
       }
       nodes.replaceChildren(...publicNodes.map((node) => {
         const item = document.createElement("li");
+        item.className = "relay-node-card";
+        const heading = document.createElement("div");
         const alias = document.createElement("strong");
         alias.textContent = node.alias || "";
         const status = document.createElement("span");
         const isUp = node.status === "up";
         status.dataset.state = isUp ? "up" : "down";
-        status.textContent = isUp ? relayPanel.dataset.nodeUpLabel || "Connected" : relayPanel.dataset.nodeDownLabel || "Disconnected";
-        item.replaceChildren(alias, status);
+        status.textContent = isUp ? relayPanel.dataset.nodeUpLabel || "Online" : relayPanel.dataset.nodeDownLabel || "Offline";
+        const url = document.createElement("code");
+        url.textContent = node.url || "";
+        heading.replaceChildren(alias, status);
+        item.replaceChildren(heading, url);
         return item;
       }));
     };

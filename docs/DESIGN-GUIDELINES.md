@@ -22,6 +22,7 @@ The portfolio demonstrates David Estaben's engineering judgement through clear c
 
 - A live panel must identify whether the data is live, delayed, simulated, unavailable, or under maintenance. The Reticulum panel uses a green or red availability indicator based on its public health endpoint.
 - The Reticulum contact panel may show the public destination and the newest bounded plain-text messages. Treat every displayed message as public; do not expose sender identities, source hashes, private dashboards, monitoring internals, or home-network management endpoints.
+- The Reticulum panel may show cards for configured TCP connections only when the fixed node projection is available. Each card may contain the configured public alias, intentionally published `tcp://host:port` URL, and `up` or `down` state. It must not show interface names, private addresses, paths, route details, or suggest that a node state guarantees a route or delivery.
 - The Home Assistant panel may show only a delayed, rounded aggregate temperature and humidity reading. It must not expose Home Assistant itself, entity IDs, rooms, devices, attributes, histories, presence, cameras, alarms, locks, doors, windows, lights, switches, automations, media, energy use, or network details.
 - Web input requires a documented rate limit, input validation, abuse controls, retention period, and kill switch before it is enabled.
 - The GitHub Pages site remains static. Persistent APIs and WebSockets live behind a separate, HTTPS-only public endpoint.

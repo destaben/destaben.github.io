@@ -149,12 +149,14 @@ class RelayBridge:
         }
 
     def reticulum_nodes(self) -> dict[str, object]:
-        if self.transport != "reticulum" or not self.settings.public_tcp_node_aliases:
+        aliases = self.settings.public_tcp_node_aliases or {}
+        urls = self.settings.public_tcp_node_urls or {}
+        if self.transport != "reticulum" or not aliases or set(urls) != set(aliases.values()):
             return {"status": "unavailable", "nodes": []}
         with self._tcp_node_lock:
             nodes = [
-                {"alias": alias, "status": self._tcp_node_statuses.get(alias, "down")}
-                for alias in self.settings.public_tcp_node_aliases.values()
+                {"alias": alias, "url": urls[alias], "status": self._tcp_node_statuses.get(alias, "down")}
+                for alias in aliases.values()
             ]
         return {"status": "available", "nodes": nodes}
 

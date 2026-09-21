@@ -1,8 +1,10 @@
 from dataclasses import dataclass
+import ipaddress
 import json
 from pathlib import Path
 import os
 import re
+from urllib.parse import urlsplit
 
 
 _PUBLIC_NODE_ALIAS = re.compile(r"[A-Za-z0-9][A-Za-z0-9 ._-]{0,47}")
@@ -22,6 +24,43 @@ def _public_tcp_node_aliases(value: str | None) -> dict[str, str]:
     if len(set(aliases.values())) != len(aliases):
         raise ValueError("SIGNAL_RELAY_PUBLIC_TCP_NODE_ALIASES aliases must be unique")
     return aliases
+
+
+def _public_tcp_node_urls(value: str | None) -> dict[str, str]:
+    if not value:
+        return {}
+    try:
+        urls = json.loads(value)
+    except json.JSONDecodeError as error:
+        raise ValueError("SIGNAL_RELAY_PUBLIC_TCP_NODE_URLS must be JSON") from error
+    if not isinstance(urls, dict) or len(urls) > 12:
+        raise ValueError("SIGNAL_RELAY_PUBLIC_TCP_NODE_URLS must contain at most 12 URLs")
+    for alias, url in urls.items():
+        if not isinstance(alias, str) or not _PUBLIC_NODE_ALIAS.fullmatch(alias) or not isinstance(url, str):
+            raise ValueError("SIGNAL_RELAY_PUBLIC_TCP_NODE_URLS contains an invalid entry")
+        parsed = urlsplit(url)
+        try:
+            port = parsed.port
+        except ValueError as error:
+            raise ValueError("SIGNAL_RELAY_PUBLIC_TCP_NODE_URLS contains an invalid port") from error
+        if (
+            parsed.scheme != "tcp"
+            or not parsed.hostname
+            or port is None
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValueError("SIGNAL_RELAY_PUBLIC_TCP_NODE_URLS must contain public tcp://host:port URLs")
+        try:
+            address = ipaddress.ip_address(parsed.hostname)
+        except ValueError:
+            address = None
+        if address is not None and not address.is_global:
+            raise ValueError("SIGNAL_RELAY_PUBLIC_TCP_NODE_URLS must not contain private IP addresses")
+    return urls
 
 
 @dataclass(frozen=True)
@@ -44,6 +83,7 @@ class Settings:
     home_assistant_air_quality_entity_id: str | None = None
     home_assistant_cache_seconds: int = 900
     public_tcp_node_aliases: dict[str, str] | None = None
+    public_tcp_node_urls: dict[str, str] | None = None
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -58,6 +98,14 @@ class Settings:
             raise ValueError(
                 "SIGNAL_RELAY_TELEGRAM_BOT_TOKEN and SIGNAL_RELAY_TELEGRAM_CHAT_ID must be set together"
             )
+        public_tcp_node_aliases = _public_tcp_node_aliases(
+            os.environ.get("SIGNAL_RELAY_PUBLIC_TCP_NODE_ALIASES")
+        )
+        public_tcp_node_urls = _public_tcp_node_urls(
+            os.environ.get("SIGNAL_RELAY_PUBLIC_TCP_NODE_URLS")
+        )
+        if set(public_tcp_node_urls) != set(public_tcp_node_aliases.values()):
+            raise ValueError("SIGNAL_RELAY_PUBLIC_TCP_NODE_URLS must define one URL for every public alias")
         return cls(
             mode=os.environ.get("SIGNAL_RELAY_MODE", "demo"),
             allowed_origins={origin.strip() for origin in origins.split(",") if origin.strip()},
@@ -78,7 +126,6 @@ class Settings:
             home_assistant_humidity_entity_id=os.environ.get("SIGNAL_RELAY_HOME_ASSISTANT_HUMIDITY_ENTITY_ID") or None,
             home_assistant_air_quality_entity_id=os.environ.get("SIGNAL_RELAY_HOME_ASSISTANT_AIR_QUALITY_ENTITY_ID") or None,
             home_assistant_cache_seconds=int(os.environ.get("SIGNAL_RELAY_HOME_ASSISTANT_CACHE_SECONDS", "900")),
-            public_tcp_node_aliases=_public_tcp_node_aliases(
-                os.environ.get("SIGNAL_RELAY_PUBLIC_TCP_NODE_ALIASES")
-            ),
+            public_tcp_node_aliases=public_tcp_node_aliases,
+            public_tcp_node_urls=public_tcp_node_urls,
         )
