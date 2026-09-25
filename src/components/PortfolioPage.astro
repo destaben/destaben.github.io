@@ -13,7 +13,10 @@ interface Props {
 
 const { locale } = Astro.props;
 const content = portfolio[locale];
-const labs = content.labs.map((lab) => ({ ...lab, summary: labSummaries[locale][lab.id] ?? lab.summary }));
+const labDisplayOrder = ["home-status", "container-metrics", "signal-relay"];
+const labs = content.labs
+  .map((lab) => ({ ...lab, summary: labSummaries[locale][lab.id] ?? lab.summary }))
+  .sort((left, right) => labDisplayOrder.indexOf(left.id) - labDisplayOrder.indexOf(right.id));
 const sectionIds = locale === "es"
   ? { work: "trabajo", lab: "laboratorio", projects: "proyectos", writing: "bitacora", experience: "trayectoria", contact: "contacto" }
   : { work: "work", lab: "lab", projects: "projects", writing: "notes", experience: "experience", contact: "contact" };

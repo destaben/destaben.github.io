@@ -4,6 +4,15 @@ import test from "node:test";
 
 const readPage = (path) => readFile(new URL(`../dist/${path}`, import.meta.url), "utf8");
 
+const assertLabOrder = (page) => {
+  const home = page.indexOf('data-home-status-panel');
+  const metrics = page.indexOf('data-metrics-panel');
+  const relay = page.indexOf('data-relay-panel');
+
+  assert.ok(home !== -1 && metrics !== -1 && relay !== -1);
+  assert.ok(home < metrics && metrics < relay);
+};
+
 test("generates bilingual portfolio entries without a portrait", async () => {
   const [spanish, english] = await Promise.all([readPage("index.html"), readPage("en/index.html")]);
 
@@ -40,6 +49,7 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /data-good-label="Buena"/);
   assert.match(spanish, /data-regular-label="Regular"/);
   assert.match(spanish, /data-bad-label="Mala"/);
+  assertLabOrder(spanish);
   assert.doesNotMatch(spanish, /data-inbox-source-label/);
   assert.match(spanish, /Reticulum online/);
   assert.match(spanish, /abr 2021 - hoy/);
@@ -70,6 +80,7 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(english, /Check the current state of my home while preserving privacy\./);
   assert.match(english, /Protected data/);
   assert.match(english, /Air quality/);
+  assertLabOrder(english);
   assert.doesNotMatch(spanish, /profile\.jpg/);
   assert.doesNotMatch(english, /Portrait of/);
   assert.match(spanish, /<dt>Red profesional<\/dt><dd><a /);
