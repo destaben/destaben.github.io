@@ -1,6 +1,39 @@
 import pytest
 
-from signal_relay.home_assistant import HomeAssistantLabClient, HomeAssistantMeshtasticClient
+from signal_relay.home_assistant import (
+    MESHTASTIC_BROADCAST_TIMEOUT_SECONDS,
+    HomeAssistantLabClient,
+    HomeAssistantMeshtasticClient,
+)
+
+
+def test_meshtastic_broadcast_uses_the_extended_fixed_service_timeout(monkeypatch):
+    captured = {}
+
+    class Response:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["timeout"] = timeout
+        return Response()
+
+    monkeypatch.setattr("signal_relay.home_assistant.urlopen", fake_urlopen)
+    client = HomeAssistantMeshtasticClient("http://home-assistant", "private-token", {})
+
+    client.broadcast("Hello mesh")
+
+    assert captured == {
+        "url": "http://home-assistant/api/services/script/meshtastic_public_broadcast",
+        "timeout": MESHTASTIC_BROADCAST_TIMEOUT_SECONDS,
+    }
+    assert MESHTASTIC_BROADCAST_TIMEOUT_SECONDS == 15
 
 
 class FixtureClient(HomeAssistantLabClient):

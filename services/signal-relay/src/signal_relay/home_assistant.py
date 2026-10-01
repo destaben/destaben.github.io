@@ -9,6 +9,9 @@ from typing import Mapping
 from urllib.request import Request, urlopen
 
 
+MESHTASTIC_BROADCAST_TIMEOUT_SECONDS = 15
+
+
 class HomeAssistantLabClient:
     """Projects two configured Home Assistant entities into a bounded public view."""
 
@@ -158,7 +161,7 @@ class HomeAssistantMeshtasticClient:
             },
             method="POST",
         )
-        with urlopen(request, timeout=5) as response:
+        with urlopen(request, timeout=MESHTASTIC_BROADCAST_TIMEOUT_SECONDS) as response:
             if response.status not in {200, 201}:
                 raise RuntimeError("meshtastic_broadcast_failed")
 
