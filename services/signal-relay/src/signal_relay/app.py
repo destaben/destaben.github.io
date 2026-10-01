@@ -50,13 +50,14 @@ class MeshtasticMessageGate:
         self.client_cooldown_seconds = client_cooldown_seconds
         self.global_cooldown_seconds = global_cooldown_seconds
         self._last_by_client: dict[str, float] = {}
-        self._last_global = 0.0
+        self._last_global: float | None = None
         self.lock = asyncio.Lock()
 
     def is_available(self, client_id: str, now: float) -> bool:
+        last_client = self._last_by_client.get(client_id)
         return (
-            now - self._last_by_client.get(client_id, 0.0) >= self.client_cooldown_seconds
-            and now - self._last_global >= self.global_cooldown_seconds
+            (last_client is None or now - last_client >= self.client_cooldown_seconds)
+            and (self._last_global is None or now - self._last_global >= self.global_cooldown_seconds)
         )
 
     def accept(self, client_id: str, now: float) -> None:
