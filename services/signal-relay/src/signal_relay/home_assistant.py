@@ -150,12 +150,9 @@ class HomeAssistantMeshtasticClient:
         return self._cached_status
 
     def broadcast(self, message: str) -> None:
-        body = json.dumps({
-            "entity_id": "script.meshtastic_public_broadcast",
-            "variables": {"message": message},
-        }).encode()
+        body = json.dumps({"message": message}).encode()
         request = Request(
-            f"{self.base_url}/api/services/script/turn_on",
+            f"{self.base_url}/api/events/meshtastic_public_broadcast",
             data=body,
             headers={
                 "Authorization": f"Bearer {self.token}",
