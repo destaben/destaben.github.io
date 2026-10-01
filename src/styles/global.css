@@ -1,3 +1,4 @@
+.meshtastic-neighbors li { display: grid; gap: .25rem; min-width: 0; padding: .65rem; border: 1px solid var(--line); }.meshtastic-neighbors strong { overflow-wrap: anywhere; font-family: "Iowan Old Style", "Palatino Linotype", Palatino, serif; }.meshtastic-neighbors span { color: var(--muted); font-family: "SFMono-Regular", Consolas, monospace; font-size: .68rem; }.meshtastic-turnstile { display: flex; grid-column: 1 / -1; justify-content: center; width: 100%; }.meshtastic-send button:not(:disabled) { cursor: pointer; }
 :root {
   --ink: #0b1f23;
   --ink-soft: #173238;

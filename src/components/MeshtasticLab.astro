@@ -6,7 +6,7 @@ const { lab } = Astro.props;
 const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || "";
 ---
 
-<article class="lab-card meshtastic-panel" data-meshtastic-panel data-local-url="http://127.0.0.1:8787" data-production-url="https://lab.destaben.dev" data-turnstile-site-key={turnstileSiteKey} data-loading-label={lab.loadingLabel} data-unavailable-label={lab.unavailableLabel} data-available-label={lab.availableLabel} data-unavailable-value-label={lab.unavailableValueLabel} data-no-activity-label={lab.noActivityLabel} data-refreshed-label={lab.refreshedLabel} aria-labelledby={`${lab.id}-title`}>
+<article class="lab-card meshtastic-panel" data-meshtastic-panel data-local-url="http://127.0.0.1:8787" data-production-url="https://lab.destaben.dev" data-turnstile-site-key={turnstileSiteKey} data-loading-label={lab.loadingLabel} data-unavailable-label={lab.unavailableLabel} data-available-label={lab.availableLabel} data-unavailable-value-label={lab.unavailableValueLabel} data-no-activity-label={lab.noActivityLabel} data-refreshed-label={lab.refreshedLabel} data-send-accepted-label={lab.sendAcceptedLabel} data-send-verification-failed-label={lab.sendVerificationFailedLabel} data-send-rate-limited-label={lab.sendRateLimitedLabel} data-send-failed-label={lab.sendFailedLabel} aria-labelledby={`${lab.id}-title`}>
   <div class="lab-card-header"><p class="lab-status">{lab.statusLabel}</p><span class="meshtastic-state" data-meshtastic-state role="status">{lab.loadingLabel}</span></div>
   <h3 id={`${lab.id}-title`}>{lab.title}</h3>
   <p>{lab.summary}</p>
@@ -159,11 +159,19 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || "";
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message, turnstileToken }),
         });
-        if (!response.ok) throw new Error();
+        if (!response.ok) {
+          const body = await response.json().catch(() => null) as { detail?: string } | null;
+          const labels: Record<string, string | undefined> = {
+            bot_verification_failed: panel.dataset.sendVerificationFailedLabel,
+            message_rate_limited: panel.dataset.sendRateLimitedLabel,
+            meshtastic_messages_unavailable: panel.dataset.sendFailedLabel,
+          };
+          throw new Error(labels[body?.detail || ""] || panel.dataset.sendFailedLabel || "Unable to send message");
+        }
         if (messageInput) messageInput.value = "";
-        setSendStatus(panel.dataset.availableLabel || "Accepted");
-      } catch {
-        setSendStatus(panel.dataset.unavailableLabel || "Unable to send message");
+        setSendStatus(panel.dataset.sendAcceptedLabel || "Message accepted");
+      } catch (error) {
+        setSendStatus(error instanceof Error ? error.message : (panel.dataset.sendFailedLabel || "Unable to send message"));
       } finally { updateSender(); }
     });
     load();
