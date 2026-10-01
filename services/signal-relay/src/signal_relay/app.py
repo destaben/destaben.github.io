@@ -1,17 +1,21 @@
 from contextlib import asynccontextmanager
 import asyncio
+import json
 import time
 from typing import Literal
+from urllib.parse import urlencode
+from urllib.request import Request as UrlRequest, urlopen
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from pydantic import field_validator
 
 from .bridge import RelayBridge
 from .config import Settings
-from .home_assistant import HomeAssistantLabClient
+from .home_assistant import HomeAssistantLabClient, HomeAssistantMeshtasticClient
 from .metrics import PrometheusLabClient
 
 
@@ -25,6 +29,55 @@ class DemoInboxMessage(BaseModel):
 
 class LabMessage(BaseModel):
     content: str = Field(min_length=1, max_length=280)
+
+
+class MeshtasticMessage(BaseModel):
+    message: str = Field(min_length=1, max_length=237)
+    turnstile_token: str = Field(alias="turnstileToken", min_length=1, max_length=2048)
+
+    @field_validator("message")
+    @classmethod
+    def message_must_fit_the_radio_payload(cls, value: str) -> str:
+        if value != value.strip() or any(ord(character) < 32 or ord(character) == 127 for character in value):
+            raise ValueError("invalid_message")
+        if len(value.encode("utf-8")) > 237:
+            raise ValueError("message_too_long")
+        return value
+
+
+class MeshtasticMessageGate:
+    def __init__(self, client_cooldown_seconds: int, global_cooldown_seconds: int = 15) -> None:
+        self.client_cooldown_seconds = client_cooldown_seconds
+        self.global_cooldown_seconds = global_cooldown_seconds
+        self._last_by_client: dict[str, float] = {}
+        self._last_global = 0.0
+        self.lock = asyncio.Lock()
+
+    def is_available(self, client_id: str, now: float) -> bool:
+        return (
+            now - self._last_by_client.get(client_id, 0.0) >= self.client_cooldown_seconds
+            and now - self._last_global >= self.global_cooldown_seconds
+        )
+
+    def accept(self, client_id: str, now: float) -> None:
+        self._last_by_client[client_id] = now
+        self._last_global = now
+
+
+def verify_turnstile(secret: str, token: str, remote_ip: str) -> bool:
+    payload = urlencode({"secret": secret, "response": token, "remoteip": remote_ip}).encode()
+    request = UrlRequest(
+        "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+        data=payload,
+        headers={"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"},
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=5) as response:
+            result = json.load(response)
+    except OSError:
+        return False
+    return isinstance(result, dict) and result.get("success") is True
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -65,6 +118,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if all(home_assistant_settings)
         else None
     )
+    meshtastic_settings = (
+        relay_settings.home_assistant_url,
+        relay_settings.home_assistant_token,
+        relay_settings.meshtastic_entity_ids,
+    )
+    app.state.meshtastic = (
+        HomeAssistantMeshtasticClient(
+            relay_settings.home_assistant_url or "",
+            relay_settings.home_assistant_token or "",
+            relay_settings.meshtastic_entity_ids or {},
+            relay_settings.meshtastic_cache_seconds,
+        )
+        if all(meshtastic_settings)
+        else None
+    )
+    app.state.meshtastic_gate = MeshtasticMessageGate(relay_settings.meshtastic_message_cooldown_seconds)
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
@@ -112,6 +181,37 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return await asyncio.to_thread(home_assistant.status)
         except (OSError, RuntimeError, ValueError):
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="home_status_unavailable") from None
+
+    @app.get("/v1/lab/meshtastic", include_in_schema=False)
+    async def meshtastic_status() -> dict[str, object]:
+        meshtastic = app.state.meshtastic
+        if meshtastic is None:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="meshtastic_unavailable")
+        try:
+            return await asyncio.to_thread(meshtastic.status)
+        except (OSError, RuntimeError, ValueError):
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="meshtastic_unavailable") from None
+
+    @app.post("/v1/lab/meshtastic/messages", status_code=status.HTTP_202_ACCEPTED, include_in_schema=False)
+    async def send_meshtastic_message(payload: MeshtasticMessage, request: Request) -> dict[str, str]:
+        meshtastic = app.state.meshtastic
+        turnstile_secret = relay_settings.meshtastic_turnstile_secret
+        if meshtastic is None or not turnstile_secret:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="meshtastic_messages_unavailable")
+        client_id = request.headers.get("x-real-ip") or (request.client.host if request.client else "unknown")
+        if not await asyncio.to_thread(verify_turnstile, turnstile_secret, payload.turnstile_token, client_id):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="bot_verification_failed")
+        gate = app.state.meshtastic_gate
+        async with gate.lock:
+            now = time.monotonic()
+            if not gate.is_available(client_id, now):
+                raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="message_rate_limited")
+            try:
+                await asyncio.to_thread(meshtastic.broadcast, payload.message)
+            except (OSError, RuntimeError, ValueError):
+                raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="meshtastic_messages_unavailable") from None
+            gate.accept(client_id, now)
+        return {"status": "accepted"}
 
     @app.post("/v1/lab/sessions", status_code=status.HTTP_201_CREATED, include_in_schema=False)
     async def create_lab_session(request: Request) -> dict[str, str]:

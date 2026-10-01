@@ -8,6 +8,51 @@ from urllib.parse import urlsplit
 
 
 _PUBLIC_NODE_ALIAS = re.compile(r"[A-Za-z0-9][A-Za-z0-9 ._-]{0,47}")
+_ENTITY_ID = re.compile(r"[a-z_]+\.[a-z_0-9]+")
+
+MESHTASTIC_ENTITY_KEYS = frozenset(
+    {
+        "gateway",
+        "uptime_seconds",
+        "battery_percent",
+        "voltage",
+        "channel_utilization_percent",
+        "airtime_tx_percent",
+        "nodes_online",
+        "nodes_total",
+        "packets_rx",
+        "packets_tx",
+        "packets_rx_bad",
+        "packets_rx_duplicate",
+        "packets_tx_relayed",
+        "packets_tx_relay_cancelled",
+        "rx_per_minute",
+        "tx_per_minute",
+        "rf_errors_per_minute",
+        "duplicates_per_minute",
+        "relay_cancelled_per_minute",
+        "last_message",
+        "last_sender",
+        "last_channel",
+        "last_received",
+        "last_sender_hops",
+        "last_sender_hops_available",
+    }
+)
+
+
+def _meshtastic_entity_ids(value: str | None) -> dict[str, str] | None:
+    if not value:
+        return None
+    try:
+        entity_ids = json.loads(value)
+    except json.JSONDecodeError as error:
+        raise ValueError("SIGNAL_RELAY_MESHTASTIC_ENTITY_IDS must be JSON") from error
+    if not isinstance(entity_ids, dict) or set(entity_ids) != MESHTASTIC_ENTITY_KEYS:
+        raise ValueError("SIGNAL_RELAY_MESHTASTIC_ENTITY_IDS must define the required keys")
+    if not all(isinstance(entity_id, str) and _ENTITY_ID.fullmatch(entity_id) for entity_id in entity_ids.values()):
+        raise ValueError("SIGNAL_RELAY_MESHTASTIC_ENTITY_IDS contains an invalid entity ID")
+    return entity_ids
 
 
 def _public_tcp_node_aliases(value: str | None) -> dict[str, str]:
@@ -82,6 +127,10 @@ class Settings:
     home_assistant_humidity_entity_id: str | None = None
     home_assistant_air_quality_entity_id: str | None = None
     home_assistant_cache_seconds: int = 900
+    meshtastic_entity_ids: dict[str, str] | None = None
+    meshtastic_cache_seconds: int = 30
+    meshtastic_turnstile_secret: str | None = None
+    meshtastic_message_cooldown_seconds: int = 300
     public_tcp_node_aliases: dict[str, str] | None = None
     public_tcp_node_urls: dict[str, str] | None = None
 
@@ -126,6 +175,12 @@ class Settings:
             home_assistant_humidity_entity_id=os.environ.get("SIGNAL_RELAY_HOME_ASSISTANT_HUMIDITY_ENTITY_ID") or None,
             home_assistant_air_quality_entity_id=os.environ.get("SIGNAL_RELAY_HOME_ASSISTANT_AIR_QUALITY_ENTITY_ID") or None,
             home_assistant_cache_seconds=int(os.environ.get("SIGNAL_RELAY_HOME_ASSISTANT_CACHE_SECONDS", "900")),
+            meshtastic_entity_ids=_meshtastic_entity_ids(os.environ.get("SIGNAL_RELAY_MESHTASTIC_ENTITY_IDS")),
+            meshtastic_cache_seconds=max(int(os.environ.get("SIGNAL_RELAY_MESHTASTIC_CACHE_SECONDS", "30")), 15),
+            meshtastic_turnstile_secret=os.environ.get("SIGNAL_RELAY_MESHTASTIC_TURNSTILE_SECRET") or None,
+            meshtastic_message_cooldown_seconds=max(
+                int(os.environ.get("SIGNAL_RELAY_MESHTASTIC_MESSAGE_COOLDOWN_SECONDS", "300")), 60
+            ),
             public_tcp_node_aliases=public_tcp_node_aliases,
             public_tcp_node_urls=public_tcp_node_urls,
         )

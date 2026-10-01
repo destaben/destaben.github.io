@@ -30,6 +30,8 @@ The educational Reticulum session is disabled by default. Enable it only with a 
 
 The Home Assistant lab is a fixed read-only projection. Configure a dedicated token and only the three required sensor entity IDs in the private relay `.env`. Nginx reaches Home Assistant through its unexposed internal listener; neither Home Assistant nor its credentials receive a public route.
 
+The Meshtastic lab adds a second, fixed Home Assistant projection and an optional public MediumFast broadcast. Configure `SIGNAL_RELAY_MESHTASTIC_ENTITY_IDS` as a private JSON map with exactly these keys: `gateway`, `uptime_seconds`, `battery_percent`, `voltage`, `channel_utilization_percent`, `airtime_tx_percent`, `nodes_online`, `nodes_total`, `packets_rx`, `packets_tx`, `packets_rx_bad`, `packets_rx_duplicate`, `packets_tx_relayed`, `packets_tx_relay_cancelled`, `rx_per_minute`, `tx_per_minute`, `rf_errors_per_minute`, `duplicates_per_minute`, `relay_cancelled_per_minute`, `last_message`, `last_sender`, `last_channel`, `last_received`, `last_sender_hops`, and `last_sender_hops_available`. Values are the private HA entity IDs and stay only in `.env`. Set `SIGNAL_RELAY_MESHTASTIC_TURNSTILE_SECRET` to enable the public broadcast endpoint. The relay validates the Turnstile response, applies a cooldown, and calls only `script.meshtastic_public_broadcast`; it cannot select a different channel or any other HA service.
+
 ## Container deployment
 
 GitHub Actions publishes `ghcr.io/destaben/signal-relay:latest` for `linux/amd64` and `linux/arm64`. Deploy this Compose file in a private directory with its `.env`, `reticulum/`, and optional `lab-sender-reticulum/` configuration:
