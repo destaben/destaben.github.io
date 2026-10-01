@@ -13,6 +13,8 @@ _ENTITY_ID = re.compile(r"[a-z_]+\.[a-z_0-9]+")
 MESHTASTIC_ENTITY_KEYS = frozenset(
     {
         "gateway",
+        "node_long_name",
+        "node_short_name",
         "uptime_seconds",
         "battery_percent",
         "voltage",
@@ -37,6 +39,10 @@ MESHTASTIC_ENTITY_KEYS = frozenset(
         "last_received",
         "last_sender_hops",
         "last_sender_hops_available",
+        "neighbor_long_name",
+        "neighbor_short_name",
+        "neighbor_snr",
+        "neighbor_hops_away",
     }
 )
 

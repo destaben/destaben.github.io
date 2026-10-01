@@ -3,20 +3,22 @@ import type { MeshtasticLab } from "../data/portfolio";
 
 interface Props { lab: MeshtasticLab; }
 const { lab } = Astro.props;
+const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || "";
 ---
 
-<article class="lab-card meshtastic-panel" data-meshtastic-panel data-local-url="http://127.0.0.1:8787" data-production-url="https://lab.destaben.dev" data-loading-label={lab.loadingLabel} data-unavailable-label={lab.unavailableLabel} data-available-label={lab.availableLabel} data-unavailable-value-label={lab.unavailableValueLabel} data-no-activity-label={lab.noActivityLabel} data-refreshed-label={lab.refreshedLabel} aria-labelledby={`${lab.id}-title`}>
+<article class="lab-card meshtastic-panel" data-meshtastic-panel data-local-url="http://127.0.0.1:8787" data-production-url="https://lab.destaben.dev" data-turnstile-site-key={turnstileSiteKey} data-loading-label={lab.loadingLabel} data-unavailable-label={lab.unavailableLabel} data-available-label={lab.availableLabel} data-unavailable-value-label={lab.unavailableValueLabel} data-no-activity-label={lab.noActivityLabel} data-refreshed-label={lab.refreshedLabel} aria-labelledby={`${lab.id}-title`}>
   <div class="lab-card-header"><p class="lab-status">{lab.statusLabel}</p><span class="meshtastic-state" data-meshtastic-state role="status">{lab.loadingLabel}</span></div>
   <h3 id={`${lab.id}-title`}>{lab.title}</h3>
   <p>{lab.summary}</p>
   <div class="meshtastic-groups" data-meshtastic-groups hidden>
-    <section aria-labelledby={`${lab.id}-gateway`}><h4 id={`${lab.id}-gateway`}>{lab.gatewayLabel}</h4><dl class="meshtastic-readings"><div><dt>{lab.uptimeLabel}</dt><dd data-meshtastic-uptime>--</dd></div><div><dt>{lab.batteryLabel}</dt><dd data-meshtastic-battery>--</dd></div><div><dt>{lab.voltageLabel}</dt><dd data-meshtastic-voltage>--</dd></div></dl></section>
+    <section aria-labelledby={`${lab.id}-gateway`}><h4 id={`${lab.id}-gateway`}>{lab.gatewayLabel}</h4><p class="meshtastic-node-name" data-meshtastic-node-name>--</p><dl class="meshtastic-readings"><div><dt>{lab.uptimeLabel}</dt><dd data-meshtastic-uptime>--</dd></div><div><dt>{lab.batteryLabel}</dt><dd data-meshtastic-battery>--</dd></div><div><dt>{lab.voltageLabel}</dt><dd data-meshtastic-voltage>--</dd></div></dl></section>
     <section aria-labelledby={`${lab.id}-network`}><h4 id={`${lab.id}-network`}>{lab.networkLabel}</h4><dl class="meshtastic-readings"><div><dt>{lab.nodesLabel}</dt><dd data-meshtastic-nodes>--</dd></div><div><dt>{lab.channelUtilizationLabel}</dt><dd data-meshtastic-channel-use>--</dd></div><div><dt>{lab.airtimeLabel}</dt><dd data-meshtastic-airtime>--</dd></div></dl></section>
     <section aria-labelledby={`${lab.id}-packets`}><h4 id={`${lab.id}-packets`}>{lab.packetsLabel}</h4><dl class="meshtastic-readings meshtastic-readings-compact"><div><dt>{lab.rxLabel}</dt><dd data-meshtastic-rx>--</dd></div><div><dt>{lab.txLabel}</dt><dd data-meshtastic-tx>--</dd></div><div><dt>{lab.badPacketsLabel}</dt><dd data-meshtastic-rx-bad>--</dd></div><div><dt>{lab.duplicatePacketsLabel}</dt><dd data-meshtastic-rx-duplicate>--</dd></div><div><dt>{lab.relayedPacketsLabel}</dt><dd data-meshtastic-relayed>--</dd></div><div><dt>{lab.cancelledPacketsLabel}</dt><dd data-meshtastic-cancelled>--</dd></div></dl></section>
     <section aria-labelledby={`${lab.id}-rates`}><h4 id={`${lab.id}-rates`}>{lab.ratesLabel}</h4><dl class="meshtastic-readings meshtastic-readings-compact"><div><dt>{lab.rxLabel}</dt><dd data-meshtastic-rate-rx>--</dd></div><div><dt>{lab.txLabel}</dt><dd data-meshtastic-rate-tx>--</dd></div><div><dt>{lab.rfErrorsLabel}</dt><dd data-meshtastic-rate-errors>--</dd></div><div><dt>{lab.duplicatePacketsLabel}</dt><dd data-meshtastic-rate-duplicates>--</dd></div><div><dt>{lab.cancelledPacketsLabel}</dt><dd data-meshtastic-rate-cancelled>--</dd></div></dl></section>
   </div>
+  <section class="meshtastic-neighbors" data-meshtastic-neighbors hidden><h4>{lab.nodesLabel}</h4><ul data-meshtastic-neighbor-list></ul></section>
   <section class="meshtastic-activity" aria-labelledby={`${lab.id}-activity`}><div><h4 id={`${lab.id}-activity`}>{lab.latestActivityLabel}</h4><time data-meshtastic-received></time></div><p data-meshtastic-message>{lab.noActivityLabel}</p><dl data-meshtastic-activity-details hidden><div><dt>{lab.senderLabel}</dt><dd data-meshtastic-sender></dd></div><div><dt>{lab.channelLabel}</dt><dd data-meshtastic-channel></dd></div><div data-meshtastic-hops-row hidden><dt>{lab.senderHopsLabel}</dt><dd data-meshtastic-hops></dd></div></dl></section>
-  <section class="meshtastic-send" aria-labelledby={`${lab.id}-send`}><h4 id={`${lab.id}-send`}>{lab.sendTitle}</h4><form><label>{lab.sendLabel}<textarea placeholder={lab.sendPlaceholder} maxlength="237" disabled></textarea></label><button type="submit" disabled>{lab.sendLabel}</button></form><p>{lab.sendUnavailableLabel}</p></section>
+  <section class="meshtastic-send" aria-labelledby={`${lab.id}-send`}><h4 id={`${lab.id}-send`}>{lab.sendTitle}</h4><form data-meshtastic-send-form><label>{lab.sendLabel}<textarea data-meshtastic-message-input placeholder={lab.sendPlaceholder} maxlength="237" disabled></textarea></label><div class="meshtastic-turnstile" data-meshtastic-turnstile></div><button data-meshtastic-send-button type="submit" disabled>{lab.sendLabel}</button></form><p data-meshtastic-send-status>{lab.sendUnavailableLabel}</p></section>
   <p class="meshtastic-refreshed" data-meshtastic-refreshed></p>
   <div class="home-privacy"><p>{lab.privacyTitle}</p><span>{lab.privacyCopy}</span></div>
   <div class="tag-list">{lab.technologies.map((technology) => <span class="tag">{technology}</span>)}</div>
@@ -27,10 +29,11 @@ const { lab } = Astro.props;
   if (panel) {
     type Status = {
       status?: string;
-      gateway?: { uptimeSeconds?: number | null; batteryPercent?: number | null; voltage?: number | null };
+      gateway?: { name?: string | null; shortName?: string | null; uptimeSeconds?: number | null; batteryPercent?: number | null; voltage?: number | null };
       network?: { nodesOnline?: number | null; nodesTotal?: number | null; channelUtilizationPercent?: number | null; airtimeTxPercent?: number | null };
       packets?: { rx?: number | null; tx?: number | null; rxBad?: number | null; rxDuplicate?: number | null; txRelayed?: number | null; txRelayCancelled?: number | null };
       ratesPerMinute?: { rx?: number | null; tx?: number | null; rfErrors?: number | null; duplicates?: number | null; relayCancelled?: number | null };
+      neighbors?: { name?: string; shortName?: string | null; snr?: number | null; hopsAway?: number | null }[];
       latestActivity?: { message?: string; sender?: string; channel?: string; receivedAt?: string; senderHopsAway?: number | null } | null;
       refreshedAt?: string;
     };
@@ -52,11 +55,52 @@ const { lab } = Astro.props;
     const groups = panel.querySelector<HTMLElement>("[data-meshtastic-groups]");
     const activityDetails = panel.querySelector<HTMLElement>("[data-meshtastic-activity-details]");
     const hopsRow = panel.querySelector<HTMLElement>("[data-meshtastic-hops-row]");
+    const neighbors = panel.querySelector<HTMLElement>("[data-meshtastic-neighbors]");
+    const neighborList = panel.querySelector<HTMLUListElement>("[data-meshtastic-neighbor-list]");
+    const form = panel.querySelector<HTMLFormElement>("[data-meshtastic-send-form]");
+    const messageInput = panel.querySelector<HTMLTextAreaElement>("[data-meshtastic-message-input]");
+    const sendButton = panel.querySelector<HTMLButtonElement>("[data-meshtastic-send-button]");
+    const sendStatus = panel.querySelector<HTMLElement>("[data-meshtastic-send-status]");
+    const turnstileContainer = panel.querySelector<HTMLElement>("[data-meshtastic-turnstile]");
+    let radioAvailable = false;
+    let turnstileToken = "";
+    let widgetId: string | null = null;
+    const senderReady = () => radioAvailable && Boolean(turnstileToken);
+    const updateSender = () => {
+      if (messageInput) messageInput.disabled = !senderReady();
+      if (sendButton) sendButton.disabled = !senderReady();
+    };
+    const setSendStatus = (content: string) => { if (sendStatus) sendStatus.textContent = content; };
+    const renderTurnstile = () => {
+      const siteKey = panel.dataset.turnstileSiteKey;
+      if (!siteKey || !turnstileContainer) return;
+      const render = () => {
+        const turnstile = (window as Window & { turnstile?: { render: (container: HTMLElement, options: Record<string, unknown>) => string } }).turnstile;
+        if (!turnstile || widgetId) return;
+        widgetId = turnstile.render(turnstileContainer, {
+          sitekey: siteKey,
+          callback: (token: string) => { turnstileToken = token; updateSender(); },
+          "expired-callback": () => { turnstileToken = ""; updateSender(); },
+          "error-callback": () => { turnstileToken = ""; updateSender(); },
+        });
+      };
+      const source = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+      const existing = document.querySelector<HTMLScriptElement>(`script[src="${source}"]`);
+      if (existing) { existing.addEventListener("load", render, { once: true }); render(); return; }
+      const script = document.createElement("script");
+      script.src = source;
+      script.async = true;
+      script.addEventListener("load", render, { once: true });
+      document.head.append(script);
+    };
     const unavailable = () => {
       if (state) state.textContent = panel.dataset.unavailableLabel || "Meshtastic unavailable";
       if (groups) groups.hidden = true;
       if (activityDetails) activityDetails.hidden = true;
       if (hopsRow) hopsRow.hidden = true;
+      if (neighbors) neighbors.hidden = true;
+      radioAvailable = false;
+      updateSender();
       value("[data-meshtastic-message]", panel.dataset.noActivityLabel || "No public activity");
       value("[data-meshtastic-received]", "");
       value("[data-meshtastic-refreshed]", "");
@@ -67,6 +111,7 @@ const { lab } = Astro.props;
         const status = await response.json() as Status;
         if (!response.ok || status.status !== "available") throw new Error();
         if (state) state.textContent = panel.dataset.availableLabel || "Updated";
+        value("[data-meshtastic-node-name]", status.gateway?.name || status.gateway?.shortName || unavailableValue());
         value("[data-meshtastic-uptime]", uptime(status.gateway?.uptimeSeconds));
         value("[data-meshtastic-battery]", number(status.gateway?.batteryPercent, "%"));
         value("[data-meshtastic-voltage]", number(status.gateway?.voltage, " V"));
@@ -76,6 +121,20 @@ const { lab } = Astro.props;
         value("[data-meshtastic-rx]", number(status.packets?.rx)); value("[data-meshtastic-tx]", number(status.packets?.tx)); value("[data-meshtastic-rx-bad]", number(status.packets?.rxBad)); value("[data-meshtastic-rx-duplicate]", number(status.packets?.rxDuplicate)); value("[data-meshtastic-relayed]", number(status.packets?.txRelayed)); value("[data-meshtastic-cancelled]", number(status.packets?.txRelayCancelled));
         value("[data-meshtastic-rate-rx]", number(status.ratesPerMinute?.rx)); value("[data-meshtastic-rate-tx]", number(status.ratesPerMinute?.tx)); value("[data-meshtastic-rate-errors]", number(status.ratesPerMinute?.rfErrors)); value("[data-meshtastic-rate-duplicates]", number(status.ratesPerMinute?.duplicates)); value("[data-meshtastic-rate-cancelled]", number(status.ratesPerMinute?.relayCancelled));
         if (groups) groups.hidden = false;
+        if (neighborList) {
+          neighborList.replaceChildren();
+          for (const neighbor of status.neighbors || []) {
+            if (!neighbor.name) continue;
+            const item = document.createElement("li");
+            const title = document.createElement("strong");
+            title.textContent = neighbor.shortName ? `${neighbor.name} (${neighbor.shortName})` : neighbor.name;
+            const details = document.createElement("span");
+            details.textContent = `SNR ${number(neighbor.snr, " dB")} · ${number(neighbor.hopsAway)} hops`;
+            item.append(title, details);
+            neighborList.append(item);
+          }
+          if (neighbors) neighbors.hidden = neighborList.childElementCount === 0;
+        }
         const activity = status.latestActivity;
         if (activity?.message && activity.sender && activity.channel && activity.receivedAt) {
           value("[data-meshtastic-message]", activity.message); value("[data-meshtastic-sender]", activity.sender); value("[data-meshtastic-channel]", activity.channel);
@@ -90,8 +149,29 @@ const { lab } = Astro.props;
           value("[data-meshtastic-message]", panel.dataset.noActivityLabel || "No public activity");
         }
         if (status.refreshedAt) value("[data-meshtastic-refreshed]", `${panel.dataset.refreshedLabel || "Updated"}: ${new Intl.DateTimeFormat(document.documentElement.lang, { dateStyle: "medium", timeStyle: "short" }).format(new Date(status.refreshedAt))}`);
+        radioAvailable = true;
+        renderTurnstile();
+        updateSender();
       } catch { unavailable(); }
     };
+    form?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const message = messageInput?.value || "";
+      if (!senderReady() || !message) return;
+      if (sendButton) sendButton.disabled = true;
+      try {
+        const response = await fetch(`${baseUrl}/v1/lab/meshtastic/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message, turnstileToken }),
+        });
+        if (!response.ok) throw new Error();
+        if (messageInput) messageInput.value = "";
+        setSendStatus(panel.dataset.availableLabel || "Accepted");
+      } catch {
+        setSendStatus(panel.dataset.unavailableLabel || "Unable to send message");
+      } finally { updateSender(); }
+    });
     load();
   }
 </script>

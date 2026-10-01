@@ -109,6 +109,8 @@ class HomeAssistantMeshtasticClient:
         self._cached_status = {
             "status": "available" if values["gateway"] == "Connected" else "unavailable",
             "gateway": {
+                "name": self._text(values["node_long_name"], maximum=128) or self._text(values["node_short_name"], maximum=32),
+                "shortName": self._text(values["node_short_name"], maximum=32),
                 "uptimeSeconds": self._integer(values["uptime_seconds"], minimum=0),
                 "batteryPercent": self._number(values["battery_percent"], minimum=0, maximum=100),
                 "voltage": self._number(values["voltage"], minimum=0),
@@ -134,6 +136,7 @@ class HomeAssistantMeshtasticClient:
                 "duplicates": self._number(values["duplicates_per_minute"], minimum=0),
                 "relayCancelled": self._number(values["relay_cancelled_per_minute"], minimum=0),
             },
+            "neighbors": self._neighbors(values),
             "latestActivity": self._latest_activity(values),
             "refreshedAt": datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         }
@@ -172,6 +175,17 @@ class HomeAssistantMeshtasticClient:
             "senderHopsAway": hops,
         }
 
+    def _neighbors(self, values: Mapping[str, object]) -> list[dict[str, object]]:
+        name = self._text(values["neighbor_long_name"], maximum=128) or self._text(values["neighbor_short_name"], maximum=32)
+        if name is None:
+            return []
+        return [{
+            "name": name,
+            "shortName": self._text(values["neighbor_short_name"], maximum=32),
+            "snr": self._number(values["neighbor_snr"], minimum=-40, maximum=40),
+            "hopsAway": self._integer(values["neighbor_hops_away"], minimum=0),
+        }]
+
     def _state(self, entity_id: str) -> object:
         payload = self._get_json(f"/api/states/{entity_id}")
         return payload.get("state")
@@ -183,6 +197,13 @@ class HomeAssistantMeshtasticClient:
         except (TypeError, ValueError):
             return None
         return number if number >= minimum else None
+
+    @staticmethod
+    def _text(value: object, maximum: int) -> str | None:
+        if not isinstance(value, str):
+            return None
+        value = value.strip()
+        return value if value and value not in {"unknown", "unavailable"} and len(value) <= maximum else None
 
     @staticmethod
     def _number(value: object, minimum: float, maximum: float | None = None) -> float | None:

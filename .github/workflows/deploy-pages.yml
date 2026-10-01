@@ -50,6 +50,7 @@ jobs:
         run: npm run verify
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

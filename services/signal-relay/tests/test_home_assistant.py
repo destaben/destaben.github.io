@@ -84,6 +84,8 @@ def test_status_accepts_home_assistants_greek_mu_pm25_unit():
 def test_meshtastic_status_normalizes_unavailable_values_and_hides_entity_metadata():
     entity_ids = {
         "gateway": "meshtastic.gateway",
+        "node_long_name": "sensor.node_long_name",
+        "node_short_name": "sensor.node_short_name",
         "uptime_seconds": "sensor.uptime",
         "battery_percent": "sensor.battery",
         "voltage": "sensor.voltage",
@@ -108,6 +110,10 @@ def test_meshtastic_status_normalizes_unavailable_values_and_hides_entity_metada
         "last_received": "input_datetime.received",
         "last_sender_hops": "input_number.hops",
         "last_sender_hops_available": "input_boolean.hops_available",
+        "neighbor_long_name": "sensor.neighbor_long_name",
+        "neighbor_short_name": "sensor.neighbor_short_name",
+        "neighbor_snr": "sensor.neighbor_snr",
+        "neighbor_hops_away": "sensor.neighbor_hops_away",
     }
 
     class FixtureMeshtasticClient(HomeAssistantMeshtasticClient):
@@ -120,6 +126,8 @@ def test_meshtastic_status_normalizes_unavailable_values_and_hides_entity_metada
             key = next(key for key, entity_id in entity_ids.items() if path.endswith(entity_id))
             states = {
                 "gateway": "Connected",
+                "node_long_name": "d3st gateway",
+                "node_short_name": "d3st",
                 "uptime_seconds": "120",
                 "battery_percent": "101",
                 "voltage": "4.12",
@@ -144,14 +152,21 @@ def test_meshtastic_status_normalizes_unavailable_values_and_hides_entity_metada
                 "last_received": "2026-10-01 12:00:00",
                 "last_sender_hops": "2",
                 "last_sender_hops_available": "on",
+                "neighbor_long_name": "Neighbor One",
+                "neighbor_short_name": "N1",
+                "neighbor_snr": "7.5",
+                "neighbor_hops_away": "1",
             }
             return {"state": states[key], "attributes": {"friendly_name": "Private metadata"}}
 
     status = FixtureMeshtasticClient().status()
 
     assert status["status"] == "available"
-    assert status["gateway"] == {"uptimeSeconds": 120, "batteryPercent": None, "voltage": 4.12}
+    assert status["gateway"] == {
+        "name": "d3st gateway", "shortName": "d3st", "uptimeSeconds": 120, "batteryPercent": None, "voltage": 4.12,
+    }
     assert status["network"]["channelUtilizationPercent"] is None
+    assert status["neighbors"] == [{"name": "Neighbor One", "shortName": "N1", "snr": 7.5, "hopsAway": 1}]
     assert status["latestActivity"]["senderHopsAway"] == 2
     assert "entity_id" not in str(status)
 
@@ -159,6 +174,8 @@ def test_meshtastic_status_normalizes_unavailable_values_and_hides_entity_metada
 def test_meshtastic_status_hides_empty_home_assistant_helpers():
     entity_ids = {
         "gateway": "meshtastic.gateway",
+        "node_long_name": "sensor.node_long_name",
+        "node_short_name": "sensor.node_short_name",
         "uptime_seconds": "sensor.uptime",
         "battery_percent": "sensor.battery",
         "voltage": "sensor.voltage",
@@ -183,6 +200,10 @@ def test_meshtastic_status_hides_empty_home_assistant_helpers():
         "last_received": "input_datetime.received",
         "last_sender_hops": "input_number.hops",
         "last_sender_hops_available": "input_boolean.hops_available",
+        "neighbor_long_name": "sensor.neighbor_long_name",
+        "neighbor_short_name": "sensor.neighbor_short_name",
+        "neighbor_snr": "sensor.neighbor_snr",
+        "neighbor_hops_away": "sensor.neighbor_hops_away",
     }
 
     class EmptyActivityClient(HomeAssistantMeshtasticClient):
