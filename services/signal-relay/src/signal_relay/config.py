@@ -46,6 +46,17 @@ MESHTASTIC_ENTITY_KEYS = frozenset(
     }
 )
 
+MESHTASTIC_NEIGHBOR_ENTITY_KEYS = frozenset(
+    {
+        "neighbor_long_name",
+        "neighbor_short_name",
+        "neighbor_snr",
+        "neighbor_hops_away",
+    }
+)
+
+MESHTASTIC_REQUIRED_ENTITY_KEYS = MESHTASTIC_ENTITY_KEYS - MESHTASTIC_NEIGHBOR_ENTITY_KEYS
+
 
 def _meshtastic_entity_ids(value: str | None) -> dict[str, str] | None:
     if not value:
@@ -54,11 +65,11 @@ def _meshtastic_entity_ids(value: str | None) -> dict[str, str] | None:
         entity_ids = json.loads(value)
     except json.JSONDecodeError as error:
         raise ValueError("SIGNAL_RELAY_MESHTASTIC_ENTITY_IDS must be JSON") from error
-    if not isinstance(entity_ids, dict) or set(entity_ids) != MESHTASTIC_ENTITY_KEYS:
+    if not isinstance(entity_ids, dict) or not MESHTASTIC_REQUIRED_ENTITY_KEYS <= set(entity_ids) <= MESHTASTIC_ENTITY_KEYS:
         raise ValueError("SIGNAL_RELAY_MESHTASTIC_ENTITY_IDS must define the required keys")
     if not all(isinstance(entity_id, str) and _ENTITY_ID.fullmatch(entity_id) for entity_id in entity_ids.values()):
         raise ValueError("SIGNAL_RELAY_MESHTASTIC_ENTITY_IDS contains an invalid entity ID")
-    return entity_ids
+    return {key: entity_id for key, entity_id in entity_ids.items() if key in MESHTASTIC_REQUIRED_ENTITY_KEYS}
 
 
 def _public_tcp_node_aliases(value: str | None) -> dict[str, str]:

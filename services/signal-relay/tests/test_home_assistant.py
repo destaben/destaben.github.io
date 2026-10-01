@@ -159,6 +159,15 @@ def test_meshtastic_status_normalizes_unavailable_values_and_hides_entity_metada
             }
             return {"state": states[key], "attributes": {"friendly_name": "Private metadata"}}
 
+        def _get_states(self):
+            return [
+                {"entity_id": "sensor.meshtastic_gateway_node_long_name", "state": "d3st gateway"},
+                {"entity_id": "sensor.meshtastic_neighbor_one_node_long_name", "state": "Neighbor One"},
+                {"entity_id": "sensor.meshtastic_neighbor_one_node_short_name", "state": "N1"},
+                {"entity_id": "sensor.meshtastic_neighbor_one_node_snr", "state": "7.5"},
+                {"entity_id": "sensor.meshtastic_neighbor_one_node_hops_away", "state": "1"},
+            ]
+
     status = FixtureMeshtasticClient().status()
 
     assert status["status"] == "available"
@@ -218,3 +227,25 @@ def test_meshtastic_status_hides_empty_home_assistant_helpers():
             return {"state": states[key]}
 
     assert EmptyActivityClient("http://home-assistant", "private-token", entity_ids).status()["latestActivity"] is None
+
+
+def test_meshtastic_status_hides_neighbors_when_discovery_fails():
+    entity_ids = {
+        key: f"sensor.{key}"
+        for key in (
+            "gateway", "node_long_name", "node_short_name", "uptime_seconds", "battery_percent", "voltage",
+            "channel_utilization_percent", "airtime_tx_percent", "nodes_online", "nodes_total", "packets_rx",
+            "packets_tx", "packets_rx_bad", "packets_rx_duplicate", "packets_tx_relayed", "packets_tx_relay_cancelled",
+            "rx_per_minute", "tx_per_minute", "rf_errors_per_minute", "duplicates_per_minute", "relay_cancelled_per_minute",
+            "last_message", "last_sender", "last_channel", "last_received", "last_sender_hops", "last_sender_hops_available",
+        )
+    }
+
+    class UnavailableNeighborClient(HomeAssistantMeshtasticClient):
+        def _get_json(self, path):
+            return {"state": "Connected" if path.endswith("gateway") else "0"}
+
+        def _get_states(self):
+            raise OSError("Home Assistant unavailable")
+
+    assert UnavailableNeighborClient("http://home-assistant", "private-token", entity_ids).status()["neighbors"] == []
