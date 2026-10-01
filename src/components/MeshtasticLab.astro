@@ -1,0 +1,97 @@
+---
+import type { MeshtasticLab } from "../data/portfolio";
+
+interface Props { lab: MeshtasticLab; }
+const { lab } = Astro.props;
+---
+
+<article class="lab-card meshtastic-panel" data-meshtastic-panel data-local-url="http://127.0.0.1:8787" data-production-url="https://lab.destaben.dev" data-loading-label={lab.loadingLabel} data-unavailable-label={lab.unavailableLabel} data-available-label={lab.availableLabel} data-unavailable-value-label={lab.unavailableValueLabel} data-no-activity-label={lab.noActivityLabel} data-refreshed-label={lab.refreshedLabel} aria-labelledby={`${lab.id}-title`}>
+  <div class="lab-card-header"><p class="lab-status">{lab.statusLabel}</p><span class="meshtastic-state" data-meshtastic-state role="status">{lab.loadingLabel}</span></div>
+  <h3 id={`${lab.id}-title`}>{lab.title}</h3>
+  <p>{lab.summary}</p>
+  <div class="meshtastic-groups" data-meshtastic-groups hidden>
+    <section aria-labelledby={`${lab.id}-gateway`}><h4 id={`${lab.id}-gateway`}>{lab.gatewayLabel}</h4><dl class="meshtastic-readings"><div><dt>{lab.uptimeLabel}</dt><dd data-meshtastic-uptime>--</dd></div><div><dt>{lab.batteryLabel}</dt><dd data-meshtastic-battery>--</dd></div><div><dt>{lab.voltageLabel}</dt><dd data-meshtastic-voltage>--</dd></div></dl></section>
+    <section aria-labelledby={`${lab.id}-network`}><h4 id={`${lab.id}-network`}>{lab.networkLabel}</h4><dl class="meshtastic-readings"><div><dt>{lab.nodesLabel}</dt><dd data-meshtastic-nodes>--</dd></div><div><dt>{lab.channelUtilizationLabel}</dt><dd data-meshtastic-channel-use>--</dd></div><div><dt>{lab.airtimeLabel}</dt><dd data-meshtastic-airtime>--</dd></div></dl></section>
+    <section aria-labelledby={`${lab.id}-packets`}><h4 id={`${lab.id}-packets`}>{lab.packetsLabel}</h4><dl class="meshtastic-readings meshtastic-readings-compact"><div><dt>{lab.rxLabel}</dt><dd data-meshtastic-rx>--</dd></div><div><dt>{lab.txLabel}</dt><dd data-meshtastic-tx>--</dd></div><div><dt>{lab.badPacketsLabel}</dt><dd data-meshtastic-rx-bad>--</dd></div><div><dt>{lab.duplicatePacketsLabel}</dt><dd data-meshtastic-rx-duplicate>--</dd></div><div><dt>{lab.relayedPacketsLabel}</dt><dd data-meshtastic-relayed>--</dd></div><div><dt>{lab.cancelledPacketsLabel}</dt><dd data-meshtastic-cancelled>--</dd></div></dl></section>
+    <section aria-labelledby={`${lab.id}-rates`}><h4 id={`${lab.id}-rates`}>{lab.ratesLabel}</h4><dl class="meshtastic-readings meshtastic-readings-compact"><div><dt>{lab.rxLabel}</dt><dd data-meshtastic-rate-rx>--</dd></div><div><dt>{lab.txLabel}</dt><dd data-meshtastic-rate-tx>--</dd></div><div><dt>{lab.rfErrorsLabel}</dt><dd data-meshtastic-rate-errors>--</dd></div><div><dt>{lab.duplicatePacketsLabel}</dt><dd data-meshtastic-rate-duplicates>--</dd></div><div><dt>{lab.cancelledPacketsLabel}</dt><dd data-meshtastic-rate-cancelled>--</dd></div></dl></section>
+  </div>
+  <section class="meshtastic-activity" aria-labelledby={`${lab.id}-activity`}><div><h4 id={`${lab.id}-activity`}>{lab.latestActivityLabel}</h4><time data-meshtastic-received></time></div><p data-meshtastic-message>{lab.noActivityLabel}</p><dl data-meshtastic-activity-details hidden><div><dt>{lab.senderLabel}</dt><dd data-meshtastic-sender></dd></div><div><dt>{lab.channelLabel}</dt><dd data-meshtastic-channel></dd></div><div data-meshtastic-hops-row hidden><dt>{lab.senderHopsLabel}</dt><dd data-meshtastic-hops></dd></div></dl></section>
+  <section class="meshtastic-send" aria-labelledby={`${lab.id}-send`}><h4 id={`${lab.id}-send`}>{lab.sendTitle}</h4><form><label>{lab.sendLabel}<textarea placeholder={lab.sendPlaceholder} maxlength="237" disabled></textarea></label><button type="submit" disabled>{lab.sendLabel}</button></form><p>{lab.sendUnavailableLabel}</p></section>
+  <p class="meshtastic-refreshed" data-meshtastic-refreshed></p>
+  <div class="home-privacy"><p>{lab.privacyTitle}</p><span>{lab.privacyCopy}</span></div>
+  <div class="tag-list">{lab.technologies.map((technology) => <span class="tag">{technology}</span>)}</div>
+</article>
+
+<script>
+  const panel = document.querySelector<HTMLElement>("[data-meshtastic-panel]");
+  if (panel) {
+    type Status = {
+      status?: string;
+      gateway?: { uptimeSeconds?: number | null; batteryPercent?: number | null; voltage?: number | null };
+      network?: { nodesOnline?: number | null; nodesTotal?: number | null; channelUtilizationPercent?: number | null; airtimeTxPercent?: number | null };
+      packets?: { rx?: number | null; tx?: number | null; rxBad?: number | null; rxDuplicate?: number | null; txRelayed?: number | null; txRelayCancelled?: number | null };
+      ratesPerMinute?: { rx?: number | null; tx?: number | null; rfErrors?: number | null; duplicates?: number | null; relayCancelled?: number | null };
+      latestActivity?: { message?: string; sender?: string; channel?: string; receivedAt?: string; senderHopsAway?: number | null } | null;
+      refreshedAt?: string;
+    };
+    const localHosts = new Set(["127.0.0.1", "localhost"]);
+    const baseUrl = localHosts.has(window.location.hostname) ? panel.dataset.localUrl : panel.dataset.productionUrl;
+    const value = (selector: string, content: string) => {
+      const target = panel.querySelector<HTMLElement>(selector);
+      if (target) target.textContent = content;
+    };
+    const unavailableValue = () => panel.dataset.unavailableValueLabel || "Unavailable";
+    const number = (input: number | null | undefined, suffix = "") => Number.isFinite(input) ? `${input}${suffix}` : unavailableValue();
+    const uptime = (seconds: number | null | undefined) => {
+      if (!Number.isFinite(seconds)) return unavailableValue();
+      const hours = Math.floor(Number(seconds) / 3600);
+      const minutes = Math.floor((Number(seconds) % 3600) / 60);
+      return hours ? `${hours}h ${minutes}m` : `${minutes}m`;
+    };
+    const state = panel.querySelector<HTMLElement>("[data-meshtastic-state]");
+    const groups = panel.querySelector<HTMLElement>("[data-meshtastic-groups]");
+    const activityDetails = panel.querySelector<HTMLElement>("[data-meshtastic-activity-details]");
+    const hopsRow = panel.querySelector<HTMLElement>("[data-meshtastic-hops-row]");
+    const unavailable = () => {
+      if (state) state.textContent = panel.dataset.unavailableLabel || "Meshtastic unavailable";
+      if (groups) groups.hidden = true;
+      if (activityDetails) activityDetails.hidden = true;
+      if (hopsRow) hopsRow.hidden = true;
+      value("[data-meshtastic-message]", panel.dataset.noActivityLabel || "No public activity");
+      value("[data-meshtastic-received]", "");
+      value("[data-meshtastic-refreshed]", "");
+    };
+    const load = async () => {
+      try {
+        const response = await fetch(`${baseUrl}/v1/lab/meshtastic`);
+        const status = await response.json() as Status;
+        if (!response.ok || status.status !== "available") throw new Error();
+        if (state) state.textContent = panel.dataset.availableLabel || "Updated";
+        value("[data-meshtastic-uptime]", uptime(status.gateway?.uptimeSeconds));
+        value("[data-meshtastic-battery]", number(status.gateway?.batteryPercent, "%"));
+        value("[data-meshtastic-voltage]", number(status.gateway?.voltage, " V"));
+        value("[data-meshtastic-nodes]", Number.isFinite(status.network?.nodesOnline) && Number.isFinite(status.network?.nodesTotal) ? `${status.network?.nodesOnline}/${status.network?.nodesTotal}` : unavailableValue());
+        value("[data-meshtastic-channel-use]", number(status.network?.channelUtilizationPercent, "%"));
+        value("[data-meshtastic-airtime]", number(status.network?.airtimeTxPercent, "%"));
+        value("[data-meshtastic-rx]", number(status.packets?.rx)); value("[data-meshtastic-tx]", number(status.packets?.tx)); value("[data-meshtastic-rx-bad]", number(status.packets?.rxBad)); value("[data-meshtastic-rx-duplicate]", number(status.packets?.rxDuplicate)); value("[data-meshtastic-relayed]", number(status.packets?.txRelayed)); value("[data-meshtastic-cancelled]", number(status.packets?.txRelayCancelled));
+        value("[data-meshtastic-rate-rx]", number(status.ratesPerMinute?.rx)); value("[data-meshtastic-rate-tx]", number(status.ratesPerMinute?.tx)); value("[data-meshtastic-rate-errors]", number(status.ratesPerMinute?.rfErrors)); value("[data-meshtastic-rate-duplicates]", number(status.ratesPerMinute?.duplicates)); value("[data-meshtastic-rate-cancelled]", number(status.ratesPerMinute?.relayCancelled));
+        if (groups) groups.hidden = false;
+        const activity = status.latestActivity;
+        if (activity?.message && activity.sender && activity.channel && activity.receivedAt) {
+          value("[data-meshtastic-message]", activity.message); value("[data-meshtastic-sender]", activity.sender); value("[data-meshtastic-channel]", activity.channel);
+          const received = panel.querySelector<HTMLTimeElement>("[data-meshtastic-received]");
+          if (received) { received.dateTime = activity.receivedAt; received.textContent = new Intl.DateTimeFormat(document.documentElement.lang, { dateStyle: "medium", timeStyle: "short" }).format(new Date(activity.receivedAt)); }
+          if (activityDetails) activityDetails.hidden = false;
+          if (hopsRow) hopsRow.hidden = !Number.isFinite(activity.senderHopsAway);
+          value("[data-meshtastic-hops]", number(activity.senderHopsAway));
+        } else {
+          if (activityDetails) activityDetails.hidden = true;
+          if (hopsRow) hopsRow.hidden = true;
+          value("[data-meshtastic-message]", panel.dataset.noActivityLabel || "No public activity");
+        }
+        if (status.refreshedAt) value("[data-meshtastic-refreshed]", `${panel.dataset.refreshedLabel || "Updated"}: ${new Intl.DateTimeFormat(document.documentElement.lang, { dateStyle: "medium", timeStyle: "short" }).format(new Date(status.refreshedAt))}`);
+      } catch { unavailable(); }
+    };
+    load();
+  }
+</script>

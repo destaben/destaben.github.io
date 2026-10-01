@@ -7,10 +7,11 @@ const readPage = (path) => readFile(new URL(`../dist/${path}`, import.meta.url),
 const assertLabOrder = (page) => {
   const home = page.indexOf('data-home-status-panel');
   const metrics = page.indexOf('data-metrics-panel');
+  const meshtastic = page.indexOf('data-meshtastic-panel');
   const relay = page.indexOf('data-relay-panel');
 
-  assert.ok(home !== -1 && metrics !== -1 && relay !== -1);
-  assert.ok(home < metrics && metrics < relay);
+  assert.ok(home !== -1 && metrics !== -1 && meshtastic !== -1 && relay !== -1);
+  assert.ok(home < metrics && metrics < meshtastic && meshtastic < relay);
 };
 
 test("generates bilingual portfolio entries without a portrait", async () => {
@@ -49,6 +50,12 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /data-good-label="Buena"/);
   assert.match(spanish, /data-regular-label="Regular"/);
   assert.match(spanish, /data-bad-label="Mala"/);
+  assert.match(spanish, /Estado agregado de una pasarela Meshtastic/);
+  assert.match(spanish, /data-meshtastic-panel/);
+  assert.match(spanish, /Última actividad pública/);
+  assert.match(spanish, /Enviar a MediumFast/);
+  assert.match(spanish, /El envío público estará disponible tras configurar la verificación antiabuso/);
+  assert.match(spanish, /<textarea[^>]*disabled/);
   assertLabOrder(spanish);
   assert.doesNotMatch(spanish, /data-inbox-source-label/);
   assert.match(spanish, /Reticulum online/);
@@ -80,6 +87,10 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(english, /Check the current state of my home while preserving privacy\./);
   assert.match(english, /Protected data/);
   assert.match(english, /Air quality/);
+  assert.match(english, /Aggregate status for a Meshtastic gateway/);
+  assert.match(english, /Latest public activity/);
+  assert.match(english, /Send to MediumFast/);
+  assert.match(english, /Public sending will be available after anti-abuse verification is configured/);
   assertLabOrder(english);
   assert.doesNotMatch(spanish, /profile\.jpg/);
   assert.doesNotMatch(english, /Portrait of/);
