@@ -137,16 +137,7 @@ def test_meshtastic_status_normalizes_unavailable_values_and_hides_entity_metada
         "rf_errors_per_minute": "sensor.error_rate",
         "duplicates_per_minute": "sensor.duplicate_rate",
         "relay_cancelled_per_minute": "sensor.cancelled_rate",
-        "last_message": "input_text.message",
-        "last_sender": "input_text.sender",
-        "last_channel": "input_text.channel",
-        "last_received": "input_datetime.received",
-        "last_sender_hops": "input_number.hops",
-        "last_sender_hops_available": "input_boolean.hops_available",
-        "neighbor_long_name": "sensor.neighbor_long_name",
-        "neighbor_short_name": "sensor.neighbor_short_name",
-        "neighbor_snr": "sensor.neighbor_snr",
-        "neighbor_hops_away": "sensor.neighbor_hops_away",
+        **{f"recent_activity_{index}": f"input_text.recent_activity_{index}" for index in range(1, 6)},
     }
 
     class FixtureMeshtasticClient(HomeAssistantMeshtasticClient):
@@ -179,27 +170,13 @@ def test_meshtastic_status_normalizes_unavailable_values_and_hides_entity_metada
                 "rf_errors_per_minute": "0",
                 "duplicates_per_minute": "0.1",
                 "relay_cancelled_per_minute": "unknown",
-                "last_message": "Hello mesh",
-                "last_sender": "Node One",
-                "last_channel": "MediumFast",
-                "last_received": "2026-10-01 12:00:00",
-                "last_sender_hops": "2",
-                "last_sender_hops_available": "on",
-                "neighbor_long_name": "Neighbor One",
-                "neighbor_short_name": "N1",
-                "neighbor_snr": "7.5",
-                "neighbor_hops_away": "1",
+                "recent_activity_1": '{"message":"Hello mesh","sender":"Node One","receivedAt":"2026-10-01T12:00:00Z"}',
+                "recent_activity_2": '{"message":"Previous message","sender":"Node Two","receivedAt":"2026-10-01T11:00:00Z"}',
+                "recent_activity_3": "unknown",
+                "recent_activity_4": "",
+                "recent_activity_5": "not-json",
             }
             return {"state": states[key], "attributes": {"friendly_name": "Private metadata"}}
-
-        def _get_states(self):
-            return [
-                {"entity_id": "sensor.meshtastic_gateway_node_long_name", "state": "d3st gateway"},
-                {"entity_id": "sensor.meshtastic_neighbor_one_node_long_name", "state": "Neighbor One"},
-                {"entity_id": "sensor.meshtastic_neighbor_one_node_short_name", "state": "N1"},
-                {"entity_id": "sensor.meshtastic_neighbor_one_node_snr", "state": "7.5"},
-                {"entity_id": "sensor.meshtastic_neighbor_one_node_hops_away", "state": "1"},
-            ]
 
     status = FixtureMeshtasticClient().status()
 
@@ -208,12 +185,14 @@ def test_meshtastic_status_normalizes_unavailable_values_and_hides_entity_metada
         "name": "d3st gateway", "shortName": "d3st", "uptimeSeconds": 120, "batteryPercent": None, "voltage": 4.12,
     }
     assert status["network"]["channelUtilizationPercent"] is None
-    assert status["neighbors"] == [{"name": "Neighbor One", "shortName": "N1", "snr": 7.5, "hopsAway": 1}]
-    assert status["latestActivity"]["senderHopsAway"] == 2
+    assert status["recentActivity"] == [
+        {"message": "Hello mesh", "sender": "Node One", "channel": "MediumFast", "receivedAt": "2026-10-01T12:00:00Z"},
+        {"message": "Previous message", "sender": "Node Two", "channel": "MediumFast", "receivedAt": "2026-10-01T11:00:00Z"},
+    ]
     assert "entity_id" not in str(status)
 
 
-def test_meshtastic_status_hides_empty_home_assistant_helpers():
+def test_meshtastic_status_hides_invalid_recent_activity():
     entity_ids = {
         "gateway": "meshtastic.gateway",
         "node_long_name": "sensor.node_long_name",
@@ -236,16 +215,7 @@ def test_meshtastic_status_hides_empty_home_assistant_helpers():
         "rf_errors_per_minute": "sensor.error_rate",
         "duplicates_per_minute": "sensor.duplicate_rate",
         "relay_cancelled_per_minute": "sensor.cancelled_rate",
-        "last_message": "input_text.message",
-        "last_sender": "input_text.sender",
-        "last_channel": "input_text.channel",
-        "last_received": "input_datetime.received",
-        "last_sender_hops": "input_number.hops",
-        "last_sender_hops_available": "input_boolean.hops_available",
-        "neighbor_long_name": "sensor.neighbor_long_name",
-        "neighbor_short_name": "sensor.neighbor_short_name",
-        "neighbor_snr": "sensor.neighbor_snr",
-        "neighbor_hops_away": "sensor.neighbor_hops_away",
+        **{f"recent_activity_{index}": f"input_text.recent_activity_{index}" for index in range(1, 6)},
     }
 
     class EmptyActivityClient(HomeAssistantMeshtasticClient):
@@ -253,32 +223,7 @@ def test_meshtastic_status_hides_empty_home_assistant_helpers():
             key = next(key for key, entity_id in entity_ids.items() if path.endswith(entity_id))
             states = {entity_key: "0" for entity_key in entity_ids}
             states["gateway"] = "Connected"
-            states["last_message"] = "unknown"
-            states["last_sender"] = "unknown"
-            states["last_channel"] = "unknown"
-            states["last_received"] = "unknown"
+            states["recent_activity_1"] = "unknown"
             return {"state": states[key]}
 
-    assert EmptyActivityClient("http://home-assistant", "private-token", entity_ids).status()["latestActivity"] is None
-
-
-def test_meshtastic_status_hides_neighbors_when_discovery_fails():
-    entity_ids = {
-        key: f"sensor.{key}"
-        for key in (
-            "gateway", "node_long_name", "node_short_name", "uptime_seconds", "battery_percent", "voltage",
-            "channel_utilization_percent", "airtime_tx_percent", "nodes_online", "nodes_total", "packets_rx",
-            "packets_tx", "packets_rx_bad", "packets_rx_duplicate", "packets_tx_relayed", "packets_tx_relay_cancelled",
-            "rx_per_minute", "tx_per_minute", "rf_errors_per_minute", "duplicates_per_minute", "relay_cancelled_per_minute",
-            "last_message", "last_sender", "last_channel", "last_received", "last_sender_hops", "last_sender_hops_available",
-        )
-    }
-
-    class UnavailableNeighborClient(HomeAssistantMeshtasticClient):
-        def _get_json(self, path):
-            return {"state": "Connected" if path.endswith("gateway") else "0"}
-
-        def _get_states(self):
-            raise OSError("Home Assistant unavailable")
-
-    assert UnavailableNeighborClient("http://home-assistant", "private-token", entity_ids).status()["neighbors"] == []
+    assert EmptyActivityClient("http://home-assistant", "private-token", entity_ids).status()["recentActivity"] == []

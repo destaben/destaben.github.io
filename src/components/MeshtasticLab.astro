@@ -14,8 +14,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || "";
     <section aria-labelledby={`${lab.id}-gateway`}><h4 id={`${lab.id}-gateway`}>{lab.gatewayLabel}</h4><p class="meshtastic-node-name" data-meshtastic-node-name>--</p><dl class="meshtastic-readings"><div><dt>{lab.uptimeLabel}</dt><dd data-meshtastic-uptime>--</dd></div><div><dt>{lab.batteryLabel}</dt><dd data-meshtastic-battery>--</dd></div><div><dt>{lab.voltageLabel}</dt><dd data-meshtastic-voltage>--</dd></div></dl></section>
     <section aria-labelledby={`${lab.id}-network`}><h4 id={`${lab.id}-network`}>{lab.networkLabel}</h4><dl class="meshtastic-readings"><div><dt>{lab.nodesLabel}</dt><dd data-meshtastic-nodes>--</dd></div><div><dt>{lab.channelUtilizationLabel}</dt><dd data-meshtastic-channel-use>--</dd></div><div><dt>{lab.airtimeLabel}</dt><dd data-meshtastic-airtime>--</dd></div></dl></section>
   </div>
-  <section class="meshtastic-neighbors" data-meshtastic-neighbors hidden><h4>{lab.nodesLabel}</h4><ul data-meshtastic-neighbor-list></ul></section>
-  <section class="meshtastic-activity" aria-labelledby={`${lab.id}-activity`}><div><h4 id={`${lab.id}-activity`}>{lab.latestActivityLabel}</h4><time data-meshtastic-received></time></div><p data-meshtastic-message>{lab.noActivityLabel}</p><dl data-meshtastic-activity-details hidden><div><dt>{lab.senderLabel}</dt><dd data-meshtastic-sender></dd></div><div><dt>{lab.channelLabel}</dt><dd data-meshtastic-channel></dd></div><div data-meshtastic-hops-row hidden><dt>{lab.senderHopsLabel}</dt><dd data-meshtastic-hops></dd></div></dl></section>
+  <section class="meshtastic-activity" aria-labelledby={`${lab.id}-activity`}><div><h4 id={`${lab.id}-activity`}>{lab.latestActivityLabel}</h4></div><p data-meshtastic-no-activity>{lab.noActivityLabel}</p><ol data-meshtastic-activity-list hidden></ol></section>
   <section class="meshtastic-send" aria-labelledby={`${lab.id}-send`}><h4 id={`${lab.id}-send`}>{lab.sendTitle}</h4><form data-meshtastic-send-form><label>{lab.sendLabel}<textarea data-meshtastic-message-input placeholder={lab.sendPlaceholder} maxlength="237" disabled></textarea></label><div class="meshtastic-turnstile" data-meshtastic-turnstile></div><button data-meshtastic-send-button type="submit" disabled>{lab.sendLabel}</button></form><p class="meshtastic-send-status" data-meshtastic-send-status data-state="unavailable" role="status" aria-live="polite">{lab.sendUnavailableLabel}</p></section>
   <p class="meshtastic-refreshed" data-meshtastic-refreshed></p>
   <div class="home-privacy"><p>{lab.privacyTitle}</p><span>{lab.privacyCopy}</span></div>
@@ -29,8 +28,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || "";
       status?: string;
       gateway?: { name?: string | null; shortName?: string | null; uptimeSeconds?: number | null; batteryPercent?: number | null; voltage?: number | null };
       network?: { nodesOnline?: number | null; nodesTotal?: number | null; channelUtilizationPercent?: number | null; airtimeTxPercent?: number | null };
-      neighbors?: { name?: string; shortName?: string | null; snr?: number | null; hopsAway?: number | null }[];
-      latestActivity?: { message?: string; sender?: string; channel?: string; receivedAt?: string; senderHopsAway?: number | null } | null;
+      recentActivity?: { message?: string; sender?: string; channel?: string; receivedAt?: string }[];
       refreshedAt?: string;
     };
     const localHosts = new Set(["127.0.0.1", "localhost"]);
@@ -49,10 +47,8 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || "";
     };
     const state = panel.querySelector<HTMLElement>("[data-meshtastic-state]");
     const groups = panel.querySelector<HTMLElement>("[data-meshtastic-groups]");
-    const activityDetails = panel.querySelector<HTMLElement>("[data-meshtastic-activity-details]");
-    const hopsRow = panel.querySelector<HTMLElement>("[data-meshtastic-hops-row]");
-    const neighbors = panel.querySelector<HTMLElement>("[data-meshtastic-neighbors]");
-    const neighborList = panel.querySelector<HTMLUListElement>("[data-meshtastic-neighbor-list]");
+    const noActivity = panel.querySelector<HTMLElement>("[data-meshtastic-no-activity]");
+    const activityList = panel.querySelector<HTMLOListElement>("[data-meshtastic-activity-list]");
     const form = panel.querySelector<HTMLFormElement>("[data-meshtastic-send-form]");
     const messageInput = panel.querySelector<HTMLTextAreaElement>("[data-meshtastic-message-input]");
     const sendButton = panel.querySelector<HTMLButtonElement>("[data-meshtastic-send-button]");
@@ -94,13 +90,10 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || "";
     const unavailable = () => {
       if (state) state.textContent = panel.dataset.unavailableLabel || "Meshtastic unavailable";
       if (groups) groups.hidden = true;
-      if (activityDetails) activityDetails.hidden = true;
-      if (hopsRow) hopsRow.hidden = true;
-      if (neighbors) neighbors.hidden = true;
+      if (noActivity) noActivity.hidden = false;
+      if (activityList) { activityList.replaceChildren(); activityList.hidden = true; }
       radioAvailable = false;
       updateSender();
-      value("[data-meshtastic-message]", panel.dataset.noActivityLabel || "No public activity");
-      value("[data-meshtastic-received]", "");
       value("[data-meshtastic-refreshed]", "");
     };
     const load = async () => {
@@ -117,32 +110,21 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || "";
         value("[data-meshtastic-channel-use]", number(status.network?.channelUtilizationPercent, "%"));
         value("[data-meshtastic-airtime]", number(status.network?.airtimeTxPercent, "%"));
         if (groups) groups.hidden = false;
-        if (neighborList) {
-          neighborList.replaceChildren();
-          for (const neighbor of status.neighbors || []) {
-            if (!neighbor.name) continue;
+        const activity = Array.isArray(status.recentActivity) ? status.recentActivity.slice(0, 5) : [];
+        if (activityList) {
+          activityList.replaceChildren(...activity.flatMap((entry) => {
+            if (!entry.message || !entry.sender || !entry.channel || !entry.receivedAt) return [];
             const item = document.createElement("li");
-            const title = document.createElement("strong");
-            title.textContent = neighbor.shortName ? `${neighbor.name} (${neighbor.shortName})` : neighbor.name;
+            const message = document.createElement("strong");
+            message.textContent = entry.message;
             const details = document.createElement("span");
-            details.textContent = `SNR ${number(neighbor.snr, " dB")} · ${number(neighbor.hopsAway)} hops`;
-            item.append(title, details);
-            neighborList.append(item);
-          }
-          if (neighbors) neighbors.hidden = neighborList.childElementCount === 0;
-        }
-        const activity = status.latestActivity;
-        if (activity?.message && activity.sender && activity.channel && activity.receivedAt) {
-          value("[data-meshtastic-message]", activity.message); value("[data-meshtastic-sender]", activity.sender); value("[data-meshtastic-channel]", activity.channel);
-          const received = panel.querySelector<HTMLTimeElement>("[data-meshtastic-received]");
-          if (received) { received.dateTime = activity.receivedAt; received.textContent = new Intl.DateTimeFormat(document.documentElement.lang, { dateStyle: "medium", timeStyle: "short" }).format(new Date(activity.receivedAt)); }
-          if (activityDetails) activityDetails.hidden = false;
-          if (hopsRow) hopsRow.hidden = !Number.isFinite(activity.senderHopsAway);
-          value("[data-meshtastic-hops]", number(activity.senderHopsAway));
-        } else {
-          if (activityDetails) activityDetails.hidden = true;
-          if (hopsRow) hopsRow.hidden = true;
-          value("[data-meshtastic-message]", panel.dataset.noActivityLabel || "No public activity");
+            const timestamp = new Intl.DateTimeFormat(document.documentElement.lang, { dateStyle: "medium", timeStyle: "short" }).format(new Date(entry.receivedAt));
+            details.textContent = `${entry.sender} · ${entry.channel} · ${timestamp}`;
+            item.append(message, details);
+            return [item];
+          }));
+          activityList.hidden = activityList.childElementCount === 0;
+          if (noActivity) noActivity.hidden = activityList.childElementCount > 0;
         }
         if (status.refreshedAt) value("[data-meshtastic-refreshed]", `${panel.dataset.refreshedLabel || "Updated"}: ${new Intl.DateTimeFormat(document.documentElement.lang, { dateStyle: "medium", timeStyle: "short" }).format(new Date(status.refreshedAt))}`);
         radioAvailable = true;

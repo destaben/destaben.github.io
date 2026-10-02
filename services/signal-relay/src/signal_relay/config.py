@@ -33,29 +33,15 @@ MESHTASTIC_ENTITY_KEYS = frozenset(
         "rf_errors_per_minute",
         "duplicates_per_minute",
         "relay_cancelled_per_minute",
-        "last_message",
-        "last_sender",
-        "last_channel",
-        "last_received",
-        "last_sender_hops",
-        "last_sender_hops_available",
-        "neighbor_long_name",
-        "neighbor_short_name",
-        "neighbor_snr",
-        "neighbor_hops_away",
+        "recent_activity_1",
+        "recent_activity_2",
+        "recent_activity_3",
+        "recent_activity_4",
+        "recent_activity_5",
     }
 )
 
-MESHTASTIC_NEIGHBOR_ENTITY_KEYS = frozenset(
-    {
-        "neighbor_long_name",
-        "neighbor_short_name",
-        "neighbor_snr",
-        "neighbor_hops_away",
-    }
-)
-
-MESHTASTIC_REQUIRED_ENTITY_KEYS = MESHTASTIC_ENTITY_KEYS - MESHTASTIC_NEIGHBOR_ENTITY_KEYS
+MESHTASTIC_REQUIRED_ENTITY_KEYS = MESHTASTIC_ENTITY_KEYS
 
 
 def _meshtastic_entity_ids(value: str | None) -> dict[str, str] | None:

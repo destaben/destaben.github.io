@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 import json
 import math
-import re
 import time
 from typing import Mapping
 from urllib.request import Request, urlopen
@@ -96,8 +95,6 @@ class HomeAssistantLabClient:
 class HomeAssistantMeshtasticClient:
     """Reads a fixed, private entity map and returns a public Meshtastic projection."""
 
-    _NODE_FIELD = re.compile(r"^(sensor\.meshtastic_.+)_node_(long_name|short_name|snr|hops_away)$")
-
     def __init__(self, base_url: str, token: str, entity_ids: Mapping[str, str], cache_seconds: int = 30) -> None:
         self.base_url = base_url.rstrip("/")
         self.token = token
@@ -142,8 +139,7 @@ class HomeAssistantMeshtasticClient:
                 "duplicates": self._number(values["duplicates_per_minute"], minimum=0),
                 "relayCancelled": self._number(values["relay_cancelled_per_minute"], minimum=0),
             },
-            "neighbors": self._neighbors(),
-            "latestActivity": self._latest_activity(values),
+            "recentActivity": self._recent_activity(values),
             "refreshedAt": datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         }
         self._cache_expires_at = now + self.cache_seconds
@@ -165,55 +161,25 @@ class HomeAssistantMeshtasticClient:
             if response.status not in {200, 201}:
                 raise RuntimeError("meshtastic_broadcast_failed")
 
-    def _latest_activity(self, values: Mapping[str, object]) -> dict[str, object] | None:
-        activity_keys = ("last_message", "last_sender", "last_channel", "last_received")
-        if not all(
-            isinstance(values[key], str) and values[key] not in {"", "unknown", "unavailable"}
-            for key in activity_keys
-        ):
-            return None
-        hops = self._integer(values["last_sender_hops"], minimum=0) if values["last_sender_hops_available"] == "on" else None
-        return {
-            "message": values["last_message"],
-            "sender": values["last_sender"],
-            "channel": values["last_channel"],
-            "receivedAt": values["last_received"],
-            "senderHopsAway": hops,
-        }
-
-    def _neighbors(self) -> list[dict[str, object]]:
-        local_entity_ids = {
-            entity_id
-            for key, entity_id in self.entity_ids.items()
-            if key in {"node_long_name", "node_short_name"}
-        }
-        candidates: dict[str, dict[str, object]] = {}
-        try:
-            states = self._get_states()
-        except (OSError, ValueError):
-            return []
-        for state in states:
-            if not isinstance(state, dict):
+    def _recent_activity(self, values: Mapping[str, object]) -> list[dict[str, str]]:
+        activity: list[dict[str, str]] = []
+        for index in range(1, 6):
+            value = values[f"recent_activity_{index}"]
+            if not isinstance(value, str):
                 continue
-            entity_id = state.get("entity_id")
-            if not isinstance(entity_id, str) or entity_id in local_entity_ids:
+            try:
+                entry = json.loads(value)
+            except json.JSONDecodeError:
                 continue
-            match = self._NODE_FIELD.fullmatch(entity_id)
-            if match is None:
+            if not isinstance(entry, dict):
                 continue
-            candidates.setdefault(match.group(1), {})[match.group(2)] = state.get("state")
-        for candidate in (candidates[key] for key in sorted(candidates)):
-            name = self._text(candidate.get("long_name"), maximum=128) or self._text(candidate.get("short_name"), maximum=32)
-            snr = self._number(candidate.get("snr"), minimum=-40, maximum=40)
-            hops_away = self._integer(candidate.get("hops_away"), minimum=0)
-            if name is not None and snr is not None and hops_away is not None:
-                return [{
-                    "name": name,
-                    "shortName": self._text(candidate.get("short_name"), maximum=32),
-                    "snr": snr,
-                    "hopsAway": hops_away,
-                }]
-        return []
+            message = self._text(entry.get("message"), maximum=140)
+            sender = self._text(entry.get("sender"), maximum=32)
+            received_at = self._text(entry.get("receivedAt"), maximum=32)
+            if message is None or sender is None or received_at is None:
+                continue
+            activity.append({"message": message, "sender": sender, "channel": "MediumFast", "receivedAt": received_at})
+        return activity
 
     def _state(self, entity_id: str) -> object:
         payload = self._get_json(f"/api/states/{entity_id}")
@@ -252,16 +218,5 @@ class HomeAssistantMeshtasticClient:
         with urlopen(request, timeout=5) as response:
             payload = json.load(response)
         if not isinstance(payload, dict):
-            raise ValueError("invalid_home_assistant_response")
-        return payload
-
-    def _get_states(self) -> list[object]:
-        request = Request(
-            f"{self.base_url}/api/states",
-            headers={"Authorization": f"Bearer {self.token}", "Accept": "application/json"},
-        )
-        with urlopen(request, timeout=5) as response:
-            payload = json.load(response)
-        if not isinstance(payload, list):
             raise ValueError("invalid_home_assistant_response")
         return payload
