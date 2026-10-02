@@ -55,7 +55,7 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /Última actividad pública/);
   assert.match(spanish, /Enviar a MediumFast/);
   assert.match(spanish, /Enviando mensaje a la radio/);
-  assert.match(spanish, /Mensaje enviado a la radio para su difusión/);
+  assert.match(spanish, /La radio ha confirmado el envío para su difusión/);
   assert.match(spanish, /El envío público estará disponible tras configurar la verificación antiabuso/);
   assert.match(spanish, /<textarea[^>]*disabled/);
   assertLabOrder(spanish);
@@ -93,7 +93,7 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(english, /Latest public activity/);
   assert.match(english, /Send to MediumFast/);
   assert.match(english, /Sending message to the radio/);
-  assert.match(english, /Message sent to the radio for broadcast/);
+  assert.match(english, /The radio acknowledged the message for broadcast/);
   assert.match(english, /Public sending will be available after anti-abuse verification is configured/);
   assertLabOrder(english);
   assert.doesNotMatch(spanish, /profile\.jpg/);
