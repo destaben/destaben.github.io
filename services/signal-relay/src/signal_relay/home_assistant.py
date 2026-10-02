@@ -160,6 +160,8 @@ class HomeAssistantMeshtasticClient:
         with urlopen(request, timeout=MESHTASTIC_BROADCAST_TIMEOUT_SECONDS) as response:
             if response.status not in {200, 201}:
                 raise RuntimeError("meshtastic_broadcast_failed")
+        self._cache_expires_at = 0
+        self._cached_status = None
 
     def _recent_activity(self, values: Mapping[str, object]) -> list[dict[str, str]]:
         activity: list[dict[str, str]] = []

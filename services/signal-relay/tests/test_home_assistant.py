@@ -36,6 +36,27 @@ def test_meshtastic_broadcast_uses_the_extended_fixed_service_timeout(monkeypatc
     assert MESHTASTIC_BROADCAST_TIMEOUT_SECONDS == 15
 
 
+def test_meshtastic_broadcast_invalidates_cached_activity(monkeypatch):
+    class Response:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+    monkeypatch.setattr("signal_relay.home_assistant.urlopen", lambda *_args, **_kwargs: Response())
+    client = HomeAssistantMeshtasticClient("http://home-assistant", "private-token", {})
+    client._cached_status = {"recentActivity": []}
+    client._cache_expires_at = 9999999999
+
+    client.broadcast("Hello mesh")
+
+    assert client._cached_status is None
+    assert client._cache_expires_at == 0
+
+
 class FixtureClient(HomeAssistantLabClient):
     def __init__(self, responses):
         super().__init__("http://home-assistant", "private-token", "sensor.private_temperature", "sensor.private_humidity", "sensor.private_air_quality", 1)

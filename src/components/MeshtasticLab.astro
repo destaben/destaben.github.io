@@ -155,6 +155,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || "";
         }
         if (messageInput) messageInput.value = "";
         setSendStatus(panel.dataset.sendAcceptedLabel || "Message sent", "success");
+        await load();
       } catch (error) {
         setSendStatus(error instanceof Error ? error.message : (panel.dataset.sendFailedLabel || "Unable to send message"), "error");
       } finally { updateSender(); }
