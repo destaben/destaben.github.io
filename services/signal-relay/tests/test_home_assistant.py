@@ -191,7 +191,7 @@ def test_meshtastic_status_normalizes_unavailable_values_and_hides_entity_metada
                 "rf_errors_per_minute": "0",
                 "duplicates_per_minute": "0.1",
                 "relay_cancelled_per_minute": "unknown",
-                "recent_activity_1": '{"message":"Hello mesh","sender":"Node One","acknowledged":true,"receivedAt":"2026-10-01T12:00:00Z"}',
+                "recent_activity_1": '{"message":"Hello mesh","sender":"Node One","receivedAt":"2026-10-01T12:00:00Z"}',
                 "recent_activity_2": '{"message":"Previous message","sender":"Node Two","receivedAt":"2026-10-01T11:00:00Z"}',
                 "recent_activity_3": "unknown",
                 "recent_activity_4": "",
@@ -207,8 +207,8 @@ def test_meshtastic_status_normalizes_unavailable_values_and_hides_entity_metada
     }
     assert status["network"]["channelUtilizationPercent"] is None
     assert status["recentActivity"] == [
-        {"message": "Hello mesh", "sender": "Node One", "channel": "MediumFast", "receivedAt": "2026-10-01T12:00:00Z", "acknowledged": True},
-        {"message": "Previous message", "sender": "Node Two", "channel": "MediumFast", "receivedAt": "2026-10-01T11:00:00Z", "acknowledged": False},
+        {"message": "Hello mesh", "sender": "Node One", "channel": "MediumFast", "receivedAt": "2026-10-01T12:00:00Z"},
+        {"message": "Previous message", "sender": "Node Two", "channel": "MediumFast", "receivedAt": "2026-10-01T11:00:00Z"},
     ]
     assert "entity_id" not in str(status)
 

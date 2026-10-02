@@ -28,7 +28,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || "";
       status?: string;
       gateway?: { name?: string | null; shortName?: string | null; uptimeSeconds?: number | null; batteryPercent?: number | null; voltage?: number | null };
       network?: { nodesOnline?: number | null; nodesTotal?: number | null; channelUtilizationPercent?: number | null; airtimeTxPercent?: number | null };
-      recentActivity?: { message?: string; sender?: string; channel?: string; receivedAt?: string; acknowledged?: boolean }[];
+      recentActivity?: { message?: string; sender?: string; channel?: string; receivedAt?: string }[];
       refreshedAt?: string;
     };
     const localHosts = new Set(["127.0.0.1", "localhost"]);
@@ -73,7 +73,11 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || "";
         if (!turnstile || widgetId) return;
         widgetId = turnstile.render(turnstileContainer, {
           sitekey: siteKey,
-          callback: (token: string) => { turnstileToken = token; updateSender(); },
+          callback: (token: string) => {
+            turnstileToken = token;
+            updateSender();
+            setSendStatus("", "unavailable");
+          },
           "expired-callback": () => { turnstileToken = ""; updateSender(); },
           "error-callback": () => { turnstileToken = ""; updateSender(); },
         });
@@ -119,7 +123,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || "";
             message.textContent = entry.message;
             const details = document.createElement("span");
             const timestamp = new Intl.DateTimeFormat(document.documentElement.lang, { dateStyle: "medium", timeStyle: "short" }).format(new Date(entry.receivedAt));
-            details.textContent = `${entry.sender} · ${entry.channel}${entry.acknowledged ? " · ACK" : ""} · ${timestamp}`;
+            details.textContent = `${entry.sender} · ${entry.channel} · ${timestamp}`;
             item.append(message, details);
             return [item];
           }));

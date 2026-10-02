@@ -163,7 +163,7 @@ class HomeAssistantMeshtasticClient:
         self._cache_expires_at = 0
         self._cached_status = None
 
-    def _recent_activity(self, values: Mapping[str, object]) -> list[dict[str, object]]:
+    def _recent_activity(self, values: Mapping[str, object]) -> list[dict[str, str]]:
         activity: list[dict[str, str]] = []
         for index in range(1, 6):
             value = values[f"recent_activity_{index}"]
@@ -180,14 +180,7 @@ class HomeAssistantMeshtasticClient:
             received_at = self._text(entry.get("receivedAt"), maximum=32)
             if message is None or sender is None or received_at is None:
                 continue
-            acknowledged = entry.get("acknowledged") is True
-            activity.append({
-                "message": message,
-                "sender": sender,
-                "channel": "MediumFast",
-                "receivedAt": received_at,
-                "acknowledged": acknowledged,
-            })
+            activity.append({"message": message, "sender": sender, "channel": "MediumFast", "receivedAt": received_at})
         return activity
 
     def _state(self, entity_id: str) -> object:
