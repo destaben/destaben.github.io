@@ -152,7 +152,7 @@ class HomeAssistantMeshtasticClient:
     def broadcast(self, message: str) -> None:
         body = json.dumps({"message": message}).encode()
         request = Request(
-            f"{self.base_url}/api/events/meshtastic_public_broadcast",
+            f"{self.base_url}/api/services/script/meshtastic_public_broadcast",
             data=body,
             headers={
                 "Authorization": f"Bearer {self.token}",

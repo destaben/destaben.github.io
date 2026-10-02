@@ -6,7 +6,7 @@ const { lab } = Astro.props;
 const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || "";
 ---
 
-<article class="lab-card meshtastic-panel" data-meshtastic-panel data-local-url="http://127.0.0.1:8787" data-production-url="https://lab.destaben.dev" data-turnstile-site-key={turnstileSiteKey} data-loading-label={lab.loadingLabel} data-unavailable-label={lab.unavailableLabel} data-available-label={lab.availableLabel} data-unavailable-value-label={lab.unavailableValueLabel} data-no-activity-label={lab.noActivityLabel} data-refreshed-label={lab.refreshedLabel} data-send-accepted-label={lab.sendAcceptedLabel} data-send-verification-failed-label={lab.sendVerificationFailedLabel} data-send-rate-limited-label={lab.sendRateLimitedLabel} data-send-failed-label={lab.sendFailedLabel} aria-labelledby={`${lab.id}-title`}>
+<article class="lab-card meshtastic-panel" data-meshtastic-panel data-local-url="http://127.0.0.1:8787" data-production-url="https://lab.destaben.dev" data-turnstile-site-key={turnstileSiteKey} data-loading-label={lab.loadingLabel} data-unavailable-label={lab.unavailableLabel} data-available-label={lab.availableLabel} data-unavailable-value-label={lab.unavailableValueLabel} data-no-activity-label={lab.noActivityLabel} data-refreshed-label={lab.refreshedLabel} data-send-sending-label={lab.sendSendingLabel} data-send-accepted-label={lab.sendAcceptedLabel} data-send-verification-failed-label={lab.sendVerificationFailedLabel} data-send-rate-limited-label={lab.sendRateLimitedLabel} data-send-failed-label={lab.sendFailedLabel} aria-labelledby={`${lab.id}-title`}>
   <div class="lab-card-header"><p class="lab-status">{lab.statusLabel}</p><span class="meshtastic-state" data-meshtastic-state role="status">{lab.loadingLabel}</span></div>
   <h3 id={`${lab.id}-title`}>{lab.title}</h3>
   <p>{lab.summary}</p>
@@ -16,7 +16,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || "";
   </div>
   <section class="meshtastic-neighbors" data-meshtastic-neighbors hidden><h4>{lab.nodesLabel}</h4><ul data-meshtastic-neighbor-list></ul></section>
   <section class="meshtastic-activity" aria-labelledby={`${lab.id}-activity`}><div><h4 id={`${lab.id}-activity`}>{lab.latestActivityLabel}</h4><time data-meshtastic-received></time></div><p data-meshtastic-message>{lab.noActivityLabel}</p><dl data-meshtastic-activity-details hidden><div><dt>{lab.senderLabel}</dt><dd data-meshtastic-sender></dd></div><div><dt>{lab.channelLabel}</dt><dd data-meshtastic-channel></dd></div><div data-meshtastic-hops-row hidden><dt>{lab.senderHopsLabel}</dt><dd data-meshtastic-hops></dd></div></dl></section>
-  <section class="meshtastic-send" aria-labelledby={`${lab.id}-send`}><h4 id={`${lab.id}-send`}>{lab.sendTitle}</h4><form data-meshtastic-send-form><label>{lab.sendLabel}<textarea data-meshtastic-message-input placeholder={lab.sendPlaceholder} maxlength="237" disabled></textarea></label><div class="meshtastic-turnstile" data-meshtastic-turnstile></div><button data-meshtastic-send-button type="submit" disabled>{lab.sendLabel}</button></form><p data-meshtastic-send-status>{lab.sendUnavailableLabel}</p></section>
+  <section class="meshtastic-send" aria-labelledby={`${lab.id}-send`}><h4 id={`${lab.id}-send`}>{lab.sendTitle}</h4><form data-meshtastic-send-form><label>{lab.sendLabel}<textarea data-meshtastic-message-input placeholder={lab.sendPlaceholder} maxlength="237" disabled></textarea></label><div class="meshtastic-turnstile" data-meshtastic-turnstile></div><button data-meshtastic-send-button type="submit" disabled>{lab.sendLabel}</button></form><p class="meshtastic-send-status" data-meshtastic-send-status data-state="unavailable" role="status" aria-live="polite">{lab.sendUnavailableLabel}</p></section>
   <p class="meshtastic-refreshed" data-meshtastic-refreshed></p>
   <div class="home-privacy"><p>{lab.privacyTitle}</p><span>{lab.privacyCopy}</span></div>
   <div class="tag-list">{lab.technologies.map((technology) => <span class="tag">{technology}</span>)}</div>
@@ -66,7 +66,9 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || "";
       if (messageInput) messageInput.disabled = !senderReady();
       if (sendButton) sendButton.disabled = !senderReady();
     };
-    const setSendStatus = (content: string) => { if (sendStatus) sendStatus.textContent = content; };
+    const setSendStatus = (content: string, sendState: "error" | "pending" | "success" | "unavailable") => {
+      if (sendStatus) { sendStatus.textContent = content; sendStatus.dataset.state = sendState; }
+    };
     const renderTurnstile = () => {
       const siteKey = panel.dataset.turnstileSiteKey;
       if (!siteKey || !turnstileContainer) return;
@@ -153,6 +155,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || "";
       const message = messageInput?.value || "";
       if (!senderReady() || !message) return;
       if (sendButton) sendButton.disabled = true;
+      setSendStatus(panel.dataset.sendSendingLabel || "Sending message", "pending");
       try {
         const response = await fetch(`${baseUrl}/v1/lab/meshtastic/messages`, {
           method: "POST",
@@ -169,9 +172,9 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || "";
           throw new Error(labels[body?.detail || ""] || panel.dataset.sendFailedLabel || "Unable to send message");
         }
         if (messageInput) messageInput.value = "";
-        setSendStatus(panel.dataset.sendAcceptedLabel || "Message accepted");
+        setSendStatus(panel.dataset.sendAcceptedLabel || "Message sent", "success");
       } catch (error) {
-        setSendStatus(error instanceof Error ? error.message : (panel.dataset.sendFailedLabel || "Unable to send message"));
+        setSendStatus(error instanceof Error ? error.message : (panel.dataset.sendFailedLabel || "Unable to send message"), "error");
       } finally { updateSender(); }
     });
     load();

@@ -30,7 +30,7 @@ def test_meshtastic_broadcast_uses_the_extended_fixed_service_timeout(monkeypatc
     client.broadcast("Hello mesh")
 
     assert captured == {
-        "url": "http://home-assistant/api/events/meshtastic_public_broadcast",
+        "url": "http://home-assistant/api/services/script/meshtastic_public_broadcast",
         "timeout": MESHTASTIC_BROADCAST_TIMEOUT_SECONDS,
     }
     assert MESHTASTIC_BROADCAST_TIMEOUT_SECONDS == 15
