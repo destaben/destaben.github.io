@@ -52,7 +52,7 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /data-bad-label="Mala"/);
   assert.match(spanish, /Estado agregado de una pasarela Meshtastic/);
   assert.match(spanish, /data-meshtastic-panel/);
-  assert.match(spanish, /Última actividad pública/);
+  assert.match(spanish, /Últimas 5 actividades públicas/);
   assert.match(spanish, /Enviar a MediumFast/);
   assert.match(spanish, /Enviando mensaje a la radio/);
   assert.match(spanish, /La pasarela ha aceptado el mensaje para su difusión/);
@@ -90,7 +90,7 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(english, /Protected data/);
   assert.match(english, /Air quality/);
   assert.match(english, /Aggregate status for a Meshtastic gateway/);
-  assert.match(english, /Latest public activity/);
+  assert.match(english, /Last 5 public activities/);
   assert.match(english, /Send to MediumFast/);
   assert.match(english, /Sending message to the radio/);
   assert.match(english, /The gateway accepted the message for broadcast/);
