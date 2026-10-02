@@ -63,7 +63,11 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || "";
       if (sendButton) sendButton.disabled = !senderReady();
     };
     const setSendStatus = (content: string, sendState: "error" | "pending" | "success" | "unavailable") => {
-      if (sendStatus) { sendStatus.textContent = content; sendStatus.dataset.state = sendState; }
+      if (sendStatus) {
+        sendStatus.textContent = content;
+        sendStatus.dataset.state = sendState;
+        sendStatus.hidden = !content;
+      }
     };
     const renderTurnstile = () => {
       const siteKey = panel.dataset.turnstileSiteKey;
