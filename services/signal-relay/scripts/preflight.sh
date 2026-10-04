@@ -22,7 +22,7 @@ docker network inspect destaben-edge >/dev/null
 active_config=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}' reticulum-relay 2>/dev/null || true)
 case "$active_config" in
   "$service_root/compose.yaml")
-    printf 'Preflight passed. Relay still runs from source path and requires the planned cutover to %s.\n' "$deploy_root"
+    printf 'Preflight passed. Relay runs from the source checkout.\n'
     ;;
   "$deploy_compose")
     printf 'Preflight passed. Relay runs from %s.\n' "$deploy_root"
