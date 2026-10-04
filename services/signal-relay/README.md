@@ -44,15 +44,43 @@ curl -fsSLo .env https://raw.githubusercontent.com/destaben/destaben.github.io/m
 curl -fsSLo reticulum/config https://raw.githubusercontent.com/destaben/destaben.github.io/main/services/signal-relay/reticulum-config.example
 chmod 600 .env
 sudo chown 10001:10001 reticulum lab-sender-reticulum
-sudo docker network create destaben-edge
-sudo docker compose config
-sudo docker compose pull
-sudo docker compose up -d
+docker network create destaben-edge
+docker compose config
+docker compose pull
+docker compose up -d
 ```
 
 The relay has no host port and joins the external `destaben-edge` network. Deploy and operate Nginx and Cloudflare Tunnel from [`destaben/lab-inverse-proxy`](https://github.com/destaben/lab-inverse-proxy); start the edge after the relay has joined the shared network. The edge places Cloudflared on an isolated internal ingress network and does not attach it to `destaben-edge`. Before deploying the edge, check that its reserved `172.30.250.0/29` subnet does not overlap Docker, LAN, or VPN networks. Do not replace `.env`, `reticulum/`, `lab-sender-reticulum/`, or the `signal-relay-data` volume during updates: they hold secrets and persistent identities.
 
-When public bootstrap transports change, manually merge their interface entries from `reticulum-config.example` into the private `reticulum/config`. Do not replace the Reticulum directory wholesale. If the relay cannot parse its configuration, inspect `reticulum/config`, ensure it has `[reticulum]` and `[interfaces]` root sections, then run `sudo docker compose config` and recreate only `signal-relay`.
+When public bootstrap transports change, manually merge their interface entries from `reticulum-config.example` into the private `reticulum/config`. Do not replace the Reticulum directory wholesale. If the relay cannot parse its configuration, inspect `reticulum/config`, ensure it has `[reticulum]` and `[interfaces]` root sections, then run `docker compose config` and recreate only `signal-relay`.
+
+## Host redeployment
+
+The repository is the versioned source; the live deployment belongs in `/opt/signal-relay`. The private `.env`, `reticulum/`, `lab-sender-reticulum/`, and `signal-relay-data` volume are state and are never copied into Git. Daily operations require a user in the `docker` group with `docker context show` set to `default`; the scripts do not use `sudo`.
+
+```sh
+services/signal-relay/scripts/preflight.sh
+services/signal-relay/scripts/deploy.sh
+services/signal-relay/scripts/verify.sh
+```
+
+The first migration from this repository directory to `/opt/signal-relay` is a planned interruption and requires explicit confirmation:
+
+```sh
+services/signal-relay/scripts/cutover.sh --confirm
+```
+
+It stops only `signal-relay`, synchronizes its two bind-mounted configuration directories with ownership `10001:10001`, retains the named data volume, and starts the same service from `/opt`. On a failure before the new relay is running, it starts the source deployment again. Do not run it while another Relay migration is in progress.
+
+For a configuration-only rollback after the cutover, with a clean Git worktree:
+
+```sh
+services/signal-relay/scripts/rollback.sh --confirm <git-ref>
+```
+
+No redeployment script runs `docker compose down`, publishes port `8787`, replaces `.env`, or recreates the persistent data volume.
+
+To return the relay to its source Compose project, run `services/signal-relay/scripts/rollback-cutover.sh --confirm`. It backs up and synchronizes the current private configuration before starting the source project; the named data volume remains intact.
 
 ## Tests
 
