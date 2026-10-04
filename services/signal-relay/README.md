@@ -64,23 +64,13 @@ services/signal-relay/scripts/deploy.sh
 services/signal-relay/scripts/verify.sh
 ```
 
-The first migration from this repository directory to `/opt/signal-relay` is a planned interruption and requires explicit confirmation:
-
-```sh
-services/signal-relay/scripts/cutover.sh --confirm
-```
-
-It stops only `signal-relay`, synchronizes its two bind-mounted configuration directories with ownership `10001:10001`, retains the named data volume, and starts the same service from `/opt`. On a failure before the new relay is running, it starts the source deployment again. Do not run it while another Relay migration is in progress.
-
 For a configuration-only rollback after the cutover, with a clean Git worktree:
 
 ```sh
 services/signal-relay/scripts/rollback.sh --confirm <git-ref>
 ```
 
-No redeployment script runs `docker compose down`, publishes port `8787`, replaces `.env`, or recreates the persistent data volume.
-
-To return the relay to its source Compose project, run `services/signal-relay/scripts/rollback-cutover.sh --confirm`. It backs up and synchronizes the current private configuration before starting the source project; the named data volume remains intact.
+No redeployment script runs `docker compose down`, publishes port `8787`, replaces `.env`, or recreates the persistent data volume. The completed migration to `/opt/signal-relay` is not reversible through a repository script; recover the active deployment from the tracked configuration and approved private backups.
 
 ## Tests
 
