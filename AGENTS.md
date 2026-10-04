@@ -25,7 +25,7 @@ This repository is the source for `https://info.destaben.dev`. It is a static As
 - Do not commit credentials, tokens, or non-public personal data to this publicly deployed repository. Any portfolio contact detail must be intentionally public.
 - The Signal Relay is not part of GitHub Pages. Keep its Reticulum identity, inbox data, Telegram credentials, tunnel configuration, and deployment `.env` files outside Git.
 - Validate relay changes with `services/signal-relay/.venv/bin/python -m pytest`; validate the site with `npm run verify`. Validate Compose with `docker compose -f services/signal-relay/compose.yaml config` using a local, ignored `.env`.
-- When a task changes Signal Relay, provide the exact operational commands required on the deployment host. The user runs Docker with `sudo`; use `sudo docker compose ...` in those commands. Never ask for or print secret `.env` values.
+- When a task changes Signal Relay, provide the exact operational commands required on the deployment host. Daily operations use the system Docker context without `sudo`; require `docker context show` to return `default` and the operator to belong to the `docker` group. Never ask for or print secret `.env` values.
 - Keep the relay image compatible with `linux/amd64` and `linux/arm64`, with no host port and only the external `destaben-edge` Docker network. Changes to its public API, container deployment, or security boundary must update `docs/SIGNAL-RELAY.md` and `services/signal-relay/README.md`.
 - Do not reintroduce AWS deployment resources. Retired cloud resources must be destroyed only after the GitHub Pages site, DNS, and HTTPS are verified.
 
