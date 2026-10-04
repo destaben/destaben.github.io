@@ -56,7 +56,7 @@ When public bootstrap transports change, manually merge their interface entries 
 
 ## Host redeployment
 
-The repository is the versioned source; the live deployment belongs in `/opt/signal-relay`. The private `.env`, `reticulum/`, `lab-sender-reticulum/`, and `signal-relay-data` volume are state and are never copied into Git. Daily operations require a user in the `docker` group with `docker context show` set to `default`; the scripts do not use `sudo`.
+The versioned source checkout belongs at `/opt/src/destaben.github.io`; the live deployment belongs in `/opt/signal-relay`. The private `.env`, `reticulum/`, `lab-sender-reticulum/`, and `signal-relay-data` volume are state and are never copied into Git. Daily operations require a user in the `docker` group with `docker context show` set to `default`; the scripts do not use `sudo`.
 
 ```sh
 services/signal-relay/scripts/preflight.sh

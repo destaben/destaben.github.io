@@ -8,7 +8,7 @@ deploy_compose="$deploy_root/compose.yaml"
 "$service_root/scripts/preflight.sh"
 active_config=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}' reticulum-relay)
 [[ "$active_config" == "$deploy_compose" ]] || {
-  printf 'ERROR: relay has not been cut over to %s; run cutover.sh during the planned window\n' "$deploy_root" >&2
+  printf 'ERROR: relay is not deployed from %s\n' "$deploy_root" >&2
   exit 1
 }
 
