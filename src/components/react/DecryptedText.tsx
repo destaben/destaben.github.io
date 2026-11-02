@@ -1,6 +1,6 @@
 /*
  * Adapted from React Bits (https://github.com/DavidHDev/react-bits, src/ts-default/TextAnimations/DecryptedText).
- * Copyright (c) David Haz. Licensed under MIT + Commons Clause (see the upstream LICENSE).
+ * Copyright (c) David Haz. Licensed under MIT + Commons Clause; the full notice is in THIRD_PARTY_NOTICES.md at the repository root.
  * Used in a non-profit personal website (no commercial use or sale); the component is not redistributed as a standalone product.
  * Local changes: the initial frame shows the final text (so server HTML is final); the hidden state starts after mount. Removed the startsHidden flag.
  */
@@ -449,6 +449,15 @@ export default function DecryptedText({
     heatRef.current = chars.map(() => 0);
     pointerRef.current = null;
     engine.paint();
+    // A label already in view starts decrypting in this same commit, so the browser never paints the scrambled frame on its own.
+    const node = containerRef.current;
+    if (hidden && animateOn === 'view' && node && !playedRef.current) {
+      const box = node.getBoundingClientRect();
+      if (box.bottom > 0 && box.top < window.innerHeight) {
+        playedRef.current = true;
+        engine.startRun(true);
+      }
+    }
   }, [animateOn, chars]);
 
   useEffect(

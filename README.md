@@ -11,7 +11,7 @@ Source for [info.destaben.dev](https://info.destaben.dev), a bilingual static As
 
 - `src/pages/` contains routes; `/`, `/es/`, and `/en/` render the portfolio.
 - `src/components/`, `src/layouts/`, and `src/styles/` provide shared markup and presentation.
-- `src/components/react/` contains the React islands (the hero ASCII core and the section labels), adapted from React Bits; each file keeps its attribution header. They are used on a non-profit personal website and are not redistributed as standalone components (React Bits is MIT + Commons Clause). The hero orbit and log animations are plain CSS.
+- `src/components/react/` contains the React islands (the hero ASCII core and the section labels), adapted from React Bits; each file keeps its attribution header, and `THIRD_PARTY_NOTICES.md` reproduces the upstream license. They are used on a non-profit personal website and are not redistributed as standalone components (React Bits is MIT + Commons Clause). The hero orbit and log animations are plain CSS.
 - `src/data/portfolio.ts` contains localized portfolio content.
 - `src/lib/github.ts` fetches every public repository from `destaben` during each build.
 - `src/content/blog/` contains localized Markdown or MDX technical notes published in the portfolio and RSS feed.

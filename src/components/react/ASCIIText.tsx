@@ -1,8 +1,10 @@
 /*
  * Adapted from React Bits (https://github.com/DavidHDev/react-bits, src/ts-default/TextAnimations/ASCIIText).
- * Copyright (c) David Haz. Licensed under MIT + Commons Clause (see the upstream LICENSE).
+ * Copyright (c) David Haz. Licensed under MIT + Commons Clause; the full notice is in THIRD_PARTY_NOTICES.md at the repository root.
  * Used in a non-profit personal website (no commercial use or sale); the component is not redistributed as a standalone product.
- * Local changes: none to the rendering logic.
+ * Local changes: a DOM text fallback when WebGL 2 is unavailable or the context is lost, settings/build refs, WebGL context loss/restore handling,
+ * explicit context release on unmount, and a 'use client' directive. The shader and rendering logic are otherwise unchanged.
+ * The upstream notice is reproduced in THIRD_PARTY_NOTICES.md.
  */
 'use client';
 
@@ -167,6 +169,8 @@ void main() {
   fragColor = vec4(color, alpha);
 }`;
 
+const FRAME_MIN_MS = 15;
+
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 const compile = (gl: WebGL2RenderingContext, type: number, source: string) => {
@@ -292,7 +296,10 @@ export default function ASCIIText({
     if (gl) {
       const vertex = compile(gl, gl.VERTEX_SHADER, VERTEX);
       const fragment = compile(gl, gl.FRAGMENT_SHADER, FRAGMENT);
-      if (vertex && fragment) {
+      if (!vertex || !fragment) {
+        if (vertex) gl.deleteShader(vertex);
+        if (fragment) gl.deleteShader(fragment);
+      } else {
         program = gl.createProgram();
         gl.attachShader(program, vertex);
         gl.attachShader(program, fragment);
@@ -342,9 +349,24 @@ export default function ASCIIText({
       }
     }
     if (!gl || !program) {
+      gl?.getExtension('WEBGL_lose_context')?.loseContext();
       setFallback(true);
       return undefined;
     }
+
+    const onContextLost = (event: Event) => {
+      event.preventDefault();
+      alive = false;
+      cancelAnimationFrame(raf);
+      raf = 0;
+      setFallback(true);
+    };
+    const onContextRestored = () => {
+      // GL resources are gone after a restore and are not rebuilt; the static text fallback stays until the next page load.
+      setFallback(true);
+    };
+    canvas.addEventListener('webglcontextlost', onContextLost);
+    canvas.addEventListener('webglcontextrestored', onContextRestored);
 
     const upload = (texture: WebGLTexture | null, source: HTMLCanvasElement, smooth: boolean) => {
       gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -407,7 +429,7 @@ export default function ASCIIText({
     };
 
     const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       const width = Math.max(1, Math.round(container.clientWidth * dpr));
       const height = Math.max(1, Math.round(container.clientHeight * dpr));
       if (canvas.width !== width || canvas.height !== height) {
@@ -419,6 +441,11 @@ export default function ASCIIText({
     const frame = (now: number) => {
       raf = 0;
       if (!alive) return;
+      // Cap high-refresh displays at about 60 fps so the raymarch shader is not run more often than needed.
+      if (now - last < FRAME_MIN_MS) {
+        if (state.visible) raf = requestAnimationFrame(frame);
+        return;
+      }
       const s = settingsRef.current;
       const dt = Math.min(0.05, Math.max(0.001, (now - last) / 1000));
       last = now;
@@ -549,10 +576,13 @@ export default function ASCIIText({
       container.removeEventListener('pointermove', onMove);
       container.removeEventListener('pointerdown', onDown);
       container.removeEventListener('pointerleave', onLeave);
+      canvas.removeEventListener('webglcontextlost', onContextLost);
+      canvas.removeEventListener('webglcontextrestored', onContextRestored);
       gl.deleteTexture(textTexture);
       gl.deleteTexture(glyphTexture);
       gl.deleteBuffer(buffer);
       gl.deleteProgram(program);
+      gl.getExtension('WEBGL_lose_context')?.loseContext();
     };
   }, []);
 

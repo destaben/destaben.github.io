@@ -261,7 +261,8 @@ test("renders the decorative hero graphic hidden from assistive technology, with
     // The core is a React island; without JavaScript, or under reduced motion, the server markup is the static "DE".
     assert.match(graphic, /component-url="\/_astro\/SystemCore\.[^"]+"[^>]*client="visible"/);
     assert.match(graphic, /<div style="[^"]*">DE<\/div>/);
-    assert.match(page, /prefers-reduced-motion:reduce\)\{\.sg-orbit\[/);
+    const reducedMotion = page.match(/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[^@]*?\}\}/g) ?? [];
+    assert.ok(reducedMotion.some(block => block.includes(".sg-orbit")), "reduced motion disables the orbit animation");
   }
 });
 
