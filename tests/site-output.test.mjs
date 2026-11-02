@@ -55,7 +55,7 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /data-local-url="http:\/\/127\.0\.0\.1:8787" data-production-url="https:\/\/lab\.destaben\.dev"/);
   assert.match(spanish, /data-loading-label="Consultando malla"/);
   assert.match(spanish, /data-unavailable-label="La malla no está disponible ahora\."/);
-  assert.match(spanish, /Último nodo visto/);
+  assert.doesNotMatch(spanish, /Último nodo visto/);
   assert.match(spanish, /Envío protegido/);
   assertLabOrder(spanish);
   assert.doesNotMatch(spanish, /data-inbox-source-label/);
@@ -91,7 +91,7 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(english, /data-meshtastic-panel/);
   assert.match(english, /data-loading-label="Checking mesh"/);
   assert.match(english, /data-unavailable-label="The mesh is unavailable right now\."/);
-  assert.match(english, /Latest node seen/);
+  assert.doesNotMatch(english, /Latest node seen/);
   assert.match(english, /Protected sending/);
   assert.match(english, /Air quality/);
   assertLabOrder(english);
@@ -100,6 +100,54 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /<dt>Red profesional<\/dt><dd><a /);
   assert.doesNotMatch(spanish, /<footer class="shell site-footer">[\s\S]*?<a /);
   assert.doesNotMatch(english, /<footer class="shell site-footer">[\s\S]*?<a /);
+});
+
+const meshtasticSection = (page) => {
+  const start = page.indexOf("data-meshtastic-panel");
+  assert.notEqual(start, -1);
+  return page.slice(start, page.indexOf("</article>", start));
+};
+
+test("publishes the Meshtastic channel panel with localized labels and a contact note without an address", async () => {
+  const [spanish, english] = await Promise.all([readPage("index.html"), readPage("en/index.html")]);
+
+  const spanishPanel = meshtasticSection(spanish);
+  assert.match(spanishPanel, /data-meshtastic-channels/);
+  assert.match(spanishPanel, />Canales públicos</);
+  assert.match(spanishPanel, /data-channel-label="Canal"/);
+  assert.match(spanishPanel, /data-last-message-label="Último mensaje"/);
+  assert.match(spanishPanel, /data-node-label="Nodo"/);
+  assert.match(spanishPanel, /data-time-label="Hora"/);
+  assert.match(spanishPanel, /data-hops-label="Saltos"/);
+  assert.match(spanishPanel, /data-no-messages-label="Sin mensajes recientes"/);
+  assert.match(spanishPanel, /Los mensajes proceden de canales públicos de Meshtastic\./);
+  assert.match(spanishPanel, /contacta a través de los enlaces de esta página/);
+  assert.doesNotMatch(spanishPanel, /@|mailto:/);
+
+  const englishPanel = meshtasticSection(english);
+  assert.match(englishPanel, /data-meshtastic-channels/);
+  assert.match(englishPanel, />Public channels</);
+  assert.match(englishPanel, /data-channel-label="Channel"/);
+  assert.match(englishPanel, /data-last-message-label="Last message"/);
+  assert.match(englishPanel, /data-node-label="Node"/);
+  assert.match(englishPanel, /data-time-label="Time"/);
+  assert.match(englishPanel, /data-hops-label="Hops"/);
+  assert.match(englishPanel, /data-no-messages-label="No recent messages"/);
+  assert.match(englishPanel, /Messages come from public Meshtastic channels\./);
+  assert.match(englishPanel, /contact via the links on this page/);
+  assert.doesNotMatch(englishPanel, /@|mailto:/);
+});
+
+test("renders Meshtastic channel data with DOM text APIs only", async () => {
+  const page = await readPage("es/index.html");
+  // Astro inlines each component script as its own module block, so the panel script is found by its endpoint.
+  const scripts = [...page.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map((match) => match[1]);
+  const meshtasticScript = scripts.find((script) => script.includes("/v1/lab/meshtastic-status"));
+
+  assert.ok(meshtasticScript, "the Meshtastic panel script is present in the page");
+  assert.doesNotMatch(meshtasticScript, /innerHTML|outerHTML|insertAdjacentHTML|document\.write/);
+  assert.match(meshtasticScript, /createElement/);
+  assert.match(meshtasticScript, /textContent/);
 });
 
 test("declares locale alternates, og:locale, and RSS discovery in every page head", async () => {

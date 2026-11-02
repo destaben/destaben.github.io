@@ -81,12 +81,31 @@ The relay uses a dedicated long-lived Home Assistant token plus explicitly confi
   "status": "available",
   "onlineNodes": 12,
   "totalNodes": 43,
-  "lastNode": "<optional configured display name>",
+  "channels": [
+    {
+      "name": "Longfast",
+      "last": {
+        "nodeId": "!7e5d1a**",
+        "text": "Hello mesh",
+        "time": "2026-09-25T08:14:00Z",
+        "hops": 2
+      }
+    },
+    { "name": "Admin" }
+  ],
   "refreshedAt": "2026-09-25T08:15:00Z"
 }
 ```
 
-The relay uses the existing dedicated Home Assistant token and three explicitly configured private entities: a gateway whose state must be `connected`, an online node count, and a total node count. A fourth entity is optional and supplies a selected latest-node name. Values remain cached for at least 15 minutes, and a failed refresh is remembered for 30 seconds before Home Assistant is queried again. The public route never exposes Home Assistant entity IDs, gateway names, node identifiers, locations, telemetry, message traffic, attributes, individual timestamps, channels, or controls. The optional `lastNode` is absent unless the operator selects a name-only state suitable for publication. It is also omitted, without failing the route, when its entity is missing (HTTP 404) or that state is a Home Assistant placeholder (`unavailable`, `unknown`, `none`, or empty), contains non-printable characters, or exceeds 64 characters after whitespace normalization. Other HTTP errors (such as 401 or 500) and transport errors still make the route return `503 meshtastic_status_unavailable`. Public Meshtastic sending is not implemented and remains disabled until the documented public-input controls are deployed.
+The relay uses the existing dedicated Home Assistant token and three explicitly configured private entities: a gateway whose state must be `connected`, an online node count, and a total node count. Values remain cached for at least 15 minutes, and a failed refresh is remembered for 30 seconds before Home Assistant is queried again. A refresh gives up after 10 seconds in total.
+
+Channels come from one `GET /api/states` read. An entity is a candidate only when its ID is a valid Home Assistant entity ID and starts with `SIGNAL_RELAY_MESHTASTIC_CHANNEL_PREFIX` (default: the gateway entity ID plus `_channel_`). The gateway and count entities are never channels. At most 16 channels are published, in entity-ID order. A channel name is the entity-ID suffix de-slugified, with control characters removed and at most 32 characters. A channel is dropped when its name is empty, its attributes are unreadable, or its name is listed in `SIGNAL_RELAY_MESHTASTIC_CHANNEL_DENYLIST` (case-insensitive).
+
+Direct-message entities are never published, not even their names. An entity is excluded when its ID suffix or its friendly name contains a direct-message word (`dm`, `dms`, `direct`, `pm`, `pms`, `private`, or their Spanish equivalents `directo`, `directa`, `privado`, `privada`), and when its friendly name is not a string. Verify on the host that every direct-message entity is caught, and add any that is not to the denylist.
+
+Each channel publishes at most one `last` message, and only when the relay can read all three required fields: a sender node ID, text, and a time. The sender node ID must be `!` followed by eight hexadecimal digits. The relay replaces its last two characters with `**` before publishing, so the full ID never leaves the relay. The text comes from the attribute named `text` in `SIGNAL_RELAY_MESHTASTIC_CHANNEL_FIELDS`, or from the entity state when no text attribute is configured. Control and format characters are removed, whitespace is collapsed, and the text is truncated to 200 characters. Placeholder states (`unavailable`, `unknown`, `none`, or empty) are dropped. The time is the `timestamp` attribute when configured (an ISO-8601 string with an offset, or epoch seconds) and otherwise the entity's `last_changed`; it is published as a UTC ISO-8601 string without fractional seconds. `hops` is `hop_start` minus `hop_limit` when both attributes are configured and present, are integers from 0 to 7, and `hop_limit` does not exceed `hop_start`; otherwise the field is omitted. Without a configured `node_id` attribute, no message is published, but the channel name still is.
+
+The attribute names are private deployment configuration and must be verified on the host (see [docs/MESHTASTIC-INVENTORY.md](MESHTASTIC-INVENTORY.md)). The public route never exposes Home Assistant entity IDs, gateway names, full node identifiers, author names or nicknames, serial numbers, MAC addresses, positions, telemetry, direct messages, older messages, attributes, or controls. If channel discovery fails, the `channels` key is omitted and the counts are still returned. Other HTTP errors (such as 401 or 500) and transport errors on the counts still make the route return `503 meshtastic_status_unavailable`. Public Meshtastic sending is not implemented and remains disabled until the documented public-input controls are deployed.
 
 `WSS /v1/events` emits only these server events:
 
@@ -138,5 +157,5 @@ The supported container image is `ghcr.io/destaben/signal-relay:latest`. It is p
 4. The public endpoint exposes no private network, Reticulum, scrape-target, or monitoring configuration details. The laboratory metrics route exposes only its documented aggregate container series.
 5. Prometheus captures inbound message counts and the retained inbox size.
 6. With Telegram credentials configured, an incoming message produces one private notification; a Telegram failure does not interrupt inbox persistence or LXMF delivery.
-7. The Home Assistant and Meshtastic laboratory routes return only their documented delayed aggregate projections; Home Assistant has no public route through `lab.destaben.dev`.
+7. The Home Assistant and Meshtastic laboratory routes return only their documented delayed projections; Home Assistant has no public route through `lab.destaben.dev`.
 8. The public edge returns `404` for unlisted paths, `405` for unsupported methods, and `429` for requests exceeding the documented per-client limits; the relay, Home Assistant, and Reticulum publish no host ports.

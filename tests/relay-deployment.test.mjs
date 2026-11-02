@@ -16,6 +16,20 @@ test("keeps the relay private on the shared deployment network", async () => {
   assert.doesNotMatch(compose, /^\s+cloudflared:/m);
 });
 
+test("exposes Meshtastic channels through the discovery settings and no retired lastNode setting", async () => {
+  const [compose, envExample] = await Promise.all([
+    readRepositoryFile("services/signal-relay/compose.yaml"),
+    readRepositoryFile("services/signal-relay/.env.example"),
+  ]);
+
+  for (const setting of ["SIGNAL_RELAY_MESHTASTIC_CHANNEL_PREFIX", "SIGNAL_RELAY_MESHTASTIC_CHANNEL_DENYLIST", "SIGNAL_RELAY_MESHTASTIC_CHANNEL_FIELDS"]) {
+    assert.match(compose, new RegExp(`${setting}: \\$\\{${setting}:-\\}`));
+    assert.match(envExample, new RegExp(`^${setting}=`, "m"));
+  }
+  assert.doesNotMatch(compose, /MESHTASTIC_LAST_NODE/);
+  assert.doesNotMatch(envExample, /MESHTASTIC_LAST_NODE/);
+});
+
 test("ships a standalone Reticulum template with an interfaces section", async () => {
   const config = await readRepositoryFile("services/signal-relay/reticulum-config.example");
 

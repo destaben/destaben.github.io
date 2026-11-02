@@ -16,6 +16,10 @@ _DNS_NAME = re.compile(r"[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*")
 _IPV6_LITERAL = re.compile(r"[0-9A-Fa-f:.]+")
 _INVALID_TCP_URL = "SIGNAL_RELAY_PUBLIC_TCP_NODE_URLS must contain public tcp://host:port URLs"
 _ENTITY_ID = re.compile(r"[a-z_]+\.[a-z0-9_]+")
+_CHANNEL_NAME_SETTING = re.compile(r"[A-Za-z0-9_ -]{1,32}")
+_ATTRIBUTE_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]{0,63}")
+_CHANNEL_FIELD_NAMES = frozenset({"text", "node_id", "timestamp", "hop_start", "hop_limit"})
+_CHANNEL_FIELDS_MESSAGE = "SIGNAL_RELAY_MESHTASTIC_CHANNEL_FIELDS must be a JSON object that maps supported fields to attribute names"
 
 
 _PRIVATE_HOST_SUFFIXES = (
@@ -135,6 +139,45 @@ def _entity_id(value: str | None, setting: str) -> str | None:
     return value
 
 
+def _entity_id_prefix(value: str | None, setting: str) -> str | None:
+    if not value:
+        return None
+    if not _ENTITY_ID.fullmatch(value):
+        raise ValueError(f"{setting} must be a Home Assistant entity ID prefix")
+    return value
+
+
+def _channel_denylist(value: str | None) -> frozenset[str]:
+    if not value:
+        return frozenset()
+    names = set()
+    for raw_name in value.split(","):
+        name = raw_name.strip()
+        if not name:
+            continue
+        if not _CHANNEL_NAME_SETTING.fullmatch(name):
+            raise ValueError(
+                "SIGNAL_RELAY_MESHTASTIC_CHANNEL_DENYLIST must contain channel names of 1 to 32 letters, digits, spaces, underscores, or hyphens"
+            )
+        names.add(name)
+    return frozenset(names)
+
+
+def _channel_fields(value: str | None) -> dict[str, str] | None:
+    if not value:
+        return None
+    try:
+        fields = json.loads(value)
+    except ValueError:
+        raise ValueError(_CHANNEL_FIELDS_MESSAGE) from None
+    if not isinstance(fields, dict) or not all(
+        key in _CHANNEL_FIELD_NAMES and isinstance(attribute, str) and _ATTRIBUTE_NAME.fullmatch(attribute)
+        for key, attribute in fields.items()
+    ):
+        raise ValueError(_CHANNEL_FIELDS_MESSAGE)
+    return fields
+
+
 @dataclass(frozen=True)
 class Settings:
     mode: str
@@ -157,7 +200,11 @@ class Settings:
     meshtastic_gateway_entity_id: str | None = None
     meshtastic_nodes_online_entity_id: str | None = None
     meshtastic_nodes_total_entity_id: str | None = None
-    meshtastic_last_node_entity_id: str | None = None
+    # None derives the channel namespace from the gateway entity ID.
+    meshtastic_channel_prefix: str | None = None
+    meshtastic_channel_denylist: frozenset[str] = frozenset()
+    # Maps the fields text, node_id, timestamp, hop_start, and hop_limit to Home Assistant attribute names.
+    meshtastic_channel_fields: dict[str, str] | None = None
     meshtastic_cache_seconds: int = 900
     public_tcp_node_aliases: dict[str, str] | None = None
     public_tcp_node_urls: dict[str, str] | None = None
@@ -206,7 +253,9 @@ class Settings:
             meshtastic_gateway_entity_id=_entity_id(os.environ.get("SIGNAL_RELAY_MESHTASTIC_GATEWAY_ENTITY_ID"), "SIGNAL_RELAY_MESHTASTIC_GATEWAY_ENTITY_ID"),
             meshtastic_nodes_online_entity_id=_entity_id(os.environ.get("SIGNAL_RELAY_MESHTASTIC_NODES_ONLINE_ENTITY_ID"), "SIGNAL_RELAY_MESHTASTIC_NODES_ONLINE_ENTITY_ID"),
             meshtastic_nodes_total_entity_id=_entity_id(os.environ.get("SIGNAL_RELAY_MESHTASTIC_NODES_TOTAL_ENTITY_ID"), "SIGNAL_RELAY_MESHTASTIC_NODES_TOTAL_ENTITY_ID"),
-            meshtastic_last_node_entity_id=_entity_id(os.environ.get("SIGNAL_RELAY_MESHTASTIC_LAST_NODE_ENTITY_ID"), "SIGNAL_RELAY_MESHTASTIC_LAST_NODE_ENTITY_ID"),
+            meshtastic_channel_prefix=_entity_id_prefix(os.environ.get("SIGNAL_RELAY_MESHTASTIC_CHANNEL_PREFIX"), "SIGNAL_RELAY_MESHTASTIC_CHANNEL_PREFIX"),
+            meshtastic_channel_denylist=_channel_denylist(os.environ.get("SIGNAL_RELAY_MESHTASTIC_CHANNEL_DENYLIST")),
+            meshtastic_channel_fields=_channel_fields(os.environ.get("SIGNAL_RELAY_MESHTASTIC_CHANNEL_FIELDS")),
             meshtastic_cache_seconds=int(os.environ.get("SIGNAL_RELAY_MESHTASTIC_CACHE_SECONDS", "900")),
             public_tcp_node_aliases=public_tcp_node_aliases,
             public_tcp_node_urls=public_tcp_node_urls,

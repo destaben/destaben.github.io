@@ -24,7 +24,7 @@ This command reads the local entity registry and prints each entity ID, display 
 sudo docker exec homeassistant python3 -c 'import json; registry=json.load(open("/config/.storage/core.entity_registry")); entries=registry.get("data", {}).get("entities", []); matches=[{"entity_id": entry.get("entity_id"), "name": entry.get("name") or entry.get("original_name"), "platform": entry.get("platform"), "disabled_by": entry.get("disabled_by")} for entry in entries if "meshtastic" in str(entry).lower()]; print(json.dumps(matches, indent=2, ensure_ascii=False))'
 ```
 
-Note the gateway entity ID and the online and total node-count entity IDs. You need them in steps 5 and 7. Channel entities are found automatically from the gateway ID in step 5 and are not configured.
+Note the gateway entity ID and the online and total node-count entity IDs. You need them in step 7. Channel entities are not configured one by one: the relay discovers every entity whose ID starts with the channel prefix (by default the gateway entity ID plus `_channel_`). Confirm that prefix in step 5.
 
 ## 3. List the config entry
 
@@ -54,11 +54,33 @@ This command reads Home Assistant's saved restore-state file. It does not query 
 
 Channel entity states may contain message text. Review every value in the output before sharing it, and redact message text, names, coordinates, addresses, keys, and identifiers.
 
-Replace `GATEWAY_ENTITY_ID` with the gateway entity ID from step 2.
+Replace `GATEWAY_ENTITY_ID` with the gateway entity ID from step 2. If your deployment sets `SIGNAL_RELAY_MESHTASTIC_CHANNEL_PREFIX` to something other than the gateway ID plus `_channel_`, change `prefix` to match it.
 
 ```sh
 sudo docker exec homeassistant python3 -c 'import json; gateway="GATEWAY_ENTITY_ID"; data=json.load(open("/config/.storage/core.restore_state")).get("data", {}); states=data.get("states", []); prefix=gateway + "_channel_"; matches=[{"entity_id": state.get("state", {}).get("entity_id"), "state": state.get("state", {}).get("state"), "last_changed": state.get("state", {}).get("last_changed")} for state in states if (entity_id := state.get("state", {}).get("entity_id", "")) == gateway or entity_id.startswith(prefix) or (entity_id.startswith("sensor.") and "_stats_nodes_" in entity_id)]; print(json.dumps(matches, indent=2, ensure_ascii=False))'
 ```
+
+## 5b. Verify the channel and message fields (verify on the host)
+
+The relay can only publish what these fields expose, and it does not guess their names. This command prints, for each channel entity under the prefix, the attribute names, the value types, and three shape checks. It never prints attribute values, state values, or friendly names. The `node_id_shape` check is true only for a string shaped like `!` plus eight hexadecimal digits. The `hop_value` check is true for an integer from 0 to 7. The `dm_word` check is a looser substring test than the relay's whole-word exclusion, so `true` is a hint to review and not a guarantee in either direction.
+
+Replace `GATEWAY_ENTITY_ID` as in step 5.
+
+```sh
+sudo docker exec homeassistant python3 -c 'import json, re; gateway="GATEWAY_ENTITY_ID"; prefix=gateway + "_channel_"; data=json.load(open("/config/.storage/core.restore_state")).get("data", {}); states=[item.get("state", {}) for item in data.get("states", [])]; describe=lambda v: {"type": type(v).__name__, "node_id_shape": isinstance(v, str) and re.fullmatch(r"![0-9A-Fa-f]{8}", v) is not None, "hop_value": isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 7}; dm=lambda s: any(word in (str(s.get("entity_id", "")) + " " + str((s.get("attributes") or {}).get("friendly_name", ""))).lower() for word in ("dm", "direct", "private", "pm")); report=[{"entity_id": s.get("entity_id"), "state_type": type(s.get("state")).__name__, "dm_word": dm(s), "fields": {name: describe(value) for name, value in (s.get("attributes") or {}).items()}} for s in states if str(s.get("entity_id", "")).startswith(prefix)]; print(json.dumps(report, indent=2, ensure_ascii=False))'
+```
+
+The restore-state file may not list every live entity, and the relay reads the live entity list. Treat a channel that is missing here as unverified, not as absent, and recheck it after the relay is recreated with the step 8 check.
+
+Use the output to decide each setting in step 7. Check each item:
+
+- **Channel discovery:** public channels should show `dm_word` false, and direct-message entities should show `dm_word` true. A direct-message entity with `dm_word` false would be published, so add its name to `SIGNAL_RELAY_MESHTASTIC_CHANNEL_DENYLIST` (step 7) before recreating the relay, and tell the maintainer that the detection words need extending.
+- **Text:** find the attribute that holds the message text. If the text is the entity state, leave `text` out of `SIGNAL_RELAY_MESHTASTIC_CHANNEL_FIELDS`. If it is an attribute, configure its name as `text`.
+- **Sender:** find the attribute with `node_id_shape` true. Configure its name as `node_id`. Without it, no message is published.
+- **Time:** an attribute with an ISO-8601 or epoch type can be configured as `timestamp`. Otherwise the entity's `last_changed` is used.
+- **Hops:** configure `hop_start` and `hop_limit` only when both attributes have `hop_value` true. Otherwise hops are omitted.
+
+Do not paste this output into Git or the public site. Share it privately only if you need help interpreting it, and first replace entity IDs and any name you do not want to share.
 
 ## 6. Share only what is needed
 
@@ -76,12 +98,17 @@ In the private directory where Signal Relay is deployed, set these values in its
 SIGNAL_RELAY_MESHTASTIC_GATEWAY_ENTITY_ID=GATEWAY_ENTITY_ID
 SIGNAL_RELAY_MESHTASTIC_NODES_ONLINE_ENTITY_ID=ONLINE_COUNT_ENTITY_ID
 SIGNAL_RELAY_MESHTASTIC_NODES_TOTAL_ENTITY_ID=TOTAL_COUNT_ENTITY_ID
-# Optional: only an entity whose state is a name that is safe to publish.
-SIGNAL_RELAY_MESHTASTIC_LAST_NODE_ENTITY_ID=
+# Optional. Defaults to the gateway entity ID plus "_channel_".
+SIGNAL_RELAY_MESHTASTIC_CHANNEL_PREFIX=
+# Optional comma-separated channel names to hide. Direct-message entities are always hidden.
+SIGNAL_RELAY_MESHTASTIC_CHANNEL_DENYLIST=
+# Optional JSON map from published fields to the attribute names verified in step 5b.
+# Leave empty to publish channel names without messages. Use the names verified on the host.
+SIGNAL_RELAY_MESHTASTIC_CHANNEL_FIELDS='{"text": "TEXT_ATTRIBUTE", "node_id": "NODE_ID_ATTRIBUTE", "timestamp": "TIMESTAMP_ATTRIBUTE", "hop_start": "HOP_START_ATTRIBUTE", "hop_limit": "HOP_LIMIT_ATTRIBUTE"}'
 SIGNAL_RELAY_MESHTASTIC_CACHE_SECONDS=900
 ```
 
-The first three entity IDs are required before `GET /v1/lab/meshtastic-status` becomes available. The last one is optional: a missing entity (HTTP 404) omits `lastNode`, while other HTTP errors (such as 401 or 500) and transport errors still make the route return `503`. The relay rejects negative, non-integer, or inconsistent counts, and never publishes entity IDs or Home Assistant attributes. Do not lower the cache below 900 seconds.
+The first three entity IDs are required before `GET /v1/lab/meshtastic-status` becomes available. Remove any field from `SIGNAL_RELAY_MESHTASTIC_CHANNEL_FIELDS` that you have not verified; an unset field is never read. The relay rejects negative, non-integer, or inconsistent counts, and never publishes entity IDs, Home Assistant attributes, author names, serial numbers, MAC addresses, full node IDs, or direct messages. A failure while discovering channels omits `channels` and keeps the counts available. Do not lower the cache below 900 seconds.
 
 Recreate only the relay after changing its environment:
 
@@ -91,10 +118,10 @@ sudo docker compose up -d --force-recreate signal-relay
 
 ## 8. Verify the projection without exposing private data
 
-Run this check on the relay host. It confirms that the route returns only the public contract, and it does not print the values or the configured identifiers:
+Run this check on the relay host. It confirms that the route returns only the public contract. It checks key names, the channel count, and the masked node-ID shape, and it does not print any values:
 
 ```sh
-sudo docker compose exec -T signal-relay python -c 'import json; from urllib.request import urlopen; payload=json.load(urlopen("http://127.0.0.1:8787/v1/lab/meshtastic-status")); assert payload.get("status") == "available"; assert set(payload) <= {"status", "onlineNodes", "totalNodes", "lastNode", "refreshedAt"}; assert isinstance(payload["onlineNodes"], int) and isinstance(payload["totalNodes"], int) and payload["onlineNodes"] <= payload["totalNodes"]'
+sudo docker compose exec -T signal-relay python -c 'import json, re; from urllib.request import urlopen; payload=json.load(urlopen("http://127.0.0.1:8787/v1/lab/meshtastic-status")); assert payload.get("status") == "available"; assert set(payload) <= {"status", "onlineNodes", "totalNodes", "channels", "refreshedAt"}; assert isinstance(payload["onlineNodes"], int) and isinstance(payload["totalNodes"], int) and payload["onlineNodes"] <= payload["totalNodes"]; channels=payload.get("channels", []); assert len(channels) <= 16; assert all(set(channel) <= {"name", "last"} for channel in channels); assert all(set(channel["last"]) <= {"nodeId", "text", "time", "hops"} and re.fullmatch(r"![0-9A-Fa-f]{6}\*\*", channel["last"]["nodeId"]) for channel in channels if "last" in channel)'
 ```
 
-If private configuration is missing or Home Assistant does not respond, the route returns `503 meshtastic_status_unavailable`. Do not open a host port or publish Home Assistant to troubleshoot it.
+If `channels` is missing, channel discovery failed while the counts still succeeded. Check the channel prefix, the denylist, and whether the relay's token can read the entity states. If the route returns `503 meshtastic_status_unavailable`, private configuration is missing or Home Assistant did not answer the counts. Do not open a host port or publish Home Assistant to troubleshoot it.

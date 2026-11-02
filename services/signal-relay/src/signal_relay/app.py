@@ -79,8 +79,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             relay_settings.meshtastic_gateway_entity_id or "",
             relay_settings.meshtastic_nodes_online_entity_id or "",
             relay_settings.meshtastic_nodes_total_entity_id or "",
-            relay_settings.meshtastic_last_node_entity_id,
             relay_settings.meshtastic_cache_seconds,
+            channel_prefix=relay_settings.meshtastic_channel_prefix,
+            channel_denylist=relay_settings.meshtastic_channel_denylist,
+            channel_fields=relay_settings.meshtastic_channel_fields,
         )
         if all(meshtastic_settings)
         else None
