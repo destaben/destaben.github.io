@@ -14,6 +14,7 @@ This repository is the source for `https://info.destaben.dev`. It is a static As
 - `public/` contains static source assets; `public/CNAME` declares the production custom domain.
 - `services/signal-relay/` contains the separate FastAPI/LXMF bridge, its tests, Docker image, and Compose deployment manifest.
 - `https://github.com/destaben/lab-inverse-proxy` owns the separate Nginx and Cloudflare Tunnel deployment edge.
+- `.github/workflows/ci.yml` runs read-only pull-request validation (relay pytest, Compose config, `npm run verify`) for PRs to `main`; it deploys nothing. `deploy-pages.yml` publishes Pages from `main`.
 - `.github/workflows/publish-signal-relay.yml` publishes the relay image to GitHub Container Registry.
 
 ## Working Rules

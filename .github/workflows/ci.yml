@@ -60,6 +60,5 @@ jobs:
       - name: Check, test, and build site
         run: npm run verify
         env:
-          GITHUB_TOKEN: ${{ github.token }}
           # Public site key (not a secret): use the repository variable only, so PR code never receives secrets.
           PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}

@@ -25,4 +25,4 @@ argument-hint: "Provide the paths changed or ask to validate the current diff"
 
 ## Reporting
 
-Report each command run, its result, checks not run, and any manual verification. A passing local record never replaces the GitHub Actions deployment checks.
+Report each command run, its result, checks not run, and any manual verification. A passing local record never replaces the GitHub Actions checks (`ci.yml` on pull requests and `deploy-pages.yml` on pushes to `main`).
