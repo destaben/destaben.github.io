@@ -74,6 +74,14 @@ Every pull request to `main`, and every manual `workflow_dispatch`, runs [.githu
 
 In repository settings, set Pages **Source** to **GitHub Actions**. The published artifact includes `public/CNAME`; this preserves the domain in deployed files but does not configure the custom domain in GitHub by itself.
 
+## Meshtastic Status Rollout
+
+The Meshtastic status panel depends on two other deployments, so roll it out in this order. Until step 2 is live, the panel shows its unavailable state.
+
+1. **Relay image and host.** Merge the relay change to `main`. `.github/workflows/publish-signal-relay.yml` publishes the image from `main`. On the relay host, deploy it with `services/signal-relay/scripts/deploy.sh`, after confirming the private `.env` contains the Meshtastic entity map and any optional last-node entity described in [services/signal-relay/README.md](services/signal-relay/README.md).
+2. **Edge allowlist.** Add the `GET /v1/lab/meshtastic-status` entry in [`destaben/lab-inverse-proxy`](https://github.com/destaben/lab-inverse-proxy) (PR #7) and deploy the edge. Until this exists, the public route is not reachable through `lab.destaben.dev`.
+3. **Site.** Merge the portfolio change to `main`. GitHub Pages publishes the panel from that merge.
+
 ## Custom Domain
 
 Set the Pages custom domain to `info.destaben.dev`, then create this DNS record at the authoritative DNS provider:

@@ -8,14 +8,25 @@ from urllib.parse import urlsplit
 
 
 _PUBLIC_NODE_ALIAS = re.compile(r"[A-Za-z0-9][A-Za-z0-9 ._-]{0,47}")
-# IPv6 prefixes that embed an IPv4 address: NAT64 (RFC 6052) and the deprecated IPv4-compatible ::/96 form.
+# IPv6 prefixes that embed an IPv4 address: NAT64 (RFC 6052) and its local-use variant (RFC 8215), the deprecated
+# IPv4-compatible ::/96 form, 6to4 (RFC 3056) and Teredo (RFC 4380). They are rejected by prefix rather than by
+# is_global, so an interpreter that reports any of them as global still cannot publish an embedded private address.
 _NAT64_PREFIX = ipaddress.ip_network("64:ff9b::/96")
+_LOCAL_USE_NAT64_PREFIX = ipaddress.ip_network("64:ff9b:1::/48")
 _IPV4_COMPATIBLE_PREFIX = ipaddress.ip_network("::/96")
-_EMBEDDED_IPV4_PREFIXES = (_NAT64_PREFIX, _IPV4_COMPATIBLE_PREFIX)
+_SIX_TO_FOUR_PREFIX = ipaddress.ip_network("2002::/16")
+_TEREDO_PREFIX = ipaddress.ip_network("2001::/32")
+_EMBEDDED_IPV4_PREFIXES = (
+    _NAT64_PREFIX,
+    _LOCAL_USE_NAT64_PREFIX,
+    _IPV4_COMPATIBLE_PREFIX,
+    _SIX_TO_FOUR_PREFIX,
+    _TEREDO_PREFIX,
+)
 _DNS_NAME = re.compile(r"[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*")
 _IPV6_LITERAL = re.compile(r"[0-9A-Fa-f:.]+")
 _INVALID_TCP_URL = "SIGNAL_RELAY_PUBLIC_TCP_NODE_URLS must contain public tcp://host:port URLs"
-_ENTITY_ID = re.compile(r"[a-z_]+\.[a-z0-9_]+")
+_ENTITY_ID = re.compile(r"[a-z0-9_]+\.[a-z0-9_]+")
 
 MESHTASTIC_ENTITY_KEYS = frozenset(
     {

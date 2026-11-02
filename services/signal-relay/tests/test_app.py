@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+import ipaddress
 import json
 import logging
 import pytest
@@ -215,7 +216,10 @@ def test_meshtastic_status_returns_503_for_null_or_inconsistent_counts(tmp_path,
     "SIGNAL_RELAY_HOME_ASSISTANT_HUMIDITY_ENTITY_ID",
     "SIGNAL_RELAY_HOME_ASSISTANT_AIR_QUALITY_ENTITY_ID",
 ])
-@pytest.mark.parametrize("bad_value", ["Sensor.Private", "sensor.private/../../api", "sensor", "sensor.private?x=1", " sensor.private"])
+@pytest.mark.parametrize("bad_value", [
+    "Sensor.Private", "sensor.private/../../api", "sensor", "sensor.private?x=1", " sensor.private",
+    "zha2/living.temp", "zha-2.living_temp", "zha2.living room", "zha2..temp", "zha2.Living_temp", "ZHA2.living_temp",
+])
 def test_entity_ids_are_validated_and_bad_values_are_not_echoed(monkeypatch, entity_setting, bad_value):
     monkeypatch.setenv(entity_setting, bad_value)
 
@@ -224,6 +228,13 @@ def test_entity_ids_are_validated_and_bad_values_are_not_echoed(monkeypatch, ent
 
     assert str(error.value) == f"{entity_setting} must be a Home Assistant entity ID"
     assert bad_value not in str(error.value)
+
+
+@pytest.mark.parametrize("entity_id", ["zha2.living_room_temp", "2nd_floor.temperature", "sensor.2nd_floor", "123.456"])
+def test_home_assistant_domains_may_start_with_digits_as_home_assistant_allows(monkeypatch, entity_id):
+    monkeypatch.setenv("SIGNAL_RELAY_HOME_ASSISTANT_TEMPERATURE_ENTITY_ID", entity_id)
+
+    assert Settings.from_environment().home_assistant_temperature_entity_id == entity_id
 
 
 def test_valid_entity_ids_are_accepted_and_empty_entity_ids_are_unset(monkeypatch):
@@ -399,6 +410,26 @@ def test_public_tcp_node_urls_require_safe_complete_tcp_endpoints(monkeypatch):
         assert "one URL for every public alias" in str(error)
     else:
         raise AssertionError("expected URL aliases to match public aliases")
+
+
+@pytest.mark.parametrize("embedded_form", [
+    "tcp://[2002:0a00:0001::]:4403",
+    "tcp://[2002:0808:0808::]:4242",
+    "tcp://[64:ff9b:1::a00:1]:4242",
+    "tcp://[64:ff9b:1:0:0:0:0:1]:4242",
+    "tcp://[2001:0:4136:e378::1]:4242",
+    "tcp://[2001::1]:4242",
+])
+def test_public_tcp_node_urls_reject_ipv4_embedding_ipv6_forms_even_if_the_stdlib_reports_them_global(monkeypatch, embedded_form):
+    # Simulates a runtime whose ipaddress module classifies these forms as global: the explicit prefix rules must still reject them.
+    monkeypatch.setattr(ipaddress.IPv6Address, "is_global", property(lambda self: True))
+
+    with pytest.raises(ValueError, match="must not contain private IP addresses"):
+        _public_tcp_node_urls(json.dumps({"Node One": embedded_form}))
+
+
+def test_public_tcp_node_urls_keep_native_global_ipv6_literals_valid():
+    assert _public_tcp_node_urls('{"Node One": "tcp://[2606:4700:4700::1111]:4242"}') == {"Node One": "tcp://[2606:4700:4700::1111]:4242"}
 
 
 def test_rejects_invalid_and_rate_limited_signals(tmp_path):
