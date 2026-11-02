@@ -313,6 +313,7 @@ test("keeps animated headings readable without JavaScript and under reduced moti
   for (const page of [spanish, english]) {
     // The animated pieces start hidden in the server HTML, so a noscript rule must show them.
     assert.match(page, /<noscript><style>[^<]*\[data-blur-piece\][^<]*opacity:\s*1\s*!important/);
+    assert.match(page, /<noscript><style>[^<]*\[data-reveal\][^<]*opacity:\s*1\s*!important/);
     // Screen readers get the heading once, as plain text, ahead of the aria-hidden animated pieces.
     assert.match(page, /<h1 id="hero-title">[\s\S]*?<span[^>]*>[^<]+<\/span>[\s\S]*?data-blur-piece/);
     // Case numbers are plain identifiers, not animated counters.

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import LetterGlitch from "./LetterGlitch";
 
 const motionQuery = "(prefers-reduced-motion: reduce)";
@@ -7,6 +7,8 @@ const narrowQuery = "(max-width: 820px)";
 // Decorative only. Nothing renders on the server, under reduced motion, or on narrow screens, so the static section stays intact there.
 export default function GlitchBackdrop() {
   const [live, setLive] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const frame = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!window.matchMedia) return undefined;
@@ -22,9 +24,23 @@ export default function GlitchBackdrop() {
     };
   }, []);
 
-  if (!live) return null;
+  // A GPU reset loses the WebGL context and leaves the canvas blank. Remount the backdrop (twice at most), then give up quietly.
+  useEffect(() => {
+    const node = frame.current;
+    if (!node) return undefined;
+    const onLost = (event: Event) => {
+      event.preventDefault();
+      setAttempt((count) => count + 1);
+    };
+    // webglcontextlost does not bubble, so listen during the capture phase.
+    node.addEventListener("webglcontextlost", onLost, true);
+    return () => node.removeEventListener("webglcontextlost", onLost, true);
+  }, [live, attempt]);
+
+  if (!live || attempt > 2) return null;
 
   return (
+    <div ref={frame} key={attempt} style={{ width: "100%", height: "100%" }}>
     <LetterGlitch
       glitchColors={["#d8f04b", "#4b6868", "#ff7955"]}
       baseColor="#173238"
@@ -39,5 +55,6 @@ export default function GlitchBackdrop() {
       interactive={false}
       backgroundColor="#0b1f23"
     />
+    </div>
   );
 }
