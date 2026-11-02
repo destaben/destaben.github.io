@@ -1,14 +1,16 @@
 ---
-import { site } from "../config/site";
+import { site, type PageAlternate } from "../config/site";
 import "../styles/global.css";
 
 interface Props {
+  alternates?: readonly PageAlternate[];
   description?: string;
   locale?: string;
   title?: string;
 }
 
-const { description = site.description, locale = site.locale, title = site.title } = Astro.props;
+const { alternates = [], description = site.description, locale = site.locale, title = site.title } = Astro.props;
+const ogLocale = locale === "en" ? "en_US" : "es_ES";
 ---
 
 <!doctype html>
@@ -18,10 +20,13 @@ const { description = site.description, locale = site.locale, title = site.title
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
     <link rel="canonical" href={new URL(Astro.url.pathname, site.url)} />
+    {alternates.map(({ hreflang, path }) => <link rel="alternate" hreflang={hreflang} href={new URL(path, site.url)} />)}
+    <link rel="alternate" type="application/rss+xml" title={site.title} href={new URL("/rss.xml", site.url)} />
     <meta property="og:type" content="website" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={new URL(Astro.url.pathname, site.url)} />
+    <meta property="og:locale" content={ogLocale} />
     <meta property="og:image" content={new URL(site.image, site.url)} />
     <link rel="icon" href="/images/site/favicon.svg" type="image/svg+xml" />
     <title>{title}</title>
