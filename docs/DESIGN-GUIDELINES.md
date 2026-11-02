@@ -38,9 +38,9 @@ The portfolio demonstrates David Estaben's engineering judgement through clear c
 ## Accessibility
 
 - Keep semantic landmarks, visible keyboard focus, skip navigation, and reduced-motion support.
-- Decorative motion (the hero graphic, its ASCII core, and the section-label scramble) must be `aria-hidden` or backed by real text, and must never carry information the page does not also state in text.
+- Decorative motion (the hero graphic, the glitch backdrop, and the section-label scramble) must be `aria-hidden` or backed by real text, and must never carry information the page does not also state in text.
 - Real text stays in the server-rendered HTML; an island must never replace it with text that only exists after hydration.
-- Every motion effect respects `prefers-reduced-motion`: the page shows its final text and the static fallback, and no animation or WebGL context starts. The hero core pauses its render loop while it is off-screen.
-- WebGL is limited to the hero core island, which shows the static "DE" without WebGL 2 or on narrow screens. Do not add other WebGL, third-party scripts, or animation libraries.
+- Every motion effect respects `prefers-reduced-motion`: the page shows its final text and the static fallback, and no animation or WebGL context starts.
+- WebGL is limited to the glitch backdrop island, which renders nothing under reduced motion or on narrow screens. The only animation library is `motion`, used by the React Bits islands; do not add other WebGL, third-party scripts, or animation libraries.
 - Validate at mobile and desktop widths. Text, controls, and system panels must not clip or overlap.
 - Maintain sufficient contrast for every state, including status indicators.

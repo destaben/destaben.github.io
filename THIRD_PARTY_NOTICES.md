@@ -5,8 +5,12 @@ The root `LICENSE` (MIT) covers the original code in this repository, except the
 stricter than plain MIT: the components themselves may not be sold, sublicensed, or redistributed, alone, in a bundle, or as a
 ported version. Do not copy them out of this repository as a reusable component.
 
-- `src/components/react/ASCIIText.tsx`
 - `src/components/react/DecryptedText.tsx`
+- `src/components/react/BlurText.tsx`
+- `src/components/react/ShinyText.tsx` (and `ShinyText.css`)
+- `src/components/react/Magnet.tsx`
+- `src/components/react/ClickSpark.tsx`
+- `src/components/react/LetterGlitch.tsx` (and `LetterGlitch.css`)
 
 These files are used on a non-profit personal website and are not redistributed as standalone components.
 
