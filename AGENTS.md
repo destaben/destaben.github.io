@@ -14,6 +14,7 @@ This repository is the source for `https://info.destaben.dev`. It is a static As
 - `public/` contains static source assets; `public/CNAME` declares the production custom domain.
 - `services/signal-relay/` contains the separate FastAPI/LXMF bridge, its tests, Docker image, and Compose deployment manifest.
 - `https://github.com/destaben/lab-inverse-proxy` owns the separate Nginx and Cloudflare Tunnel deployment edge.
+- `.github/workflows/ci.yml` runs read-only pull-request validation (relay pytest, Compose config, `npm run verify`) for PRs to `main`; it deploys nothing. `deploy-pages.yml` publishes Pages from `main`.
 - `.github/workflows/publish-signal-relay.yml` publishes the relay image to GitHub Container Registry.
 
 ## Working Rules
@@ -24,7 +25,7 @@ This repository is the source for `https://info.destaben.dev`. It is a static As
 - Keep the deployment least-privilege and artifact-based. Changes to deployment behavior must update both the workflow and `README.md`.
 - Do not commit credentials, tokens, or non-public personal data to this publicly deployed repository. Any portfolio contact detail must be intentionally public.
 - The Signal Relay is not part of GitHub Pages. Keep its Reticulum identity, inbox data, Telegram credentials, tunnel configuration, and deployment `.env` files outside Git.
-- Validate relay changes with `services/signal-relay/.venv/bin/python -m pytest`; validate the site with `npm run verify`. Validate Compose with `docker compose -f services/signal-relay/compose.yaml config` using a local, ignored `.env`.
+- Validate relay changes with `services/signal-relay/.venv/bin/python -m pytest`; validate the site with `npm run verify`. Validate Compose with `docker compose -f services/signal-relay/compose.yaml config` (every variable has a default, so no `.env` is required; if you create one locally, keep it ignored by Git).
 - When a task changes Signal Relay, provide the exact operational commands required on the deployment host. Daily operations use the system Docker context without `sudo`; require `docker context show` to return `default` and the operator to belong to the `docker` group. Never ask for or print secret `.env` values.
 - Keep the relay image compatible with `linux/amd64` and `linux/arm64`, with no host port and only the external `destaben-edge` Docker network. Changes to its public API, container deployment, or security boundary must update `docs/SIGNAL-RELAY.md` and `services/signal-relay/README.md`.
 - Do not reintroduce AWS deployment resources. Retired cloud resources must be destroyed only after the GitHub Pages site, DNS, and HTTPS are verified.
