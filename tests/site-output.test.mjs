@@ -262,7 +262,7 @@ test("renders the decorative hero graphic hidden from assistive technology, with
     assert.match(graphic, /component-url="\/_astro\/SystemCore\.[^"]+"[^>]*client="visible"/);
     assert.match(graphic, /<div style="[^"]*">DE<\/div>/);
     const reducedMotion = page.match(/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[^@]*?\}\}/g) ?? [];
-    assert.ok(reducedMotion.some(block => block.includes(".sg-orbit")), "reduced motion disables the orbit animation");
+    assert.ok(reducedMotion.some(block => /\.sg-orbit[^{]*\{[^}]*animation:\s*none/.test(block)), "reduced motion disables the orbit animation");
   }
 });
 

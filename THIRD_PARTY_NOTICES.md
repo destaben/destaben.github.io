@@ -1,6 +1,6 @@
 # Third-party notices
 
-The root `LICENSE` (MIT) covers the original code in this repository. The files below are adapted from
+The root `LICENSE` (MIT) covers the original code in this repository, except the files listed here. The files below are adapted from
 [React Bits](https://github.com/DavidHDev/react-bits) and remain under the upstream **MIT + Commons Clause** terms, which are
 stricter than plain MIT: the components themselves may not be sold, sublicensed, or redistributed, alone, in a bundle, or as a
 ported version. Do not copy them out of this repository as a reusable component.

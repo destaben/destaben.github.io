@@ -3,7 +3,8 @@
  * Copyright (c) David Haz. Licensed under MIT + Commons Clause; the full notice is in THIRD_PARTY_NOTICES.md at the repository root.
  * Used in a non-profit personal website (no commercial use or sale); the component is not redistributed as a standalone product.
  * Local changes: a DOM text fallback when WebGL 2 is unavailable or the context is lost, settings/build refs, WebGL context loss/restore handling,
- * explicit context release on unmount, and a 'use client' directive. The shader and rendering logic are otherwise unchanged.
+ * explicit context release on unmount, a device-pixel-ratio cap of 1.5 (upstream 2), a roughly 60 fps frame cap, and a 'use client' directive.
+ * The shader and rendering logic are otherwise unchanged.
  * The upstream notice is reproduced in THIRD_PARTY_NOTICES.md.
  */
 'use client';

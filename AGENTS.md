@@ -10,7 +10,7 @@ This repository is the source for `https://info.destaben.dev`. It is a static As
 - `src/config/site.ts` contains the site identity and global SEO metadata.
 - `src/data/portfolio.ts` contains structured portfolio data.
 - `src/components/` and `src/layouts/` contain shared Astro UI and browser-side integration code.
-- `src/components/react/` contains the only React islands (the hero ASCII core and the numbered section labels), adapted from React Bits and hydrated through `@astrojs/react`; `react`, `react-dom`, and `motion` are exact-pinned in `package.json`.
+- `src/components/react/` contains the only React islands (the hero ASCII core and the numbered section labels), hydrated through `@astrojs/react`; `ASCIIText.tsx` and `DecryptedText.tsx` are adapted from React Bits (MIT + Commons Clause, see `THIRD_PARTY_NOTICES.md`); `SystemCore.tsx` and `SectionLabel.tsx` are original wrappers. `react`, `react-dom`, and `motion` are exact-pinned in `package.json`.
 - `src/content/` contains type-checked future content collections.
 - `public/` contains static source assets; `public/CNAME` declares the production custom domain.
 - `services/signal-relay/` contains the separate FastAPI/LXMF bridge, its tests, Docker image, and Compose deployment manifest.
