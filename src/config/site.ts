@@ -6,3 +6,14 @@ export const site = {
   locale: "es",
   image: "/images/site/brand-mark.svg",
 };
+
+export interface PageAlternate {
+  hreflang: string;
+  path: string;
+}
+
+export const homeAlternates: readonly PageAlternate[] = [
+  { hreflang: "es", path: "/es/" },
+  { hreflang: "en", path: "/en/" },
+  { hreflang: "x-default", path: "/es/" },
+];

@@ -11,7 +11,7 @@ const sensitivePatterns = [
   /^public\/CNAME$/,
   /^services\/signal-relay\/(src|tests|nginx|Dockerfile|compose\.yaml)/,
   /^docs\/SIGNAL-RELAY\.md$/,
-  /^src\/components\/(SignalRelayLab|ContainerMetricsLab|HomeAssistantLab)\.astro$/,
+  /^src\/components\/(SignalRelayLab|ContainerMetricsLab|HomeAssistantLab|MeshtasticLab|MeshtasticStatusLab)\.astro$/,
 ];
 
 const commandChecks = {
@@ -60,7 +60,7 @@ function requirements() {
   const sensitiveFiles = files.filter(isSensitive);
   const checks = new Set();
   const hasSite = files.some((file) => /^(src\/|tests\/|public\/|astro\.config\.mjs$|package(?:-lock)?\.json$|\.github\/workflows\/deploy-pages\.yml$|README\.md$)/.test(file));
-  const hasRelay = files.some((file) => /^(services\/signal-relay\/|docs\/SIGNAL-RELAY\.md$|src\/components\/(SignalRelayLab|ContainerMetricsLab|HomeAssistantLab)\.astro$)/.test(file));
+  const hasRelay = files.some((file) => /^(services\/signal-relay\/|docs\/SIGNAL-RELAY\.md$|src\/components\/(SignalRelayLab|ContainerMetricsLab|HomeAssistantLab|MeshtasticLab|MeshtasticStatusLab)\.astro$)/.test(file));
   const hasContainer = files.some((file) => /^(services\/signal-relay\/(Dockerfile|compose\.yaml|nginx\/)|\.github\/workflows\/publish-signal-relay\.yml$)/.test(file));
   const hasContext = files.some((file) => /^\.github\/(agents|hooks|instructions|scripts|skills)\//.test(file));
   if (hasContext) checks.add("context-lint");

@@ -19,7 +19,7 @@ const date = new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", ye
   <a class="skip-link" href="#content">{locale === "es" ? "Ir al contenido" : "Skip to content"}</a>
   <header class="site-header">
     <nav class="shell nav" aria-label={locale === "es" ? "Navegación principal" : "Primary navigation"}>
-      <a class="brand" href={`/${locale}/`} aria-label="David Estaben home">David Estaben</a>
+      <a class="brand" href={`/${locale}/`} aria-label={locale === "es" ? "Inicio de David Estaben" : "David Estaben home"}>David Estaben</a>
       <div class="nav-links">
         {content.navigation.map((item) => <a href={`/${locale}/${item.href}`}>{item.label}</a>)}
         <a class="language-link" href={content.switchHref} lang={locale === "es" ? "en" : "es"}>{content.switchLanguage}</a>

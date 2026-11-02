@@ -6,7 +6,7 @@ The portfolio demonstrates David Estaben's engineering judgement through clear c
 
 ## Brand
 
-- Use the David Estaben wordmark in site navigation. `/images/site/brand-mark.svg` remains the social asset and `/images/site/favicon.svg` is the small, high-contrast browser icon.
+- Use the David Estaben wordmark in site navigation, with a localized accessible name. `/images/site/brand-mark.svg` remains the social asset and `/images/site/favicon.svg` is the small, high-contrast browser icon.
 - Do not use a personal portrait.
 - Preserve the high-contrast palette: ink `#0b1f23`, paper `#f2eee4`, lime `#d8f04b`, and coral `#ff7955`.
 - Use display typography only for headings and monospaced text only for operational labels, identifiers, timestamps, and status.
@@ -24,6 +24,8 @@ The portfolio demonstrates David Estaben's engineering judgement through clear c
 - The Reticulum contact panel may show the public destination and the newest bounded plain-text messages. Treat every displayed message as public; do not expose sender identities, source hashes, private dashboards, monitoring internals, or home-network management endpoints.
 - The Reticulum panel may show cards for configured TCP connections only when the fixed node projection is available. Each card may contain the configured public alias, intentionally published `tcp://host:port` URL, and `up` or `down` state. It must not show interface names, private addresses, paths, route details, or suggest that a node state guarantees a route or delivery.
 - The Home Assistant panel may show only a delayed, rounded aggregate temperature and humidity reading. It must not expose Home Assistant itself, entity IDs, rooms, devices, attributes, histories, presence, cameras, alarms, locks, doors, windows, lights, switches, automations, media, energy use, or network details.
+- The Meshtastic status panel may show only its explicit availability state, delayed aggregate online and total node counts, refresh time, and an optional operator-selected name-only latest-node value. It must not expose gateway or entity identifiers, node identifiers, locations, telemetry, messages, channels, attributes, individual timestamps, Home Assistant controls, or sending controls.
+- The Meshtastic send panel is the only Meshtastic web input. It is governed by the Turnstile, cooldown, and input-validation rules in [docs/SIGNAL-RELAY.md](SIGNAL-RELAY.md) and must not be presented as available until those controls are deployed.
 - Web input requires a documented rate limit, input validation, abuse controls, retention period, and kill switch before it is enabled.
 - The GitHub Pages site remains static. Persistent APIs and WebSockets live behind a separate, HTTPS-only public endpoint.
 

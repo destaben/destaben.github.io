@@ -8,10 +8,11 @@ const assertLabOrder = (page) => {
   const home = page.indexOf('data-home-status-panel');
   const metrics = page.indexOf('data-metrics-panel');
   const meshtastic = page.indexOf('data-meshtastic-panel');
+  const meshtasticStatus = page.indexOf('data-meshtastic-status-panel');
   const relay = page.indexOf('data-relay-panel');
 
-  assert.ok(home !== -1 && metrics !== -1 && meshtastic !== -1 && relay !== -1);
-  assert.ok(home < metrics && metrics < meshtastic && meshtastic < relay);
+  assert.ok(home !== -1 && metrics !== -1 && meshtastic !== -1 && meshtasticStatus !== -1 && relay !== -1);
+  assert.ok(home < metrics && metrics < meshtastic && meshtastic < meshtasticStatus && meshtasticStatus < relay);
 };
 
 test("generates bilingual portfolio entries without a portrait", async () => {
@@ -58,6 +59,12 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /La pasarela ha aceptado el mensaje para su difusión/);
   assert.match(spanish, /El envío público estará disponible tras configurar la verificación antiabuso/);
   assert.match(spanish, /<textarea[^>]*disabled/);
+  assert.match(spanish, /Estado de la malla Meshtastic/);
+  assert.match(spanish, /data-meshtastic-status-panel/);
+  assert.match(spanish, /data-loading-label="Consultando malla"/);
+  assert.match(spanish, /data-unavailable-label="La malla no está disponible ahora\."/);
+  assert.match(spanish, /Último nodo visto/);
+  assert.match(spanish, /Solo se publican contadores agregados/);
   assertLabOrder(spanish);
   assert.doesNotMatch(spanish, /data-inbox-source-label/);
   assert.match(spanish, /Reticulum online/);
@@ -88,6 +95,12 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(english, /Home monitoring and automation/);
   assert.match(english, /Check the current state of my home while preserving privacy\./);
   assert.match(english, /Protected data/);
+  assert.match(english, /Meshtastic mesh status/);
+  assert.match(english, /data-meshtastic-status-panel/);
+  assert.match(english, /data-loading-label="Checking mesh"/);
+  assert.match(english, /data-unavailable-label="The mesh is unavailable right now\."/);
+  assert.match(english, /Latest node seen/);
+  assert.match(english, /Only aggregate counts and an optional selected name are published/);
   assert.match(english, /Air quality/);
   assert.match(english, /Aggregate status for a Meshtastic gateway/);
   assert.match(english, /Last 5 public activities/);
@@ -101,6 +114,52 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /<dt>Red profesional<\/dt><dd><a /);
   assert.doesNotMatch(spanish, /<footer class="shell site-footer">[\s\S]*?<a /);
   assert.doesNotMatch(english, /<footer class="shell site-footer">[\s\S]*?<a /);
+});
+
+test("declares locale alternates, og:locale, and RSS discovery in every page head", async () => {
+  const [spanish, english, spanishArticle, englishArticle] = await Promise.all([
+    readPage("es/index.html"),
+    readPage("en/index.html"),
+    readPage("es/bitacora/signal-relay/index.html"),
+    readPage("en/notes/signal-relay/index.html"),
+  ]);
+
+  assert.match(spanish, /<link rel="canonical" href="https:\/\/info\.destaben\.dev\/es\/">/);
+  assert.match(spanish, /<link rel="alternate" hreflang="es" href="https:\/\/info\.destaben\.dev\/es\/">/);
+  assert.match(spanish, /<link rel="alternate" hreflang="en" href="https:\/\/info\.destaben\.dev\/en\/">/);
+  assert.match(spanish, /<meta property="og:locale" content="es_ES">/);
+  assert.match(english, /<link rel="canonical" href="https:\/\/info\.destaben\.dev\/en\/">/);
+  assert.match(english, /<link rel="alternate" hreflang="es" href="https:\/\/info\.destaben\.dev\/es\/">/);
+  assert.match(english, /<link rel="alternate" hreflang="en" href="https:\/\/info\.destaben\.dev\/en\/">/);
+  assert.match(spanish, /<link rel="alternate" hreflang="x-default" href="https:\/\/info\.destaben\.dev\/es\/">/);
+  assert.match(english, /<link rel="alternate" hreflang="x-default" href="https:\/\/info\.destaben\.dev\/es\/">/);
+  assert.match(english, /<meta property="og:locale" content="en_US">/);
+
+  for (const page of [spanish, english, spanishArticle, englishArticle]) {
+    assert.match(page, /<link rel="alternate" type="application\/rss\+xml" title="[^"]+" href="https:\/\/info\.destaben\.dev\/rss\.xml">/);
+  }
+
+  // Articles do not claim an alternate: their counterpart slugs are not guaranteed to exist.
+  assert.doesNotMatch(spanishArticle, /hreflang=/);
+  assert.doesNotMatch(englishArticle, /hreflang=/);
+  assert.match(spanishArticle, /<link rel="canonical" href="https:\/\/info\.destaben\.dev\/es\/bitacora\/signal-relay\/">/);
+  assert.match(englishArticle, /<link rel="canonical" href="https:\/\/info\.destaben\.dev\/en\/notes\/signal-relay\/">/);
+});
+
+test("localizes the brand link label to the page language", async () => {
+  const [spanish, english, spanishArticle, englishArticle] = await Promise.all([
+    readPage("es/index.html"),
+    readPage("en/index.html"),
+    readPage("es/bitacora/signal-relay/index.html"),
+    readPage("en/notes/signal-relay/index.html"),
+  ]);
+
+  assert.match(spanish, /class="brand" href="\/es\/" aria-label="Inicio de David Estaben"/);
+  assert.match(spanishArticle, /class="brand" href="\/es\/" aria-label="Inicio de David Estaben"/);
+  assert.doesNotMatch(spanish, /David Estaben home/);
+  assert.doesNotMatch(spanishArticle, /David Estaben home/);
+  assert.match(english, /class="brand" href="\/en\/" aria-label="David Estaben home"/);
+  assert.match(englishArticle, /class="brand" href="\/en\/" aria-label="David Estaben home"/);
 });
 
 test("integrates projects and published technical notes into portfolio pages", async () => {

@@ -15,7 +15,7 @@ from pydantic import field_validator
 
 from .bridge import RelayBridge
 from .config import Settings
-from .home_assistant import HomeAssistantLabClient, HomeAssistantMeshtasticClient
+from .home_assistant import HomeAssistantLabClient, HomeAssistantMeshtasticClient, MeshtasticLabClient
 from .metrics import PrometheusLabClient
 
 
@@ -134,6 +134,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if all(meshtastic_settings)
         else None
     )
+    # The read-only status projection shares the Meshtastic entity map and its own, longer cache window.
+    meshtastic_entity_ids = relay_settings.meshtastic_entity_ids or {}
+    meshtastic_status_settings = (
+        relay_settings.home_assistant_url,
+        relay_settings.home_assistant_token,
+        meshtastic_entity_ids.get("gateway"),
+        meshtastic_entity_ids.get("nodes_online"),
+        meshtastic_entity_ids.get("nodes_total"),
+    )
+    app.state.meshtastic_status = (
+        MeshtasticLabClient(
+            relay_settings.home_assistant_url or "",
+            relay_settings.home_assistant_token or "",
+            meshtastic_entity_ids.get("gateway", ""),
+            meshtastic_entity_ids.get("nodes_online", ""),
+            meshtastic_entity_ids.get("nodes_total", ""),
+            relay_settings.meshtastic_last_node_entity_id,
+            relay_settings.meshtastic_status_cache_seconds,
+        )
+        if all(meshtastic_status_settings)
+        else None
+    )
     app.state.meshtastic_gate = MeshtasticMessageGate(relay_settings.meshtastic_message_cooldown_seconds)
 
     @app.get("/healthz")
@@ -192,6 +214,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return await asyncio.to_thread(meshtastic.status)
         except (OSError, RuntimeError, ValueError):
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="meshtastic_unavailable") from None
+
+    @app.get("/v1/lab/meshtastic-status", include_in_schema=False)
+    async def meshtastic_status_panel() -> dict[str, object]:
+        meshtastic_status_client = app.state.meshtastic_status
+        if meshtastic_status_client is None:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="meshtastic_status_unavailable")
+        try:
+            return await asyncio.to_thread(meshtastic_status_client.status)
+        except (OSError, RuntimeError, ValueError):
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="meshtastic_status_unavailable") from None
 
     @app.post("/v1/lab/meshtastic/messages", status_code=status.HTTP_202_ACCEPTED, include_in_schema=False)
     async def send_meshtastic_message(payload: MeshtasticMessage, request: Request) -> dict[str, str]:
