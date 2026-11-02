@@ -241,3 +241,55 @@ test("publishes a crawlable sitemap and RSS feed", async () => {
   assert.doesNotMatch(feed, /\/posts\//);
   assert.match(notFound, /This route has no signal/);
 });
+
+const heroGraphic = (page) => {
+  const start = page.indexOf('<div class="system-graphic" aria-hidden="true"');
+  assert.notEqual(start, -1, "the hero graphic is rendered with aria-hidden on its root");
+  return page.slice(start, page.indexOf("</section>", start));
+};
+
+test("renders the decorative hero graphic hidden from assistive technology, with its labels as text", async () => {
+  const [spanish, english] = await Promise.all([readPage("es/index.html"), readPage("en/index.html")]);
+
+  for (const page of [spanish, english]) {
+    const graphic = heroGraphic(page);
+    assert.match(graphic, /<svg class="system-svg" viewBox="0 0 420 420"/);
+    assert.ok(graphic.includes(">OBSERVE</span>"));
+    assert.ok(graphic.includes(">RESPOND</span>"));
+    for (const step of ["ALERT", "TRIAGE", "RESOLVED"]) assert.ok(graphic.includes(`>${step}</span>`));
+    assert.match(graphic, /class="sg-event/);
+    // The core is a React island; without JavaScript, or under reduced motion, the server markup is the static "DE".
+    assert.match(graphic, /component-url="\/_astro\/SystemCore\.[^"]+"[^>]*client="visible"/);
+    assert.match(graphic, /<div style="[^"]*">DE<\/div>/);
+    assert.match(page, /prefers-reduced-motion:reduce\)\{\.sg-orbit\[/);
+  }
+});
+
+test("keeps the numbered section labels as final plain text and scrambles them only as decorative islands", async () => {
+  const [spanish, english] = await Promise.all([readPage("es/index.html"), readPage("en/index.html")]);
+  const expected = {
+    spanish: ["01 / Áreas de trabajo", "02 / Laboratorio", "03 / GitHub", "04 / Bitácora", "05 / Trayectoria", "06 / Contacto"],
+    english: ["01 / Areas of work", "02 / Lab", "03 / GitHub", "04 / Notes", "05 / Experience", "06 / Contact"],
+  };
+
+  for (const [page, labels] of [[spanish, expected.spanish], [english, expected.english]]) {
+    for (const label of labels) {
+      // The final text is the screen-reader copy; the scrambled visual is aria-hidden and sits next to it.
+      assert.ok(page.includes(`>${label}</span>`), `${label} is plain text in the HTML`);
+    }
+    const islands = page.match(/component-url="\/_astro\/SectionLabel\.[^"]+"[^>]*client="visible"/g) ?? [];
+    assert.equal(islands.length, labels.length, "each numbered label is a visible-triggered island");
+  }
+});
+
+test("adds no third-party script and keeps every script on this origin", async () => {
+  const [spanish, english] = await Promise.all([readPage("es/index.html"), readPage("en/index.html")]);
+
+  for (const page of [spanish, english]) {
+    const sources = [...page.matchAll(/<script[^>]*\ssrc="([^"]+)"/g)].map((match) => match[1]);
+    assert.ok(sources.length > 0, "the page loads its bundled scripts");
+    for (const source of sources) assert.match(source, /^\/_astro\//, `${source} is served from this site`);
+    assert.doesNotMatch(page, /<script[^>]*\ssrc="https?:/);
+    assert.doesNotMatch(page, /import\(\s*["']https?:/);
+  }
+});

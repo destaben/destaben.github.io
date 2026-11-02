@@ -8,6 +8,7 @@ applyTo: "src/**,tests/**,public/**,astro.config.mjs"
 - Keep primary portfolio content deliberately equivalent in Spanish and English. Update `src/data/portfolio.ts` together; do not add runtime machine translation.
 - Use the existing typed content model, shared layouts, and components. Put a new lab in its own component and give it a separate documented public contract.
 - Preserve semantic landmarks, the skip link, keyboard focus, reduced-motion support, contrast, and responsive layouts without clipping or overlap.
+- Decorative motion must be `aria-hidden` or backed by real text, skip under `prefers-reduced-motion`, and stay in CSS keyframes or the islands in `src/components/react/`. Islands must server-render their final text.
 - Keep canonical URLs and metadata centralized in `src/config/site.ts` and `src/layouts/BaseLayout.astro`.
 - Live panels must show an explicit live, delayed, simulated, unavailable, or maintenance state. Never imply a delivery or live value the service has not confirmed.
 - Do not publish internal topology, employer details, personal-network details, raw monitoring data, or secrets. `docs/DESIGN-GUIDELINES.md` is authoritative for public-content and live-service boundaries.
