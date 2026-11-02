@@ -17,6 +17,9 @@ _MINIMUM_SUCCESS_CACHE_SECONDS = 900
 # Failures are remembered briefly so a Home Assistant outage is not retried on every public request.
 _FAILURE_CACHE_SECONDS = 30
 _REQUEST_TIMEOUT_SECONDS = 5
+# A state or service response is a few hundred bytes; anything this large is not one.
+_MAX_RESPONSE_BYTES = 1024 * 1024
+_READ_CHUNK_BYTES = 64 * 1024
 # One refresh issues at most a handful of reads; no new read starts once this much time has passed.
 _REFRESH_DEADLINE_SECONDS = 10
 _MAX_NODE_NAME_LENGTH = 64
@@ -52,16 +55,41 @@ def urlopen(request: Request, timeout: float):
     return _redirect_free_opener.open(request, timeout=timeout)
 
 
+def _read_body(response, started: float, budget: float) -> bytes:
+    """Reads the body in chunks, so a slow-drip upstream is cut off between chunks once the budget is spent."""
+    chunks: list[bytes] = []
+    size = 0
+    while True:
+        chunk = response.read1(_READ_CHUNK_BYTES)
+        if not chunk:
+            return b"".join(chunks)
+        size += len(chunk)
+        if size > _MAX_RESPONSE_BYTES:
+            raise ValueError("home_assistant_response_too_large")
+        if time.monotonic() - started > budget:
+            raise ValueError("home_assistant_read_too_slow")
+        chunks.append(chunk)
+
+
 def _read_json(base_url: str, token: str, path: str, timeout: float) -> dict[str, object]:
-    """One authenticated Home Assistant GET; shared by every client so the token handling lives in one place."""
+    """One authenticated Home Assistant GET; shared by every client so the token handling lives in one place.
+
+    Each socket operation waits at most ``timeout`` seconds. The body must also arrive within ``timeout`` seconds
+    of the request starting, and no more than ``_MAX_RESPONSE_BYTES`` are read.
+    """
     request = Request(
         f"{base_url}{path}",
         headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
     )
+    started = time.monotonic()
     try:
         with urlopen(request, timeout=timeout) as response:
-            payload = json.load(response)
+            body = _read_body(response, started, timeout)
     except http.client.HTTPException as error:
+        raise ValueError("invalid_home_assistant_response") from error
+    try:
+        payload = json.loads(body)
+    except ValueError as error:
         raise ValueError("invalid_home_assistant_response") from error
     if not isinstance(payload, dict):
         raise ValueError("invalid_home_assistant_response")

@@ -73,6 +73,14 @@ _PRIVATE_HOST_SUFFIXES = (
     ".intranet",
     ".corp",
     ".private",
+    # Router and home-network suffixes. ".box" also covers ".fritz.box", the usual FRITZ!Box name.
+    ".box",
+    ".router",
+    ".gateway",
+    ".modem",
+    ".wan",
+    ".domain",
+    ".mshome.net",
 )
 
 
@@ -269,7 +277,7 @@ class Settings:
                 int(os.environ.get("SIGNAL_RELAY_MESHTASTIC_MESSAGE_COOLDOWN_SECONDS", "300")), 60
             ),
             meshtastic_last_node_entity_id=_entity_id(os.environ.get("SIGNAL_RELAY_MESHTASTIC_LAST_NODE_ENTITY_ID"), "SIGNAL_RELAY_MESHTASTIC_LAST_NODE_ENTITY_ID"),
-            meshtastic_status_cache_seconds=int(os.environ.get("SIGNAL_RELAY_MESHTASTIC_STATUS_CACHE_SECONDS", "900")),
+            meshtastic_status_cache_seconds=max(int(os.environ.get("SIGNAL_RELAY_MESHTASTIC_STATUS_CACHE_SECONDS", "900")), 900),
             public_tcp_node_aliases=public_tcp_node_aliases,
             public_tcp_node_urls=public_tcp_node_urls,
         )

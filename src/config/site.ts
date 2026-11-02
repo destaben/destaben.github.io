@@ -15,4 +15,5 @@ export interface PageAlternate {
 export const homeAlternates: readonly PageAlternate[] = [
   { hreflang: "es", path: "/es/" },
   { hreflang: "en", path: "/en/" },
+  { hreflang: "x-default", path: "/es/" },
 ];

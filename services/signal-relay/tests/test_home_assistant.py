@@ -481,8 +481,10 @@ class FakeHTTPResponse:
     def __exit__(self, *exc_info):
         return False
 
-    def read(self, *args):
-        return self.body
+    def read1(self, *args):
+        # Serves the body once, like http.client.HTTPResponse.read1.
+        body, self.body = self.body, b""
+        return body
 
 
 @pytest.mark.parametrize("make_client", [
@@ -504,9 +506,75 @@ def test_shared_request_helper_sends_the_bearer_token_and_rejects_non_object_jso
     assert seen == {"authorization": "Bearer private-token", "timeout": 5}
 
 
+class OversizedResponse(FakeHTTPResponse):
+    """Endless whitespace, so only the size cap can stop the read."""
+
+    def __init__(self):
+        super().__init__(b"")
+
+    def read1(self, *args):
+        return b" " * (64 * 1024)
+
+
+class SlowDripResponse(FakeHTTPResponse):
+    """One byte per call, with three seconds of fake time spent on each, like a slow-drip upstream."""
+
+    def __init__(self, clock):
+        super().__init__(b"")
+        self.clock = clock
+
+    def read1(self, *args):
+        self.clock.now += 3
+        return b" "
+
+
+def test_home_assistant_bodies_are_capped_at_one_mebibyte(monkeypatch):
+    monkeypatch.setattr(home_assistant, "urlopen", lambda request, timeout: OversizedResponse())
+
+    with pytest.raises(ValueError, match="home_assistant_response_too_large"):
+        home_assistant._read_json("http://home-assistant", "private-token", "/api/", 5)
+
+
+def test_slow_drip_home_assistant_bodies_stop_once_the_read_budget_is_spent(clock, monkeypatch):
+    monkeypatch.setattr(home_assistant, "urlopen", lambda request, timeout: SlowDripResponse(clock))
+    started = clock.now
+
+    with pytest.raises(ValueError, match="home_assistant_read_too_slow"):
+        home_assistant._read_json("http://home-assistant", "private-token", "/api/", 5)
+    # The budget is 5 s; the check runs after each chunk, so at most one chunk overruns it.
+    assert clock.now - started <= 5 + 3
+
+
+def test_slow_drip_refresh_releases_the_lock_within_the_documented_bound(clock, monkeypatch):
+    monkeypatch.setattr(home_assistant, "urlopen", lambda request, timeout: SlowDripResponse(clock))
+    client = HomeAssistantLabClient("http://home-assistant", "private-token", "sensor.a", "sensor.b", "sensor.c")
+    started = clock.now
+
+    with pytest.raises(ValueError, match="home_assistant_read_too_slow"):
+        client.status()
+    assert clock.now - started <= 5 + 3
+    assert not client._refresh_lock.locked()
+
+
+def test_home_assistant_bodies_are_read_through_the_real_redirect_refusing_opener():
+    class State(_QuietHandler):
+        def do_GET(self):
+            body = b'{"state": "21.6"}'
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    with _http_server(State) as port:
+        payload = home_assistant._read_json(f"http://127.0.0.1:{port}", "private-token", "/api/states/sensor.a", 5)
+
+    assert payload == {"state": "21.6"}
+
+
 def test_truncated_home_assistant_responses_are_value_errors(monkeypatch):
     class TruncatedResponse(FakeHTTPResponse):
-        def read(self, *args):
+        def read1(self, *args):
             raise http.client.IncompleteRead(b'{"state"')
 
     monkeypatch.setattr(home_assistant, "urlopen", lambda request, timeout: TruncatedResponse(b""))
