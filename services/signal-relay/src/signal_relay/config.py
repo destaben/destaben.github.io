@@ -77,6 +77,14 @@ _PRIVATE_HOST_SUFFIXES = (
     ".intranet",
     ".corp",
     ".private",
+    # Router and home-network suffixes. ".box" also covers ".fritz.box", the usual FRITZ!Box name.
+    ".box",
+    ".router",
+    ".gateway",
+    ".modem",
+    ".wan",
+    ".domain",
+    ".mshome.net",
 )
 
 

@@ -4,7 +4,7 @@ Operator checklist for locating Meshtastic entities in a Home Assistant installa
 
 Run the commands on the host where Home Assistant runs. They read local files inside the Home Assistant container. They do not call the HTTP API, do not need an access token, and do not change configuration.
 
-Replace `homeassistant` with your container name. The examples assume the system Docker context, which is the default, and a user in the `docker` group. Confirm the context first: `docker context show` must print `default`. To locate the container:
+Replace `homeassistant` with your container name. Run the Docker commands as an operator who belongs to the `docker` group, with the system Docker context: `docker context show` must return `default`. Do not prefix them with `sudo`. To locate the container:
 
 ```sh
 docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'

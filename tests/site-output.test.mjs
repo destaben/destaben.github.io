@@ -179,6 +179,8 @@ test("declares locale alternates, og:locale, and RSS discovery in every page hea
   assert.match(english, /<link rel="canonical" href="https:\/\/info\.destaben\.dev\/en\/">/);
   assert.match(english, /<link rel="alternate" hreflang="es" href="https:\/\/info\.destaben\.dev\/es\/">/);
   assert.match(english, /<link rel="alternate" hreflang="en" href="https:\/\/info\.destaben\.dev\/en\/">/);
+  assert.match(spanish, /<link rel="alternate" hreflang="x-default" href="https:\/\/info\.destaben\.dev\/es\/">/);
+  assert.match(english, /<link rel="alternate" hreflang="x-default" href="https:\/\/info\.destaben\.dev\/es\/">/);
   assert.match(english, /<meta property="og:locale" content="en_US">/);
 
   for (const page of [spanish, english, spanishArticle, englishArticle]) {

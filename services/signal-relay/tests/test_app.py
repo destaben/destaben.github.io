@@ -120,6 +120,7 @@ def test_meshtastic_status_only_returns_aggregate_public_signals(tmp_path):
 class _JSONResponse:
     def __init__(self, payload):
         self._body = json.dumps(payload).encode()
+        self._served = False
 
     def __enter__(self):
         return self
@@ -127,7 +128,10 @@ class _JSONResponse:
     def __exit__(self, *exc_info):
         return False
 
-    def read(self, *args):
+    def read1(self, *args):
+        if self._served:
+            return b""
+        self._served = True
         return self._body
 
 
@@ -369,6 +373,16 @@ def test_home_assistant_domains_may_start_with_digits_as_home_assistant_allows(m
     monkeypatch.setenv("SIGNAL_RELAY_HOME_ASSISTANT_TEMPERATURE_ENTITY_ID", entity_id)
 
     assert Settings.from_environment().home_assistant_temperature_entity_id == entity_id
+
+
+def test_status_cache_window_is_clamped_to_900_seconds_while_the_send_projection_keeps_its_own_floor(monkeypatch):
+    monkeypatch.setenv("SIGNAL_RELAY_MESHTASTIC_STATUS_CACHE_SECONDS", "60")
+    monkeypatch.setenv("SIGNAL_RELAY_MESHTASTIC_CACHE_SECONDS", "5")
+
+    settings = Settings.from_environment()
+
+    assert settings.meshtastic_status_cache_seconds == 900
+    assert settings.meshtastic_cache_seconds == 15
 
 
 def test_valid_entity_ids_are_accepted_and_empty_entity_ids_are_unset(monkeypatch):
@@ -652,6 +666,25 @@ def test_public_tcp_node_urls_reject_ipv4_embedding_ipv6_forms_even_if_the_stdli
 
 def test_public_tcp_node_urls_keep_native_global_ipv6_literals_valid():
     assert _public_tcp_node_urls('{"Node One": "tcp://[2606:4700:4700::1111]:4242"}') == {"Node One": "tcp://[2606:4700:4700::1111]:4242"}
+
+
+@pytest.mark.parametrize("host", [
+    "gw.fritz.box",
+    "gw.box",
+    "ap.router",
+    "mesh.gateway",
+    "radio.modem",
+    "edge.wan",
+    "node.domain",
+    "node.mshome.net",
+])
+def test_public_tcp_node_urls_reject_router_and_home_network_hostnames(host):
+    with pytest.raises(ValueError, match="must not contain private hostnames"):
+        _public_tcp_node_urls(json.dumps({"Node One": f"tcp://{host}:4242"}))
+
+
+def test_public_tcp_node_urls_still_accept_ordinary_public_domains():
+    assert _public_tcp_node_urls('{"Node One": "tcp://mesh.example.net:4242"}') == {"Node One": "tcp://mesh.example.net:4242"}
 
 
 def test_rejects_invalid_and_rate_limited_signals(tmp_path):
