@@ -3,192 +3,171 @@ import type { MeshtasticLab } from "../data/portfolio";
 
 interface Props { lab: MeshtasticLab; }
 const { lab } = Astro.props;
+const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || "";
 ---
 
-<article class="lab-card meshtastic-panel" data-lab-state="planned" data-meshtastic-panel data-local-url="http://127.0.0.1:8787" data-production-url="https://lab.destaben.dev" data-loading-label={lab.loadingLabel} data-unavailable-label={lab.unavailableLabel} data-available-label={lab.availableLabel} data-channel-label={lab.channelLabel} data-last-message-label={lab.lastMessageLabel} data-node-label={lab.nodeLabel} data-time-label={lab.timeLabel} data-hops-label={lab.hopsLabel} data-no-messages-label={lab.noMessagesLabel} aria-labelledby={`${lab.id}-title`}>
-  <div class="lab-card-header"><p class="lab-status">{lab.statusLabel}</p><span class="meshtastic-status" data-meshtastic-status role="status">{lab.loadingLabel}</span></div>
+<article class="lab-card meshtastic-panel" data-meshtastic-panel data-local-url="http://127.0.0.1:8787" data-production-url="https://lab.destaben.dev" data-turnstile-site-key={turnstileSiteKey} data-loading-label={lab.loadingLabel} data-unavailable-label={lab.unavailableLabel} data-available-label={lab.availableLabel} data-unavailable-value-label={lab.unavailableValueLabel} data-no-activity-label={lab.noActivityLabel} data-refreshed-label={lab.refreshedLabel} data-send-sending-label={lab.sendSendingLabel} data-send-accepted-label={lab.sendAcceptedLabel} data-send-verification-failed-label={lab.sendVerificationFailedLabel} data-send-rate-limited-label={lab.sendRateLimitedLabel} data-send-failed-label={lab.sendFailedLabel} aria-labelledby={`${lab.id}-title`}>
+  <div class="lab-card-header"><p class="lab-status">{lab.statusLabel}</p><span class="meshtastic-state" data-meshtastic-state role="status">{lab.loadingLabel}</span></div>
   <h3 id={`${lab.id}-title`}>{lab.title}</h3>
   <p>{lab.summary}</p>
-  <dl class="meshtastic-readings" data-meshtastic-readings hidden>
-    <div><dt>{lab.onlineNodesLabel}</dt><dd data-meshtastic-online>--</dd></div>
-    <div><dt>{lab.totalNodesLabel}</dt><dd data-meshtastic-total>--</dd></div>
-  </dl>
-  <section class="meshtastic-channels" data-meshtastic-channels-section hidden>
-    <h4 class="meshtastic-channels-title">{lab.channelsTitle}</h4>
-    <ul class="meshtastic-channel-list" data-meshtastic-channels></ul>
-    <p class="meshtastic-channels-note">{lab.channelsNote}</p>
-  </section>
-  <p class="meshtastic-updated" data-meshtastic-updated></p>
-  <div class="meshtastic-boundary"><p>{lab.sendingTitle}</p><span>{lab.sendingCopy}</span></div>
+  <div class="meshtastic-groups" data-meshtastic-groups hidden>
+    <section aria-labelledby={`${lab.id}-gateway`}><h4 id={`${lab.id}-gateway`}>{lab.gatewayLabel}</h4><p class="meshtastic-node-name" data-meshtastic-node-name>--</p><dl class="meshtastic-readings"><div><dt>{lab.uptimeLabel}</dt><dd data-meshtastic-uptime>--</dd></div><div><dt>{lab.batteryLabel}</dt><dd data-meshtastic-battery>--</dd></div><div><dt>{lab.voltageLabel}</dt><dd data-meshtastic-voltage>--</dd></div></dl></section>
+    <section aria-labelledby={`${lab.id}-network`}><h4 id={`${lab.id}-network`}>{lab.networkLabel}</h4><dl class="meshtastic-readings"><div><dt>{lab.nodesLabel}</dt><dd data-meshtastic-nodes>--</dd></div><div><dt>{lab.channelUtilizationLabel}</dt><dd data-meshtastic-channel-use>--</dd></div><div><dt>{lab.airtimeLabel}</dt><dd data-meshtastic-airtime>--</dd></div></dl></section>
+  </div>
+  <section class="meshtastic-activity" aria-labelledby={`${lab.id}-activity`}><div><h4 id={`${lab.id}-activity`}>{lab.latestActivityLabel}</h4></div><p data-meshtastic-no-activity>{lab.noActivityLabel}</p><ol data-meshtastic-activity-list hidden></ol></section>
+  <section class="meshtastic-send" aria-labelledby={`${lab.id}-send`}><h4 id={`${lab.id}-send`}>{lab.sendTitle}</h4><form data-meshtastic-send-form><label>{lab.sendLabel}<textarea data-meshtastic-message-input placeholder={lab.sendPlaceholder} maxlength="237" disabled></textarea></label><div class="meshtastic-turnstile" data-meshtastic-turnstile></div><button data-meshtastic-send-button type="submit" disabled>{lab.sendLabel}</button></form><p class="meshtastic-send-status" data-meshtastic-send-status data-state="unavailable" role="status" aria-live="polite">{lab.sendUnavailableLabel}</p></section>
+  <p class="meshtastic-refreshed" data-meshtastic-refreshed></p>
+  <div class="home-privacy"><p>{lab.privacyTitle}</p><span>{lab.privacyCopy}</span></div>
   <div class="tag-list">{lab.technologies.map((technology) => <span class="tag">{technology}</span>)}</div>
 </article>
 
 <script>
-  // data-lab-state drives the card styling in global.css: "planned" for loading and
-  // unavailable, "active" once a valid status payload has been rendered.
-  const requestTimeoutMs = 8000;
-  const maxChannels = 16;
-  const maxChannelNameLength = 32;
-  const maxMessageTextLength = 200;
-  const maxCount = 1_000_000;
-  const maxHops = 7;
-  const localHosts = new Set(["127.0.0.1", "localhost"]);
-  // The relay masks the last two characters of a node ID, so only six hexadecimal digits remain visible.
-  const maskedNodePattern = /^![0-9A-Fa-f]{6}\*\*$/;
-
-  type Message = { nodeId: string; text: string; time: string; hops?: number };
-  type Channel = { name: string; last?: Message };
-  type Labels = { channel: string; lastMessage: string; node: string; time: string; hops: string; noMessages: string };
-  type ValidStatus = { onlineNodes: number; totalNodes: number; channels: Channel[] | null; refreshed: string };
-
-  const isRecord = (value: unknown): value is Record<string, unknown> =>
-    typeof value === "object" && value !== null && !Array.isArray(value);
-  const isCount = (value: unknown): value is number =>
-    typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= maxCount;
-
-  // Turns every whitespace character into a space, drops control and format characters, collapses
-  // runs of spaces, and caps the length in code points so that no surrogate pair is split.
-  const cleanText = (value: string, limit: number) =>
-    Array.from(value.replace(/\s/g, " ").replace(/\p{Cc}|\p{Cf}/gu, "").replace(/ {2,}/g, " ").trim())
-      .slice(0, limit)
-      .join("")
-      .trim();
-
-  const formatTime = (value: string) => {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "";
-    return new Intl.DateTimeFormat(document.documentElement.lang, { dateStyle: "medium", timeStyle: "short" }).format(date);
-  };
-
-  const parseMessage = (raw: unknown): Message | undefined => {
-    if (!isRecord(raw)) return undefined;
-    const { nodeId, text, time, hops } = raw;
-    if (typeof nodeId !== "string" || !maskedNodePattern.test(nodeId)) return undefined;
-    if (typeof text !== "string" || typeof time !== "string" || Number.isNaN(Date.parse(time))) return undefined;
-    const cleaned = cleanText(text, maxMessageTextLength);
-    if (!cleaned) return undefined;
-    const validHops = typeof hops === "number" && Number.isInteger(hops) && hops >= 0 && hops <= maxHops ? hops : undefined;
-    return { nodeId, text: cleaned, time, hops: validHops };
-  };
-
-  const parseChannel = (raw: unknown): Channel | undefined => {
-    if (!isRecord(raw) || typeof raw.name !== "string") return undefined;
-    const name = cleanText(raw.name, maxChannelNameLength);
-    if (!name) return undefined;
-    const last = parseMessage(raw.last);
-    return last ? { name, last } : { name };
-  };
-
-  // Validates the whole payload before any DOM write. A malformed channel entry is dropped on its own.
-  const parseStatus = (payload: unknown): ValidStatus => {
-    if (!isRecord(payload) || payload.status !== "available") throw new Error("Invalid status payload");
-    const { onlineNodes, totalNodes, channels, refreshedAt } = payload;
-    if (!isCount(onlineNodes) || !isCount(totalNodes) || onlineNodes > totalNodes) throw new Error("Invalid status payload");
-    if (channels !== undefined && !Array.isArray(channels)) throw new Error("Invalid status payload");
-    return {
-      onlineNodes,
-      totalNodes,
-      // The relay omits channels when discovery fails; that is a valid payload, not an error.
-      channels: Array.isArray(channels)
-        ? channels.slice(0, maxChannels).map(parseChannel).filter((channel): channel is Channel => channel !== undefined)
-        : null,
-      refreshed: typeof refreshedAt === "string" ? formatTime(refreshedAt) : "",
+  const panel = document.querySelector<HTMLElement>("[data-meshtastic-panel]");
+  if (panel) {
+    type Status = {
+      status?: string;
+      gateway?: { name?: string | null; shortName?: string | null; uptimeSeconds?: number | null; batteryPercent?: number | null; voltage?: number | null };
+      network?: { nodesOnline?: number | null; nodesTotal?: number | null; channelUtilizationPercent?: number | null; airtimeTxPercent?: number | null };
+      recentActivity?: { message?: string; sender?: string; channel?: string; receivedAt?: string }[];
+      refreshedAt?: string;
     };
-  };
-
-  // Every node is created with createElement and filled with textContent; no markup is parsed from data.
-  const element = <K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string) => {
-    const node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
-  };
-
-  const detail = (term: string, value: string) => {
-    const wrap = element("div");
-    wrap.append(element("dt", undefined, term), element("dd", undefined, value));
-    return wrap;
-  };
-
-  const renderChannel = (channel: Channel, labels: Labels) => {
-    const item = element("li", "meshtastic-channel");
-    item.append(element("p", "meshtastic-channel-label", labels.channel), element("h5", "meshtastic-channel-name", channel.name));
-    if (!channel.last) {
-      item.append(element("p", "meshtastic-message-empty", labels.noMessages));
-      return item;
-    }
-    const details = element("dl", "meshtastic-message-details");
-    details.append(detail(labels.node, channel.last.nodeId), detail(labels.time, formatTime(channel.last.time)));
-    if (channel.last.hops !== undefined) details.append(detail(labels.hops, String(channel.last.hops)));
-    item.append(
-      element("p", "meshtastic-message-label", labels.lastMessage),
-      element("p", "meshtastic-message", channel.last.text),
-      details,
-    );
-    return item;
-  };
-
-  const initMeshtasticPanel = (panel: HTMLElement) => {
-    const baseUrl = (localHosts.has(window.location.hostname) ? panel.dataset.localUrl : panel.dataset.productionUrl) ?? "";
-    const state = panel.querySelector<HTMLElement>("[data-meshtastic-status]");
-    const readings = panel.querySelector<HTMLElement>("[data-meshtastic-readings]");
-    const online = panel.querySelector<HTMLElement>("[data-meshtastic-online]");
-    const total = panel.querySelector<HTMLElement>("[data-meshtastic-total]");
-    const updated = panel.querySelector<HTMLElement>("[data-meshtastic-updated]");
-    const channelsSection = panel.querySelector<HTMLElement>("[data-meshtastic-channels-section]");
-    const channelList = panel.querySelector<HTMLElement>("[data-meshtastic-channels]");
-    const labels: Labels = {
-      channel: panel.dataset.channelLabel ?? "",
-      lastMessage: panel.dataset.lastMessageLabel ?? "",
-      node: panel.dataset.nodeLabel ?? "",
-      time: panel.dataset.timeLabel ?? "",
-      hops: panel.dataset.hopsLabel ?? "",
-      noMessages: panel.dataset.noMessagesLabel ?? "",
+    const localHosts = new Set(["127.0.0.1", "localhost"]);
+    const baseUrl = localHosts.has(window.location.hostname) ? panel.dataset.localUrl : panel.dataset.productionUrl;
+    const value = (selector: string, content: string) => {
+      const target = panel.querySelector<HTMLElement>(selector);
+      if (target) target.textContent = content;
     };
-
-    const showChannels = (channels: Channel[]) => {
-      if (channelList) channelList.replaceChildren(...channels.map((channel) => renderChannel(channel, labels)));
-      if (channelsSection) channelsSection.hidden = channels.length === 0;
+    const unavailableValue = () => panel.dataset.unavailableValueLabel || "Unavailable";
+    const number = (input: number | null | undefined, suffix = "") => Number.isFinite(input) ? `${input}${suffix}` : unavailableValue();
+    const uptime = (seconds: number | null | undefined) => {
+      if (!Number.isFinite(seconds)) return unavailableValue();
+      const hours = Math.floor(Number(seconds) / 3600);
+      const minutes = Math.floor((Number(seconds) % 3600) / 60);
+      return hours ? `${hours}h ${minutes}m` : `${minutes}m`;
     };
-
-    const showUnavailable = () => {
-      panel.dataset.labState = "planned";
-      if (state) state.textContent = panel.dataset.unavailableLabel || "Meshtastic unavailable";
-      if (readings) readings.hidden = true;
-      if (updated) updated.textContent = "";
-      showChannels([]);
+    const state = panel.querySelector<HTMLElement>("[data-meshtastic-state]");
+    const groups = panel.querySelector<HTMLElement>("[data-meshtastic-groups]");
+    const noActivity = panel.querySelector<HTMLElement>("[data-meshtastic-no-activity]");
+    const activityList = panel.querySelector<HTMLOListElement>("[data-meshtastic-activity-list]");
+    const form = panel.querySelector<HTMLFormElement>("[data-meshtastic-send-form]");
+    const messageInput = panel.querySelector<HTMLTextAreaElement>("[data-meshtastic-message-input]");
+    const sendButton = panel.querySelector<HTMLButtonElement>("[data-meshtastic-send-button]");
+    const sendStatus = panel.querySelector<HTMLElement>("[data-meshtastic-send-status]");
+    const turnstileContainer = panel.querySelector<HTMLElement>("[data-meshtastic-turnstile]");
+    let radioAvailable = false;
+    let turnstileToken = "";
+    let widgetId: string | null = null;
+    const senderReady = () => radioAvailable && Boolean(turnstileToken);
+    const updateSender = () => {
+      if (messageInput) messageInput.disabled = !senderReady();
+      if (sendButton) sendButton.disabled = !senderReady();
     };
-
-    const fetchStatus = async (): Promise<unknown> => {
-      const controller = new AbortController();
-      const timer = window.setTimeout(() => controller.abort(), requestTimeoutMs);
-      try {
-        const response = await fetch(`${baseUrl}/v1/lab/meshtastic-status`, { signal: controller.signal });
-        if (!response.ok) throw new Error(`Unexpected status ${response.status}`);
-        return (await response.json()) as unknown;
-      } finally {
-        window.clearTimeout(timer);
+    const setSendStatus = (content: string, sendState: "error" | "pending" | "success" | "unavailable") => {
+      if (sendStatus) {
+        sendStatus.textContent = content;
+        sendStatus.dataset.state = sendState;
+        sendStatus.hidden = !content;
       }
     };
-
+    const renderTurnstile = () => {
+      const siteKey = panel.dataset.turnstileSiteKey;
+      if (!siteKey || !turnstileContainer) return;
+      const render = () => {
+        const turnstile = (window as Window & { turnstile?: { render: (container: HTMLElement, options: Record<string, unknown>) => string } }).turnstile;
+        if (!turnstile || widgetId) return;
+        widgetId = turnstile.render(turnstileContainer, {
+          sitekey: siteKey,
+          callback: (token: string) => {
+            turnstileToken = token;
+            updateSender();
+            setSendStatus("", "unavailable");
+          },
+          "expired-callback": () => { turnstileToken = ""; updateSender(); },
+          "error-callback": () => { turnstileToken = ""; updateSender(); },
+        });
+      };
+      const source = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+      const existing = document.querySelector<HTMLScriptElement>(`script[src="${source}"]`);
+      if (existing) { existing.addEventListener("load", render, { once: true }); render(); return; }
+      const script = document.createElement("script");
+      script.src = source;
+      script.async = true;
+      script.addEventListener("load", render, { once: true });
+      document.head.append(script);
+    };
+    const unavailable = () => {
+      if (state) state.textContent = panel.dataset.unavailableLabel || "Meshtastic unavailable";
+      if (groups) groups.hidden = true;
+      if (noActivity) noActivity.hidden = false;
+      if (activityList) { activityList.replaceChildren(); activityList.hidden = true; }
+      radioAvailable = false;
+      updateSender();
+      value("[data-meshtastic-refreshed]", "");
+    };
     const load = async () => {
       try {
-        // Everything is validated before the first DOM write so a bad payload cannot leave a mixed state.
-        const status = parseStatus(await fetchStatus());
-        if (online) online.textContent = String(status.onlineNodes);
-        if (total) total.textContent = String(status.totalNodes);
-        showChannels(status.channels ?? []);
-        if (readings) readings.hidden = false;
-        if (updated) updated.textContent = status.refreshed;
-        if (state) state.textContent = panel.dataset.availableLabel || "Available";
-        panel.dataset.labState = "active";
-      } catch {
-        showUnavailable();
-      }
+        const response = await fetch(`${baseUrl}/v1/lab/meshtastic`);
+        const status = await response.json() as Status;
+        if (!response.ok || status.status !== "available") throw new Error();
+        if (state) state.textContent = panel.dataset.availableLabel || "Updated";
+        value("[data-meshtastic-node-name]", status.gateway?.name || status.gateway?.shortName || unavailableValue());
+        value("[data-meshtastic-uptime]", uptime(status.gateway?.uptimeSeconds));
+        value("[data-meshtastic-battery]", number(status.gateway?.batteryPercent, "%"));
+        value("[data-meshtastic-voltage]", number(status.gateway?.voltage, " V"));
+        value("[data-meshtastic-nodes]", Number.isFinite(status.network?.nodesOnline) && Number.isFinite(status.network?.nodesTotal) ? `${status.network?.nodesOnline}/${status.network?.nodesTotal}` : unavailableValue());
+        value("[data-meshtastic-channel-use]", number(status.network?.channelUtilizationPercent, "%"));
+        value("[data-meshtastic-airtime]", number(status.network?.airtimeTxPercent, "%"));
+        if (groups) groups.hidden = false;
+        const activity = Array.isArray(status.recentActivity) ? status.recentActivity.slice(0, 5) : [];
+        if (activityList) {
+          activityList.replaceChildren(...activity.flatMap((entry) => {
+            if (!entry.message || !entry.sender || !entry.channel || !entry.receivedAt) return [];
+            const item = document.createElement("li");
+            const message = document.createElement("strong");
+            message.textContent = entry.message;
+            const details = document.createElement("span");
+            const timestamp = new Intl.DateTimeFormat(document.documentElement.lang, { dateStyle: "medium", timeStyle: "short" }).format(new Date(entry.receivedAt));
+            details.textContent = `${entry.sender} · ${entry.channel} · ${timestamp}`;
+            item.append(message, details);
+            return [item];
+          }));
+          activityList.hidden = activityList.childElementCount === 0;
+          if (noActivity) noActivity.hidden = activityList.childElementCount > 0;
+        }
+        if (status.refreshedAt) value("[data-meshtastic-refreshed]", `${panel.dataset.refreshedLabel || "Updated"}: ${new Intl.DateTimeFormat(document.documentElement.lang, { dateStyle: "medium", timeStyle: "short" }).format(new Date(status.refreshedAt))}`);
+        radioAvailable = true;
+        renderTurnstile();
+        updateSender();
+      } catch { unavailable(); }
     };
-
-    void load();
-  };
-
-  document.querySelectorAll<HTMLElement>("[data-meshtastic-panel]").forEach(initMeshtasticPanel);
+    form?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const message = messageInput?.value || "";
+      if (!senderReady() || !message) return;
+      if (sendButton) sendButton.disabled = true;
+      setSendStatus(panel.dataset.sendSendingLabel || "Sending message", "pending");
+      try {
+        const response = await fetch(`${baseUrl}/v1/lab/meshtastic/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message, turnstileToken }),
+        });
+        if (!response.ok) {
+          const body = await response.json().catch(() => null) as { detail?: string } | null;
+          const labels: Record<string, string | undefined> = {
+            bot_verification_failed: panel.dataset.sendVerificationFailedLabel,
+            message_rate_limited: panel.dataset.sendRateLimitedLabel,
+            meshtastic_messages_unavailable: panel.dataset.sendFailedLabel,
+          };
+          throw new Error(labels[body?.detail || ""] || panel.dataset.sendFailedLabel || "Unable to send message");
+        }
+        if (messageInput) messageInput.value = "";
+        setSendStatus(panel.dataset.sendAcceptedLabel || "Message sent", "success");
+        await load();
+      } catch (error) {
+        setSendStatus(error instanceof Error ? error.message : (panel.dataset.sendFailedLabel || "Unable to send message"), "error");
+      } finally { updateSender(); }
+    });
+    load();
+  }
 </script>

@@ -95,9 +95,8 @@ Entity IDs are private configuration. Keep them out of Git and out of the public
 In the private directory where Signal Relay is deployed, set these values in its ignored `.env` file. Use the dedicated read-only Home Assistant token configured for the relay. Never write the token into this document or into Git.
 
 ```sh
-SIGNAL_RELAY_MESHTASTIC_GATEWAY_ENTITY_ID=GATEWAY_ENTITY_ID
-SIGNAL_RELAY_MESHTASTIC_NODES_ONLINE_ENTITY_ID=ONLINE_COUNT_ENTITY_ID
-SIGNAL_RELAY_MESHTASTIC_NODES_TOTAL_ENTITY_ID=TOTAL_COUNT_ENTITY_ID
+# The same private map the Meshtastic send projection already requires. The status route reads only its gateway, nodes_online, and nodes_total keys.
+SIGNAL_RELAY_MESHTASTIC_ENTITY_IDS={"gateway": "GATEWAY_ENTITY_ID", "nodes_online": "ONLINE_COUNT_ENTITY_ID", "nodes_total": "TOTAL_COUNT_ENTITY_ID", ...all other required keys, one entity ID each...}
 # Optional. Defaults to the gateway entity ID plus "_channel_".
 SIGNAL_RELAY_MESHTASTIC_CHANNEL_PREFIX=
 # Optional comma-separated channel names to hide. Direct-message entities are always hidden.
@@ -105,10 +104,10 @@ SIGNAL_RELAY_MESHTASTIC_CHANNEL_DENYLIST=
 # Optional JSON map from published fields to the attribute names verified in step 5b.
 # Leave empty to publish channel names without messages. Use the names verified on the host.
 SIGNAL_RELAY_MESHTASTIC_CHANNEL_FIELDS='{"text": "TEXT_ATTRIBUTE", "node_id": "NODE_ID_ATTRIBUTE", "timestamp": "TIMESTAMP_ATTRIBUTE", "hop_start": "HOP_START_ATTRIBUTE", "hop_limit": "HOP_LIMIT_ATTRIBUTE"}'
-SIGNAL_RELAY_MESHTASTIC_CACHE_SECONDS=900
+SIGNAL_RELAY_MESHTASTIC_STATUS_CACHE_SECONDS=900
 ```
 
-The first three entity IDs are required before `GET /v1/lab/meshtastic-status` becomes available. Remove any field from `SIGNAL_RELAY_MESHTASTIC_CHANNEL_FIELDS` that you have not verified; an unset field is never read. The relay rejects negative, non-integer, or inconsistent counts, and never publishes entity IDs, Home Assistant attributes, author names, serial numbers, MAC addresses, full node IDs, or direct messages. A failure while discovering channels omits `channels` and keeps the counts available. Do not lower the cache below 900 seconds.
+The map must contain every key listed in `services/signal-relay/README.md`; the three status keys are required before `GET /v1/lab/meshtastic-status` becomes available. The gateway entity must report exactly `Connected`. Remove any field from `SIGNAL_RELAY_MESHTASTIC_CHANNEL_FIELDS` that you have not verified; an unset field is never read. The relay rejects negative, non-integer, or inconsistent counts, and never publishes entity IDs, Home Assistant attributes, author names, serial numbers, MAC addresses, full node IDs, or direct messages. A failure while discovering channels omits `channels` and keeps the counts available. Do not lower the cache below 900 seconds.
 
 Recreate only the relay after changing its environment:
 

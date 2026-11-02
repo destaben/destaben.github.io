@@ -1,6 +1,6 @@
 ---
 description: "Use when editing the Signal Relay FastAPI service, Reticulum or LXMF integration, Compose, Prometheus, Telegram, Home Assistant, Meshtastic, laboratory endpoints, or their Astro consumers."
-applyTo: "services/signal-relay/**,docs/SIGNAL-RELAY.md,docs/MESHTASTIC-INVENTORY.md,src/components/SignalRelayLab.astro,src/components/ContainerMetricsLab.astro,src/components/HomeAssistantLab.astro,src/components/MeshtasticLab.astro"
+applyTo: "services/signal-relay/**,docs/SIGNAL-RELAY.md,docs/MESHTASTIC-INVENTORY.md,src/components/SignalRelayLab.astro,src/components/ContainerMetricsLab.astro,src/components/HomeAssistantLab.astro,src/components/MeshtasticLab.astro,src/components/MeshtasticStatusLab.astro"
 ---
 # Signal Relay Boundary Guidelines
 
@@ -13,4 +13,4 @@ applyTo: "services/signal-relay/**,docs/SIGNAL-RELAY.md,docs/MESHTASTIC-INVENTOR
 - Nginx and the outbound Cloudflare Tunnel are owned by `destaben/lab-inverse-proxy`, which also holds the public route allowlist; a new public route is not live until its edge entry lands there (the Meshtastic status route is PR #7). Keep the relay on the external `destaben-edge` network with no host port. The CGNAT deployment uses outbound Reticulum `TCPClientInterface` transports; do not add a `TCPServerInterface`, expose Reticulum TCP, or publish the relay HTTP API, Home Assistant, or any other host port.
 - Preserve unprivileged, read-only, capability-dropped containers and `linux/amd64` plus `linux/arm64` image support.
 - A public API, deployment, or security-boundary change must update both `docs/SIGNAL-RELAY.md` and `services/signal-relay/README.md` and include focused tests.
-- Validate Python changes with `services/signal-relay/.venv/bin/python -m pytest`. For Compose or image changes also run `docker compose -f services/signal-relay/compose.yaml config` with an ignored local `.env`.
+- Validate Python changes with `services/signal-relay/.venv/bin/python -m pytest`. For Compose or image changes also run `docker compose -f services/signal-relay/compose.yaml config` (no `.env` is required because every variable has a default; keep any local one ignored by Git).

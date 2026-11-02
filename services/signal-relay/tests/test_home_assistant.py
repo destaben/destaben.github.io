@@ -10,7 +10,12 @@ from urllib.error import HTTPError, URLError
 import pytest
 
 from signal_relay import home_assistant
-from signal_relay.home_assistant import HomeAssistantLabClient, MeshtasticLabClient
+from signal_relay.home_assistant import (
+    MESHTASTIC_BROADCAST_TIMEOUT_SECONDS,
+    HomeAssistantLabClient,
+    HomeAssistantMeshtasticClient,
+    MeshtasticLabClient,
+)
 
 
 class FakeClock:
@@ -91,7 +96,7 @@ def home_responses(overrides=None):
 def meshtastic_responses(overrides=None):
     responses = {
         "/api/": {"message": "API running."},
-        "/api/states/meshtastic.gateway_private": {"state": "connected"},
+        "/api/states/meshtastic.gateway_private": {"state": "Connected"},
         "/api/states/sensor.private_online": {"state": "12"},
         "/api/states/sensor.private_total": {"state": "43"},
         "/api/states": [],
@@ -278,6 +283,51 @@ def test_meshtastic_projection_never_contains_author_names_serials_macs_full_nod
         assert sentinel not in rendered, sentinel
 
 
+def test_meshtastic_status_rejects_a_disconnected_gateway():
+    client = FixtureMeshtastic(meshtastic_responses({"/api/states/meshtastic.gateway_private": {"state": "disconnected"}}))
+
+    with pytest.raises(ValueError, match="meshtastic_gateway_unavailable"):
+        client.status()
+
+
+@pytest.mark.parametrize("state", [None, True, 42, "connected", "disconnected"])
+def test_meshtastic_gateway_must_report_connected(state):
+    client = FixtureMeshtastic(meshtastic_responses({"/api/states/meshtastic.gateway_private": {"state": state}}))
+
+    with pytest.raises(ValueError, match="meshtastic_gateway_unavailable"):
+        client.status()
+
+
+@pytest.mark.parametrize("path", ["/api/states/sensor.private_online", "/api/states/sensor.private_total"])
+@pytest.mark.parametrize("state", [None, True, [], "", "abc", "nan", "inf", "12.5", "-1"])
+def test_meshtastic_counts_must_be_non_negative_integers(path, state):
+    client = FixtureMeshtastic(meshtastic_responses({path: {"state": state}}))
+
+    with pytest.raises(ValueError, match="invalid_meshtastic_node_count"):
+        client.status()
+
+
+def test_meshtastic_counts_accept_integral_values_from_home_assistant():
+    client = FixtureMeshtastic(meshtastic_responses({
+        "/api/states/sensor.private_online": {"state": 12},
+        "/api/states/sensor.private_total": {"state": "43.0"},
+    }))
+
+    status = client.status()
+
+    assert status["onlineNodes"] == 12
+    assert status["totalNodes"] == 43
+
+
+def test_meshtastic_rejects_more_online_nodes_than_total_nodes_but_accepts_equal_counts():
+    client = FixtureMeshtastic(meshtastic_responses({"/api/states/sensor.private_online": {"state": "44"}}))
+    with pytest.raises(ValueError, match="invalid_meshtastic_node_counts"):
+        client.status()
+
+    equal = FixtureMeshtastic(meshtastic_responses({"/api/states/sensor.private_online": {"state": "43"}}))
+    assert equal.status()["onlineNodes"] == 43
+
+
 @pytest.mark.parametrize("entity_suffix, attributes", [
     ("direct_messages", {}),
     ("dm_alice", {}),
@@ -361,6 +411,12 @@ def test_the_gateway_and_count_entities_are_never_treated_as_channels(prefix, en
     }), channel_prefix=prefix)
 
     assert client.status()["channels"] == []
+
+
+def test_the_default_channel_prefix_is_derived_from_the_gateway_entity():
+    client = MeshtasticLabClient("http://home-assistant", "private-token", GATEWAY, "sensor.private_online", "sensor.private_total")
+
+    assert client.channel_prefix == CHANNEL_PREFIX
 
 
 def test_channels_without_a_usable_name_are_dropped_and_long_names_are_truncated():
@@ -596,36 +652,6 @@ def test_channels_are_discovered_with_one_entity_list_read(monkeypatch):
     assert "/api/states/sensor.private_online" in requested
 
 
-@pytest.mark.parametrize("path", ["/api/states/sensor.private_online", "/api/states/sensor.private_total"])
-@pytest.mark.parametrize("state", [None, True, [], "", "abc", "nan", "inf", "12.5", "-1"])
-def test_meshtastic_counts_must_be_non_negative_integers(path, state):
-    client = FixtureMeshtastic(meshtastic_responses({path: {"state": state}}))
-
-    with pytest.raises(ValueError, match="invalid_meshtastic_node_count"):
-        client.status()
-
-
-def test_meshtastic_counts_accept_integral_values_from_home_assistant():
-    client = FixtureMeshtastic(meshtastic_responses({
-        "/api/states/sensor.private_online": {"state": 12},
-        "/api/states/sensor.private_total": {"state": "43.0"},
-    }))
-
-    status = client.status()
-
-    assert status["onlineNodes"] == 12
-    assert status["totalNodes"] == 43
-
-
-def test_meshtastic_rejects_more_online_nodes_than_total_nodes_but_accepts_equal_counts():
-    client = FixtureMeshtastic(meshtastic_responses({"/api/states/sensor.private_online": {"state": "44"}}))
-    with pytest.raises(ValueError, match="invalid_meshtastic_node_counts"):
-        client.status()
-
-    equal = FixtureMeshtastic(meshtastic_responses({"/api/states/sensor.private_online": {"state": "43"}}))
-    assert equal.status()["onlineNodes"] == 43
-
-
 def test_meshtastic_status_is_cached_for_at_least_fifteen_minutes(clock):
     client = FixtureMeshtastic(meshtastic_responses(), cache_seconds=60)
 
@@ -633,6 +659,7 @@ def test_meshtastic_status_is_cached_for_at_least_fifteen_minutes(clock):
     first = client.status()
     clock.now += 899
     assert client.status() == first
+    # "/api/", gateway, online, total, and the channel list: one refresh.
     assert len(client.requests) == 5
     clock.now += 1
     client.status()
@@ -834,3 +861,168 @@ def test_bearer_token_is_never_forwarded_across_a_redirect():
                 client._get_json("/api/")
 
     assert seen_authorization == []
+
+
+def test_meshtastic_broadcast_uses_the_extended_fixed_service_timeout(monkeypatch):
+    captured = {}
+
+    class Response:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["timeout"] = timeout
+        return Response()
+
+    monkeypatch.setattr("signal_relay.home_assistant.urlopen", fake_urlopen)
+    client = HomeAssistantMeshtasticClient("http://home-assistant", "private-token", {})
+
+    client.broadcast("Hello mesh")
+
+    assert captured == {
+        "url": "http://home-assistant/api/services/script/meshtastic_public_broadcast",
+        "timeout": MESHTASTIC_BROADCAST_TIMEOUT_SECONDS,
+    }
+    assert MESHTASTIC_BROADCAST_TIMEOUT_SECONDS == 15
+
+
+def test_meshtastic_broadcast_invalidates_cached_activity(monkeypatch):
+    class Response:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+    monkeypatch.setattr("signal_relay.home_assistant.urlopen", lambda *_args, **_kwargs: Response())
+    client = HomeAssistantMeshtasticClient("http://home-assistant", "private-token", {})
+    client._cached_status = {"recentActivity": []}
+    client._cache_expires_at = 9999999999
+
+    client.broadcast("Hello mesh")
+
+    assert client._cached_status is None
+    assert client._cache_expires_at == 0
+
+
+def test_meshtastic_status_normalizes_unavailable_values_and_hides_entity_metadata():
+    entity_ids = {
+        "gateway": "meshtastic.gateway",
+        "node_long_name": "sensor.node_long_name",
+        "node_short_name": "sensor.node_short_name",
+        "uptime_seconds": "sensor.uptime",
+        "battery_percent": "sensor.battery",
+        "voltage": "sensor.voltage",
+        "channel_utilization_percent": "sensor.channel",
+        "airtime_tx_percent": "sensor.airtime",
+        "nodes_online": "sensor.online",
+        "nodes_total": "sensor.total",
+        "packets_rx": "sensor.rx",
+        "packets_tx": "sensor.tx",
+        "packets_rx_bad": "sensor.rx_bad",
+        "packets_rx_duplicate": "sensor.duplicate",
+        "packets_tx_relayed": "sensor.relayed",
+        "packets_tx_relay_cancelled": "sensor.relay_cancelled",
+        "rx_per_minute": "sensor.rx_rate",
+        "tx_per_minute": "sensor.tx_rate",
+        "rf_errors_per_minute": "sensor.error_rate",
+        "duplicates_per_minute": "sensor.duplicate_rate",
+        "relay_cancelled_per_minute": "sensor.cancelled_rate",
+        **{f"recent_activity_{index}": f"input_text.recent_activity_{index}" for index in range(1, 6)},
+    }
+
+    class FixtureMeshtasticClient(HomeAssistantMeshtasticClient):
+        def __init__(self):
+            super().__init__("http://home-assistant", "private-token", entity_ids, 15)
+            self.requests = []
+
+        def _get_json(self, path):
+            self.requests.append(path)
+            key = next(key for key, entity_id in entity_ids.items() if path.endswith(entity_id))
+            states = {
+                "gateway": "Connected",
+                "node_long_name": "d3st gateway",
+                "node_short_name": "d3st",
+                "uptime_seconds": "120",
+                "battery_percent": "101",
+                "voltage": "4.12",
+                "channel_utilization_percent": "unknown",
+                "airtime_tx_percent": "2.5",
+                "nodes_online": "3",
+                "nodes_total": "5",
+                "packets_rx": "10",
+                "packets_tx": "9",
+                "packets_rx_bad": "0",
+                "packets_rx_duplicate": "1",
+                "packets_tx_relayed": "2",
+                "packets_tx_relay_cancelled": "0",
+                "rx_per_minute": "0.4",
+                "tx_per_minute": "0.2",
+                "rf_errors_per_minute": "0",
+                "duplicates_per_minute": "0.1",
+                "relay_cancelled_per_minute": "unknown",
+                "recent_activity_1": '{"message":"Hello mesh","sender":"Node One","receivedAt":"2026-10-01T12:00:00Z"}',
+                "recent_activity_2": '{"message":"Previous message","sender":"Node Two","receivedAt":"2026-10-01T11:00:00Z"}',
+                "recent_activity_3": "unknown",
+                "recent_activity_4": "",
+                "recent_activity_5": "not-json",
+            }
+            return {"state": states[key], "attributes": {"friendly_name": "Private metadata"}}
+
+    status = FixtureMeshtasticClient().status()
+
+    assert status["status"] == "available"
+    assert status["gateway"] == {
+        "name": "d3st gateway", "shortName": "d3st", "uptimeSeconds": 120, "batteryPercent": None, "voltage": 4.12,
+    }
+    assert status["network"]["channelUtilizationPercent"] is None
+    assert status["recentActivity"] == [
+        {"message": "Hello mesh", "sender": "Node One", "channel": "MediumFast", "receivedAt": "2026-10-01T12:00:00Z"},
+        {"message": "Previous message", "sender": "Node Two", "channel": "MediumFast", "receivedAt": "2026-10-01T11:00:00Z"},
+    ]
+    assert "entity_id" not in str(status)
+
+
+def test_meshtastic_status_hides_invalid_recent_activity():
+    entity_ids = {
+        "gateway": "meshtastic.gateway",
+        "node_long_name": "sensor.node_long_name",
+        "node_short_name": "sensor.node_short_name",
+        "uptime_seconds": "sensor.uptime",
+        "battery_percent": "sensor.battery",
+        "voltage": "sensor.voltage",
+        "channel_utilization_percent": "sensor.channel",
+        "airtime_tx_percent": "sensor.airtime",
+        "nodes_online": "sensor.online",
+        "nodes_total": "sensor.total",
+        "packets_rx": "sensor.rx",
+        "packets_tx": "sensor.tx",
+        "packets_rx_bad": "sensor.rx_bad",
+        "packets_rx_duplicate": "sensor.duplicate",
+        "packets_tx_relayed": "sensor.relayed",
+        "packets_tx_relay_cancelled": "sensor.relay_cancelled",
+        "rx_per_minute": "sensor.rx_rate",
+        "tx_per_minute": "sensor.tx_rate",
+        "rf_errors_per_minute": "sensor.error_rate",
+        "duplicates_per_minute": "sensor.duplicate_rate",
+        "relay_cancelled_per_minute": "sensor.cancelled_rate",
+        **{f"recent_activity_{index}": f"input_text.recent_activity_{index}" for index in range(1, 6)},
+    }
+
+    class EmptyActivityClient(HomeAssistantMeshtasticClient):
+        def _get_json(self, path):
+            key = next(key for key, entity_id in entity_ids.items() if path.endswith(entity_id))
+            states = {entity_key: "0" for entity_key in entity_ids}
+            states["gateway"] = "Connected"
+            states["recent_activity_1"] = "unknown"
+            return {"state": states[key]}
+
+    assert EmptyActivityClient("http://home-assistant", "private-token", entity_ids).status()["recentActivity"] == []

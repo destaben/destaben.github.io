@@ -62,15 +62,25 @@ Add articles as Markdown or MDX files in `src/content/blog/`, with `title`, `des
 
 The portfolio presents a public LXMF destination backed by a separate, self-hosted Reticulum bridge. It provides a contact address and bounded plain-text inbox; Prometheus scrapes operational metrics separately. Its public API, security boundary, container deployment, and acceptance checks are defined in [docs/SIGNAL-RELAY.md](docs/SIGNAL-RELAY.md) and [services/signal-relay/README.md](services/signal-relay/README.md). Do not add Reticulum identities, Telegram credentials, tunnel credentials, home IP addresses, or bridge configuration to this repository.
 
-For local bridge setup, API/WebSocket tests, and end-to-end verification, use [services/signal-relay/README.md](services/signal-relay/README.md). GitHub Actions runs both the Astro suite and Signal Relay's Python suite before publishing the Pages artifact.
+For local bridge setup, API/WebSocket tests, and end-to-end verification, use [services/signal-relay/README.md](services/signal-relay/README.md). GitHub Actions runs both the Astro suite and Signal Relay's Python suite before publishing the Pages artifact, and runs them again on pull requests through `ci.yml` (see Deployment).
 
 When refreshing Reticulum bootstrap transports or recovering a broken private configuration, follow the relay README's host procedure: preserve `.env`, the persistent relay data volume, and `lab-sender-reticulum/`; refresh the relay `compose.yaml` and merge the current Reticulum template, then recreate only `signal-relay`. Update the edge independently from [`destaben/lab-inverse-proxy`](https://github.com/destaben/lab-inverse-proxy). Update the private `SIGNAL_RELAY_PUBLIC_TCP_NODE_ALIASES` mapping whenever configured interface names change, and keep its public aliases aligned with `SIGNAL_RELAY_PUBLIC_TCP_NODE_URLS`.
 
 ## Deployment
 
-Every push to `main` runs [.github/workflows/deploy-pages.yml](.github/workflows/deploy-pages.yml). The workflow uses Node 22, runs `npm ci`, builds `dist/`, and deploys the generated artifact to GitHub Pages. GitHub Actions is the only publishing path; do not commit generated files or publish from a branch.
+Every push to `main`, and every manual `workflow_dispatch`, runs [.github/workflows/deploy-pages.yml](.github/workflows/deploy-pages.yml). The workflow uses Node 22, runs `npm ci`, runs the Signal Relay `pytest` suite and `npm run verify` (Astro check, tests and build), and deploys the generated `dist/` artifact to GitHub Pages. GitHub Actions is the only publishing path; do not commit generated files or publish from a branch.
+
+Every pull request to `main`, and every manual `workflow_dispatch`, runs [.github/workflows/ci.yml](.github/workflows/ci.yml) with read-only permissions: the Signal Relay `pytest` suite, `docker compose config` validation, and `npm run verify` (Astro check, tests and build). Its actions are pinned to commit SHAs. It deploys nothing, passes only the default read-only `GITHUB_TOKEN` to the build, and references no repository secrets (a collaborator with write access can still change the workflow in their own branch, so keep secrets out of reach with environment protection); make its jobs required status checks in branch protection if you want merges gated on them. The check names are `Signal Relay tests` and `Site check, tests and build`; use exactly those names. Each job has a 15-minute timeout. The site job passes `PUBLIC_TURNSTILE_SITE_KEY` from the repository variable `TURNSTILE_SITE_KEY` only; if the key is stored as a secret instead, PR builds omit it and differ slightly from the Pages build.
 
 In repository settings, set Pages **Source** to **GitHub Actions**. The published artifact includes `public/CNAME`; this preserves the domain in deployed files but does not configure the custom domain in GitHub by itself.
+
+## Meshtastic Status Rollout
+
+The Meshtastic status panel depends on two other deployments, so roll it out in this order. Until step 2 is live, the panel shows its unavailable state.
+
+1. **Relay image and host.** Merge the relay change to `main`. `.github/workflows/publish-signal-relay.yml` publishes the image from `main`. On the relay host, deploy it with `services/signal-relay/scripts/deploy.sh`, after confirming the private `.env` contains the Meshtastic entity map and any optional channel settings described in [services/signal-relay/README.md](services/signal-relay/README.md).
+2. **Edge allowlist.** Add the `GET /v1/lab/meshtastic-status` entry in [`destaben/lab-inverse-proxy`](https://github.com/destaben/lab-inverse-proxy) (PR #7) and deploy the edge. Until this exists, the public route is not reachable through `lab.destaben.dev`.
+3. **Site.** Merge the portfolio change to `main`. GitHub Pages publishes the panel from that merge.
 
 ## Custom Domain
 

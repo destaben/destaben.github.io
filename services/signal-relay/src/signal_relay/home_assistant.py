@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime
 import http.client
 import json
@@ -9,10 +8,13 @@ import re
 import threading
 import time
 import unicodedata
+from typing import Iterable, Mapping
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from .config import _ENTITY_ID
 
+
+MESHTASTIC_BROADCAST_TIMEOUT_SECONDS = 15
 # Successful projections are deliberately delayed; configured cache windows can only extend this.
 _MINIMUM_SUCCESS_CACHE_SECONDS = 900
 # Failures are remembered briefly so a Home Assistant outage is not retried on every public request.
@@ -60,6 +62,26 @@ _redirect_free_opener = build_opener(_RefuseRedirects)
 def urlopen(request: Request, timeout: float):
     """Opens a Home Assistant request; redirects are refused so the Authorization header stays on this origin."""
     return _redirect_free_opener.open(request, timeout=timeout)
+
+
+def _read_value(base_url: str, token: str, path: str, timeout: float) -> object:
+    """One authenticated Home Assistant GET; shared by every client so the token handling lives in one place."""
+    request = Request(
+        f"{base_url}{path}",
+        headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+    )
+    try:
+        with urlopen(request, timeout=timeout) as response:
+            return json.load(response)
+    except http.client.HTTPException as error:
+        raise ValueError("invalid_home_assistant_response") from error
+
+
+def _read_json(base_url: str, token: str, path: str, timeout: float) -> dict[str, object]:
+    payload = _read_value(base_url, token, path, timeout)
+    if not isinstance(payload, dict):
+        raise ValueError("invalid_home_assistant_response")
+    return payload
 
 
 class _HomeAssistantClient:
@@ -110,29 +132,17 @@ class _HomeAssistantClient:
         return self._get_json(f"/api/states/{entity_id}")
 
     def _get_json(self, path: str) -> dict[str, object]:
-        payload = self._read(path)
-        if not isinstance(payload, dict):
-            raise ValueError("invalid_home_assistant_response")
-        return payload
+        if time.monotonic() >= self._refresh_deadline:
+            raise ValueError("home_assistant_refresh_deadline_exceeded")
+        return _read_json(self.base_url, self.token, path, _REQUEST_TIMEOUT_SECONDS)
 
     def _get_list(self, path: str) -> list[object]:
-        payload = self._read(path)
+        if time.monotonic() >= self._refresh_deadline:
+            raise ValueError("home_assistant_refresh_deadline_exceeded")
+        payload = _read_value(self.base_url, self.token, path, _REQUEST_TIMEOUT_SECONDS)
         if not isinstance(payload, list):
             raise ValueError("invalid_home_assistant_response")
         return payload
-
-    def _read(self, path: str) -> object:
-        if time.monotonic() >= self._refresh_deadline:
-            raise ValueError("home_assistant_refresh_deadline_exceeded")
-        request = Request(
-            f"{self.base_url}{path}",
-            headers={"Authorization": f"Bearer {self.token}", "Accept": "application/json"},
-        )
-        try:
-            with urlopen(request, timeout=_REQUEST_TIMEOUT_SECONDS) as response:
-                return json.load(response)
-        except http.client.HTTPException as error:
-            raise ValueError("invalid_home_assistant_response") from error
 
 
 class HomeAssistantLabClient(_HomeAssistantClient):
@@ -218,8 +228,9 @@ class MeshtasticLabClient(_HomeAssistantClient):
 
     def _refresh(self) -> dict[str, object]:
         self._get_json("/api/")
+        # The gateway state casing matches the Meshtastic send projection, which reads the same entity.
         gateway_state = self._state(self.gateway_entity_id).get("state")
-        if gateway_state != "connected":
+        if gateway_state != "Connected":
             raise ValueError("meshtastic_gateway_unavailable")
         online = self._count(self.nodes_online_entity_id)
         total = self._count(self.nodes_total_entity_id)
@@ -384,3 +395,127 @@ def _parse_moment(value: object) -> datetime | None:
     except (ValueError, OverflowError, OSError):
         return None
     return None
+
+
+class HomeAssistantMeshtasticClient:
+    """Reads a fixed, private entity map and returns a public Meshtastic projection."""
+
+    def __init__(self, base_url: str, token: str, entity_ids: Mapping[str, str], cache_seconds: int = 30) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.token = token
+        self.entity_ids = dict(entity_ids)
+        self.cache_seconds = max(cache_seconds, 15)
+        self._cached_status: dict[str, object] | None = None
+        self._cache_expires_at = 0.0
+
+    def status(self) -> dict[str, object]:
+        now = time.monotonic()
+        if self._cached_status is not None and now < self._cache_expires_at:
+            return self._cached_status
+
+        values = {key: self._state(entity_id) for key, entity_id in self.entity_ids.items()}
+        self._cached_status = {
+            "status": "available" if values["gateway"] == "Connected" else "unavailable",
+            "gateway": {
+                "name": self._text(values["node_long_name"], maximum=128) or self._text(values["node_short_name"], maximum=32),
+                "shortName": self._text(values["node_short_name"], maximum=32),
+                "uptimeSeconds": self._integer(values["uptime_seconds"], minimum=0),
+                "batteryPercent": self._number(values["battery_percent"], minimum=0, maximum=100),
+                "voltage": self._number(values["voltage"], minimum=0),
+            },
+            "network": {
+                "nodesOnline": self._integer(values["nodes_online"], minimum=0),
+                "nodesTotal": self._integer(values["nodes_total"], minimum=0),
+                "channelUtilizationPercent": self._number(values["channel_utilization_percent"], minimum=0, maximum=100),
+                "airtimeTxPercent": self._number(values["airtime_tx_percent"], minimum=0, maximum=100),
+            },
+            "packets": {
+                "rx": self._integer(values["packets_rx"], minimum=0),
+                "tx": self._integer(values["packets_tx"], minimum=0),
+                "rxBad": self._integer(values["packets_rx_bad"], minimum=0),
+                "rxDuplicate": self._integer(values["packets_rx_duplicate"], minimum=0),
+                "txRelayed": self._integer(values["packets_tx_relayed"], minimum=0),
+                "txRelayCancelled": self._integer(values["packets_tx_relay_cancelled"], minimum=0),
+            },
+            "ratesPerMinute": {
+                "rx": self._number(values["rx_per_minute"], minimum=0),
+                "tx": self._number(values["tx_per_minute"], minimum=0),
+                "rfErrors": self._number(values["rf_errors_per_minute"], minimum=0),
+                "duplicates": self._number(values["duplicates_per_minute"], minimum=0),
+                "relayCancelled": self._number(values["relay_cancelled_per_minute"], minimum=0),
+            },
+            "recentActivity": self._recent_activity(values),
+            "refreshedAt": datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        }
+        self._cache_expires_at = now + self.cache_seconds
+        return self._cached_status
+
+    def broadcast(self, message: str) -> None:
+        body = json.dumps({"message": message}).encode()
+        request = Request(
+            f"{self.base_url}/api/services/script/meshtastic_public_broadcast",
+            data=body,
+            headers={
+                "Authorization": f"Bearer {self.token}",
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        with urlopen(request, timeout=MESHTASTIC_BROADCAST_TIMEOUT_SECONDS) as response:
+            if response.status not in {200, 201}:
+                raise RuntimeError("meshtastic_broadcast_failed")
+        self._cache_expires_at = 0
+        self._cached_status = None
+
+    def _recent_activity(self, values: Mapping[str, object]) -> list[dict[str, str]]:
+        activity: list[dict[str, str]] = []
+        for index in range(1, 6):
+            value = values[f"recent_activity_{index}"]
+            if not isinstance(value, str):
+                continue
+            try:
+                entry = json.loads(value)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(entry, dict):
+                continue
+            message = self._text(entry.get("message"), maximum=140)
+            sender = self._text(entry.get("sender"), maximum=32)
+            received_at = self._text(entry.get("receivedAt"), maximum=32)
+            if message is None or sender is None or received_at is None:
+                continue
+            activity.append({"message": message, "sender": sender, "channel": "MediumFast", "receivedAt": received_at})
+        return activity
+
+    def _state(self, entity_id: str) -> object:
+        payload = self._get_json(f"/api/states/{entity_id}")
+        return payload.get("state")
+
+    @staticmethod
+    def _integer(value: object, minimum: int) -> int | None:
+        try:
+            number = int(str(value))
+        except (TypeError, ValueError):
+            return None
+        return number if number >= minimum else None
+
+    @staticmethod
+    def _text(value: object, maximum: int) -> str | None:
+        if not isinstance(value, str):
+            return None
+        value = value.strip()
+        return value if value and value not in {"unknown", "unavailable"} and len(value) <= maximum else None
+
+    @staticmethod
+    def _number(value: object, minimum: float, maximum: float | None = None) -> float | None:
+        try:
+            number = float(str(value))
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(number) or number < minimum or (maximum is not None and number > maximum):
+            return None
+        return round(number, 2)
+
+    def _get_json(self, path: str) -> dict[str, object]:
+        return _read_json(self.base_url, self.token, path, _REQUEST_TIMEOUT_SECONDS)

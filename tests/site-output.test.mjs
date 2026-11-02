@@ -6,12 +6,13 @@ const readPage = (path) => readFile(new URL(`../dist/${path}`, import.meta.url),
 
 const assertLabOrder = (page) => {
   const home = page.indexOf('data-home-status-panel');
-  const meshtastic = page.indexOf('data-meshtastic-panel');
   const metrics = page.indexOf('data-metrics-panel');
+  const meshtastic = page.indexOf('data-meshtastic-panel');
+  const meshtasticStatus = page.indexOf('data-meshtastic-status-panel');
   const relay = page.indexOf('data-relay-panel');
 
-  assert.ok(home !== -1 && meshtastic !== -1 && metrics !== -1 && relay !== -1);
-  assert.ok(home < meshtastic && meshtastic < metrics && metrics < relay);
+  assert.ok(home !== -1 && metrics !== -1 && meshtastic !== -1 && meshtasticStatus !== -1 && relay !== -1);
+  assert.ok(home < metrics && metrics < meshtastic && meshtastic < meshtasticStatus && meshtasticStatus < relay);
 };
 
 test("generates bilingual portfolio entries without a portrait", async () => {
@@ -50,13 +51,20 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /data-good-label="Buena"/);
   assert.match(spanish, /data-regular-label="Regular"/);
   assert.match(spanish, /data-bad-label="Mala"/);
-  assert.match(spanish, /Malla Meshtastic/);
+  assert.match(spanish, /Estado agregado de una pasarela Meshtastic/);
   assert.match(spanish, /data-meshtastic-panel/);
-  assert.match(spanish, /data-local-url="http:\/\/127\.0\.0\.1:8787" data-production-url="https:\/\/lab\.destaben\.dev"/);
+  assert.match(spanish, /Últimas 5 actividades públicas/);
+  assert.match(spanish, /Enviar a MediumFast/);
+  assert.match(spanish, /Enviando mensaje a la radio/);
+  assert.match(spanish, /La pasarela ha aceptado el mensaje para su difusión/);
+  assert.match(spanish, /El envío público estará disponible tras configurar la verificación antiabuso/);
+  assert.match(spanish, /<textarea[^>]*disabled/);
+  assert.match(spanish, /Estado de la malla Meshtastic/);
+  assert.match(spanish, /data-meshtastic-status-panel/);
   assert.match(spanish, /data-loading-label="Consultando malla"/);
   assert.match(spanish, /data-unavailable-label="La malla no está disponible ahora\."/);
   assert.doesNotMatch(spanish, /Último nodo visto/);
-  assert.match(spanish, /Envío protegido/);
+  assert.match(spanish, /Solo se publican contadores agregados y el último mensaje de cada canal público/);
   assertLabOrder(spanish);
   assert.doesNotMatch(spanish, /data-inbox-source-label/);
   assert.match(spanish, /Reticulum online/);
@@ -87,13 +95,19 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(english, /Home monitoring and automation/);
   assert.match(english, /Check the current state of my home while preserving privacy\./);
   assert.match(english, /Protected data/);
-  assert.match(english, /Meshtastic mesh/);
-  assert.match(english, /data-meshtastic-panel/);
+  assert.match(english, /Meshtastic mesh status/);
+  assert.match(english, /data-meshtastic-status-panel/);
   assert.match(english, /data-loading-label="Checking mesh"/);
   assert.match(english, /data-unavailable-label="The mesh is unavailable right now\."/);
   assert.doesNotMatch(english, /Latest node seen/);
-  assert.match(english, /Protected sending/);
+  assert.match(english, /Only aggregate counts and the latest message of each public channel are published/);
   assert.match(english, /Air quality/);
+  assert.match(english, /Aggregate status for a Meshtastic gateway/);
+  assert.match(english, /Last 5 public activities/);
+  assert.match(english, /Send to MediumFast/);
+  assert.match(english, /Sending message to the radio/);
+  assert.match(english, /The gateway accepted the message for broadcast/);
+  assert.match(english, /Public sending will be available after anti-abuse verification is configured/);
   assertLabOrder(english);
   assert.doesNotMatch(spanish, /profile\.jpg/);
   assert.doesNotMatch(english, /Portrait of/);
@@ -102,17 +116,17 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.doesNotMatch(english, /<footer class="shell site-footer">[\s\S]*?<a /);
 });
 
-const meshtasticSection = (page) => {
-  const start = page.indexOf("data-meshtastic-panel");
+const meshtasticStatusSection = (page) => {
+  const start = page.indexOf("data-meshtastic-status-panel");
   assert.notEqual(start, -1);
   return page.slice(start, page.indexOf("</article>", start));
 };
 
-test("publishes the Meshtastic channel panel with localized labels and a contact note without an address", async () => {
+test("publishes the Meshtastic status panel with channel labels and a contact note without an address", async () => {
   const [spanish, english] = await Promise.all([readPage("index.html"), readPage("en/index.html")]);
 
-  const spanishPanel = meshtasticSection(spanish);
-  assert.match(spanishPanel, /data-meshtastic-channels/);
+  const spanishPanel = meshtasticStatusSection(spanish);
+  assert.match(spanishPanel, /data-meshtastic-status-channels/);
   assert.match(spanishPanel, />Canales públicos</);
   assert.match(spanishPanel, /data-channel-label="Canal"/);
   assert.match(spanishPanel, /data-last-message-label="Último mensaje"/);
@@ -124,8 +138,8 @@ test("publishes the Meshtastic channel panel with localized labels and a contact
   assert.match(spanishPanel, /contacta a través de los enlaces de esta página/);
   assert.doesNotMatch(spanishPanel, /@|mailto:/);
 
-  const englishPanel = meshtasticSection(english);
-  assert.match(englishPanel, /data-meshtastic-channels/);
+  const englishPanel = meshtasticStatusSection(english);
+  assert.match(englishPanel, /data-meshtastic-status-channels/);
   assert.match(englishPanel, />Public channels</);
   assert.match(englishPanel, /data-channel-label="Channel"/);
   assert.match(englishPanel, /data-last-message-label="Last message"/);
