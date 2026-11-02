@@ -1,8 +1,9 @@
 ---
-import type { MeshtasticLab } from "../data/portfolio";
+import type { MeshtasticLab, MeshtasticStatusLab } from "../data/portfolio";
+import MeshtasticStatusSection from "./MeshtasticStatusLab.astro";
 
-interface Props { lab: MeshtasticLab; }
-const { lab } = Astro.props;
+interface Props { lab: MeshtasticLab; status?: MeshtasticStatusLab; }
+const { lab, status } = Astro.props;
 const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || "";
 ---
 
@@ -14,6 +15,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || "";
     <section aria-labelledby={`${lab.id}-gateway`}><h4 id={`${lab.id}-gateway`}>{lab.gatewayLabel}</h4><p class="meshtastic-node-name" data-meshtastic-node-name>--</p><dl class="meshtastic-readings"><div><dt>{lab.uptimeLabel}</dt><dd data-meshtastic-uptime>--</dd></div><div><dt>{lab.batteryLabel}</dt><dd data-meshtastic-battery>--</dd></div><div><dt>{lab.voltageLabel}</dt><dd data-meshtastic-voltage>--</dd></div></dl></section>
     <section aria-labelledby={`${lab.id}-network`}><h4 id={`${lab.id}-network`}>{lab.networkLabel}</h4><dl class="meshtastic-readings"><div><dt>{lab.nodesLabel}</dt><dd data-meshtastic-nodes>--</dd></div><div><dt>{lab.channelUtilizationLabel}</dt><dd data-meshtastic-channel-use>--</dd></div><div><dt>{lab.airtimeLabel}</dt><dd data-meshtastic-airtime>--</dd></div></dl></section>
   </div>
+  {status && <MeshtasticStatusSection lab={status} />}
   <section class="meshtastic-activity" aria-labelledby={`${lab.id}-activity`}><div><h4 id={`${lab.id}-activity`}>{lab.latestActivityLabel}</h4></div><p data-meshtastic-no-activity>{lab.noActivityLabel}</p><ol data-meshtastic-activity-list hidden></ol></section>
   <section class="meshtastic-send" aria-labelledby={`${lab.id}-send`}><h4 id={`${lab.id}-send`}>{lab.sendTitle}</h4><form data-meshtastic-send-form><label>{lab.sendLabel}<textarea data-meshtastic-message-input placeholder={lab.sendPlaceholder} maxlength="237" disabled></textarea></label><div class="meshtastic-turnstile" data-meshtastic-turnstile></div><button data-meshtastic-send-button type="submit" disabled>{lab.sendLabel}</button></form><p class="meshtastic-send-status" data-meshtastic-send-status data-state="unavailable" role="status" aria-live="polite">{lab.sendUnavailableLabel}</p></section>
   <p class="meshtastic-refreshed" data-meshtastic-refreshed></p>
