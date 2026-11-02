@@ -60,5 +60,7 @@ jobs:
       - name: Check, test, and build site
         run: npm run verify
         env:
-          # Public site key (not a secret): use the repository variable only, so PR code never receives secrets.
+          # The default read-only token avoids unauthenticated GitHub API rate limits during the build.
+          GITHUB_TOKEN: ${{ github.token }}
+          # Public site key (not a secret): read from the repository variable only; this workflow references no secrets.
           PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
