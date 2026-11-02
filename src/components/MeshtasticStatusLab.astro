@@ -26,7 +26,8 @@ const { lab } = Astro.props;
 <script>
   // data-lab-state drives the card styling in global.css: "planned" for loading and
   // unavailable, "active" once a valid status payload has been rendered.
-  const requestTimeoutMs = 8000;
+  // Covers the relay's worst cold refresh: its 10 second refresh deadline plus a final 5 second read.
+  const requestTimeoutMs = 20000;
   const maxChannels = 16;
   const maxChannelNameLength = 32;
   const maxMessageTextLength = 200;

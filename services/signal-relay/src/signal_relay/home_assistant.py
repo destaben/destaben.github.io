@@ -39,6 +39,8 @@ _MAX_HOPS = 7
 # Largest epoch second accepted as a message time; keeps the conversion inside datetime's range.
 _MAX_EPOCH_SECONDS = 4_102_444_800
 _NODE_ID = re.compile(r"![0-9A-Fa-f]{8}")
+# A node ID written in message text: an exclamation mark, then at least eight hexadecimal digits.
+_NODE_ID_IN_TEXT = re.compile(r"!([0-9A-Fa-f]{8})[0-9A-Fa-f]*")
 # Word tokens that mark an entity or name as a direct message. Any hit excludes the channel. This is an extra
 # layer only: publication is default-deny through SIGNAL_RELAY_MESHTASTIC_CHANNEL_ALLOWLIST.
 _DIRECT_MESSAGE_TOKENS = frozenset({
@@ -391,7 +393,7 @@ class MeshtasticLabClient(_HomeAssistantClient):
         raw = self._field_value(attributes, "text") if "text" in self._channel_fields else state.get("state")
         if not isinstance(raw, str):
             return None
-        text = _clean_text(raw, _MAX_MESSAGE_TEXT_LENGTH)
+        text = _mask_node_ids(_clean_text(raw, _MAX_MESSAGE_TEXT_LENGTH))
         if not text or text.casefold() in _PLACEHOLDER_STATES:
             return None
         return text
@@ -449,6 +451,11 @@ def _without_phrase(words: list[str], phrase: list[str]) -> list[str]:
         kept.append(words[index])
         index += 1
     return kept
+
+
+def _mask_node_ids(text: str) -> str:
+    """Masks every node ID written in message text the same way as the sender field: six hex digits, then **."""
+    return _NODE_ID_IN_TEXT.sub(lambda match: "!" + match.group(0)[1:7] + "**", text)
 
 
 def _masked_node_id(value: object) -> str | None:

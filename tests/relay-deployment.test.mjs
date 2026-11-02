@@ -52,3 +52,12 @@ test("uses one documented node-count limit in the relay and the front end", asyn
   assert.equal(frontEndLimit, relayLimit);
   assert.match(docs, /whole numbers from 0 to 100000/);
 });
+
+
+test("gives the browser enough time for a cold relay refresh", async () => {
+  const panel = await readRepositoryFile("src/components/MeshtasticStatusLab.astro");
+  const timeout = Number(panel.match(/const requestTimeoutMs = ([0-9_]+);/)?.[1].replaceAll("_", ""));
+
+  // The relay's worst case is its 10 second refresh deadline plus a final 5 second read.
+  assert.ok(timeout >= 15_000, `requestTimeoutMs must cover the worst cold refresh, got ${timeout}`);
+});

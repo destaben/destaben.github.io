@@ -1265,3 +1265,34 @@ def test_direct_message_words_in_a_custom_channel_prefix_exclude_the_channel():
 
 def test_the_relay_node_count_limit_is_the_documented_value():
     assert home_assistant._MAX_NODE_COUNT == 100_000
+
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("ping !52302e42", "ping !52302e**"),
+    ("!52302e42 and !7E5D1A42 both", "!52302e** and !7E5D1A** both"),
+    ("ping !ABCDEF12.", "ping !ABCDEF**."),
+    ("reach me at !abcdef12, thanks", "reach me at !abcdef**, thanks"),
+    ("short !abc and bare 52302e42 stay", "short !abc and bare 52302e42 stay"),
+])
+def test_node_ids_inside_message_text_are_masked_like_the_sender_field(text, expected):
+    client = FixtureMeshtastic(meshtastic_responses({
+        "/api/states": [mesh_state(CHANNEL_PREFIX + "longfast", "state", message_attributes(message=text))],
+    }))
+
+    channel = client.status()["channels"][0]
+
+    assert channel["last"]["text"] == expected
+
+
+def test_a_full_node_id_in_message_text_never_appears_in_the_projection():
+    client = FixtureMeshtastic(meshtastic_responses({
+        "/api/states": [mesh_state(CHANNEL_PREFIX + "longfast", "state", message_attributes(message="ping !7e5d1a42 from !7E5D1A99"))],
+    }))
+
+    rendered = json.dumps(client.status())
+
+    assert "!7e5d1a**" in rendered
+    assert "!7E5D1A**" in rendered
+    assert "7e5d1a42" not in rendered
+    assert "7E5D1A99" not in rendered

@@ -85,6 +85,8 @@ These changes reach existing deployments when they run this relay version:
 - Entity domains may start with a digit, as Home Assistant allows.
 - Public TCP node URLs additionally reject 6to4, local-use NAT64, Teredo, and router or home-network hostnames such as `.box`, `.router`, `.gateway`, `.modem`, `.wan`, `.domain` and `.mshome.net`.
 - The Meshtastic status cache is clamped to at least 900 seconds, as documented. The Meshtastic send projection keeps its 15-second floor.
+- Node IDs written inside published message text are masked the same way as the sender field, so `!52302e42` becomes `!52302e**`.
+- Malformed Meshtastic or Home Assistant entity IDs, and invalid channel allowlist, denylist, prefix, or field settings, stop the relay at startup with an error that names the setting and never echoes the value.
 - Channels publish only when they are allowlisted in `SIGNAL_RELAY_MESHTASTIC_CHANNEL_ALLOWLIST`. An empty allowlist publishes no channels and omits `channels` entirely.
 - The `lastNode` field and `SIGNAL_RELAY_MESHTASTIC_LAST_NODE_ENTITY_ID` are removed. A leftover value is ignored.
 - Counts above 100000 are rejected with `503 meshtastic_status_unavailable`.

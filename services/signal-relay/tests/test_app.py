@@ -878,3 +878,20 @@ def test_meshtastic_message_requires_turnstile_and_respects_cooldown(tmp_path, m
             json={"message": "Again", "turnstileToken": "token"},
             headers={"X-Real-IP": "203.0.113.10"},
         ).status_code == 429
+
+
+def test_meshtastic_route_masks_node_ids_inside_published_message_text(tmp_path, monkeypatch):
+    states = [{
+        "entity_id": "meshtastic.gateway_private_channel_longfast", "state": "state",
+        "last_changed": "2026-09-25T08:14:00+00:00",
+        "attributes": {"message": "ping !7e5d1a42 and !7E5D1A99", "from_id": "!7e5d1a42", "hop_start": 3, "hop_limit": 1},
+    }]
+    monkeypatch.setattr(home_assistant, "urlopen", _fake_home_assistant_api(_meshtastic_channel_responses(states)))
+
+    with TestClient(_meshtastic_channel_app(tmp_path)) as client:
+        response = client.get("/v1/lab/meshtastic-status")
+
+    assert response.status_code == 200
+    assert response.json()["channels"][0]["last"]["text"] == "ping !7e5d1a** and !7E5D1A**"
+    for full_id in ("7e5d1a42", "7E5D1A99", "7e5d1a42".upper()):
+        assert full_id not in response.text, full_id
