@@ -5,7 +5,7 @@ interface Props { lab: MeshtasticStatusLab; }
 const { lab } = Astro.props;
 ---
 
-<section class="meshtastic-status-panel" data-lab-state="planned" data-meshtastic-status-paneldata-local-url="http://127.0.0.1:8787" data-production-url="https://lab.destaben.dev" data-loading-label={lab.loadingLabel} data-unavailable-label={lab.unavailableLabel} data-available-label={lab.availableLabel} data-channel-label={lab.channelLabel} data-last-message-label={lab.lastMessageLabel} data-node-label={lab.nodeLabel} data-time-label={lab.timeLabel} data-hops-label={lab.hopsLabel} data-no-messages-label={lab.noMessagesLabel} aria-labelledby={`${lab.id}-title`}>
+<section class="meshtastic-status-panel" data-lab-state="planned" data-meshtastic-status-panel data-local-url="http://127.0.0.1:8787" data-production-url="https://lab.destaben.dev" data-loading-label={lab.loadingLabel} data-unavailable-label={lab.unavailableLabel} data-available-label={lab.availableLabel} data-channel-label={lab.channelLabel} data-last-message-label={lab.lastMessageLabel} data-node-label={lab.nodeLabel} data-time-label={lab.timeLabel} data-hops-label={lab.hopsLabel} data-no-messages-label={lab.noMessagesLabel} aria-labelledby={`${lab.id}-title`}>
   <div class="lab-card-header"><p class="lab-status">{lab.statusLabel}</p><span class="meshtastic-status-state" data-meshtastic-status-state role="status">{lab.loadingLabel}</span></div>
   <h4 id={`${lab.id}-title`}>{lab.title}</h4>
   <p>{lab.summary}</p>
