@@ -229,7 +229,7 @@ def _meshtastic_channel_responses(states=None):
     }
 
 
-def _meshtastic_channel_app(tmp_path):
+def _meshtastic_channel_app(tmp_path, channel_allowlist=frozenset({"Longfast"})):
     return create_app(
         Settings(
             mode="demo", allowed_origins={"http://127.0.0.1:4321"}, rate_limit=2,
@@ -237,8 +237,40 @@ def _meshtastic_channel_app(tmp_path):
             telegram_bot_token=None, telegram_chat_id=None,
             **_HOME_ASSISTANT_SETTINGS, meshtastic_entity_ids=_MESHTASTIC_ENTITY_IDS,
             meshtastic_channel_fields=_MESHTASTIC_CHANNEL_FIELDS,
+            meshtastic_channel_allowlist=frozenset(channel_allowlist),
         )
     )
+
+
+def test_meshtastic_route_omits_channels_when_no_channel_is_allowlisted(tmp_path, monkeypatch):
+    states = [{
+        "entity_id": "meshtastic.gateway_private_channel_longfast", "state": "Hello mesh",
+        "last_changed": "2026-09-25T08:14:00+00:00", "attributes": {"message": "Hello mesh", "from_id": "!7e5d1a42"},
+    }]
+    monkeypatch.setattr(home_assistant, "urlopen", _fake_home_assistant_api(_meshtastic_channel_responses(states)))
+
+    with TestClient(_meshtastic_channel_app(tmp_path, channel_allowlist=frozenset())) as client:
+        response = client.get("/v1/lab/meshtastic-status")
+
+    assert response.status_code == 200
+    assert "channels" not in response.json()
+    assert "Hello mesh" not in response.text
+
+
+def test_meshtastic_route_does_not_publish_a_person_named_channel_that_is_not_allowlisted(tmp_path, monkeypatch):
+    states = [{
+        "entity_id": "meshtastic.gateway_private_channel_alice_phone", "state": "SENTINEL-ALICE-TEXT",
+        "last_changed": "2026-09-25T08:14:00+00:00", "attributes": {"message": "SENTINEL-ALICE-TEXT", "from_id": "!7e5d1a42", "friendly_name": "Alice"},
+    }]
+    monkeypatch.setattr(home_assistant, "urlopen", _fake_home_assistant_api(_meshtastic_channel_responses(states)))
+
+    with TestClient(_meshtastic_channel_app(tmp_path)) as client:
+        response = client.get("/v1/lab/meshtastic-status")
+
+    assert response.status_code == 200
+    assert response.json()["channels"] == []
+    assert "SENTINEL" not in response.text
+    assert "Alice" not in response.text
 
 
 def test_meshtastic_route_publishes_only_the_whitelisted_channel_projection(tmp_path, monkeypatch):
@@ -386,6 +418,34 @@ def test_channel_denylist_entries_are_validated_without_echoing_them(monkeypatch
 
     assert str(error.value) == "SIGNAL_RELAY_MESHTASTIC_CHANNEL_DENYLIST must contain channel names of 1 to 32 letters, digits, spaces, underscores, or hyphens"
     assert bad_name not in str(error.value)
+
+
+def test_channel_allowlist_is_parsed_from_the_environment_and_empty_means_no_channels(monkeypatch):
+    monkeypatch.setenv("SIGNAL_RELAY_MESHTASTIC_CHANNEL_ALLOWLIST", " Longfast, Field Team ,,")
+
+    assert Settings.from_environment().meshtastic_channel_allowlist == frozenset({"Longfast", "Field Team"})
+
+    monkeypatch.setenv("SIGNAL_RELAY_MESHTASTIC_CHANNEL_ALLOWLIST", "")
+
+    assert Settings.from_environment().meshtastic_channel_allowlist == frozenset()
+
+
+@pytest.mark.parametrize("bad_name", ["bad/name", "x" * 33, "<script>", "name?x=1", "Ünïcode name"])
+def test_channel_allowlist_entries_are_validated_without_echoing_them(monkeypatch, bad_name):
+    monkeypatch.setenv("SIGNAL_RELAY_MESHTASTIC_CHANNEL_ALLOWLIST", f"Longfast,{bad_name}")
+
+    with pytest.raises(ValueError) as error:
+        Settings.from_environment()
+
+    assert str(error.value) == "SIGNAL_RELAY_MESHTASTIC_CHANNEL_ALLOWLIST must contain channel names of 1 to 32 letters, digits, spaces, underscores, or hyphens"
+    assert bad_name not in str(error.value)
+
+
+@pytest.mark.parametrize("configured, effective", [("60", 900), ("0", 900), ("899", 900), ("900", 900), ("1200", 1200)])
+def test_status_cache_seconds_has_a_900_second_floor(monkeypatch, configured, effective):
+    monkeypatch.setenv("SIGNAL_RELAY_MESHTASTIC_STATUS_CACHE_SECONDS", configured)
+
+    assert Settings.from_environment().meshtastic_status_cache_seconds == effective
 
 
 @pytest.mark.parametrize("bad_value", [

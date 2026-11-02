@@ -4,16 +4,16 @@ Operator checklist for locating Meshtastic entities in a Home Assistant installa
 
 Run the commands on the host where Home Assistant runs. They read local files inside the Home Assistant container. They do not call the HTTP API, do not need an access token, and do not change configuration.
 
-Replace `homeassistant` with your container name. The examples use `sudo` because Docker commonly requires it on the host; drop it if your user can run Docker directly. To locate the container:
+Replace `homeassistant` with your container name. The examples assume the system Docker context, which is the default, and a user in the `docker` group. Confirm the context first: `docker context show` must print `default`. To locate the container:
 
 ```sh
-sudo docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
+docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
 ```
 
 ## 1. Confirm the Meshtastic integration is installed
 
 ```sh
-sudo docker exec homeassistant sh -c 'find /config/custom_components /usr/local/lib/python*/site-packages/homeassistant/components -maxdepth 2 -type d -iname "*meshtastic*" 2>/dev/null'
+docker exec homeassistant sh -c 'find /config/custom_components /usr/local/lib/python*/site-packages/homeassistant/components -maxdepth 2 -type d -iname "*meshtastic*" 2>/dev/null'
 ```
 
 ## 2. List Meshtastic entities
@@ -21,17 +21,17 @@ sudo docker exec homeassistant sh -c 'find /config/custom_components /usr/local/
 This command reads the local entity registry and prints each entity ID, display name, platform, and disabled flag. It does not print states, attributes, positions, or radio identifiers. Display names can still reveal channel or node names, so review them before sharing.
 
 ```sh
-sudo docker exec homeassistant python3 -c 'import json; registry=json.load(open("/config/.storage/core.entity_registry")); entries=registry.get("data", {}).get("entities", []); matches=[{"entity_id": entry.get("entity_id"), "name": entry.get("name") or entry.get("original_name"), "platform": entry.get("platform"), "disabled_by": entry.get("disabled_by")} for entry in entries if "meshtastic" in str(entry).lower()]; print(json.dumps(matches, indent=2, ensure_ascii=False))'
+docker exec homeassistant python3 -c 'import json; registry=json.load(open("/config/.storage/core.entity_registry")); entries=registry.get("data", {}).get("entities", []); matches=[{"entity_id": entry.get("entity_id"), "name": entry.get("name") or entry.get("original_name"), "platform": entry.get("platform"), "disabled_by": entry.get("disabled_by")} for entry in entries if "meshtastic" in str(entry).lower()]; print(json.dumps(matches, indent=2, ensure_ascii=False))'
 ```
 
-Note the gateway entity ID and the online and total node-count entity IDs. You need them in step 7. Channel entities are not configured one by one: the relay discovers every entity whose ID starts with the channel prefix (by default the gateway entity ID plus `_channel_`). Confirm that prefix in step 5.
+Note the gateway entity ID and the online and total node-count entity IDs. You need them in step 7. Channel entities are not configured one by one: the relay looks at entities whose ID starts with the channel prefix (by default the gateway entity ID plus `_channel_`), and publishes only the ones whose names are in the allowlist from step 7. Confirm that prefix in step 5.
 
 ## 3. List the config entry
 
 This shows which integration created the entities. It prints the entry ID, domain, title, version, and state. Review the title before sharing it.
 
 ```sh
-sudo docker exec homeassistant python3 -c 'import json; entries=json.load(open("/config/.storage/core.config_entries")).get("data", {}).get("entries", []); matches=[{"entry_id": entry.get("entry_id"), "domain": entry.get("domain"), "title": entry.get("title"), "version": entry.get("version"), "state": entry.get("state")} for entry in entries if "mesh" in str(entry.get("domain", "")).lower() or "mesh" in str(entry.get("title", "")).lower()]; print(json.dumps(matches, indent=2, ensure_ascii=False))'
+docker exec homeassistant python3 -c 'import json; entries=json.load(open("/config/.storage/core.config_entries")).get("data", {}).get("entries", []); matches=[{"entry_id": entry.get("entry_id"), "domain": entry.get("domain"), "title": entry.get("title"), "version": entry.get("version"), "state": entry.get("state")} for entry in entries if "mesh" in str(entry.get("domain", "")).lower() or "mesh" in str(entry.get("title", "")).lower()]; print(json.dumps(matches, indent=2, ensure_ascii=False))'
 ```
 
 ## 4. Review the integration's services
@@ -39,11 +39,11 @@ sudo docker exec homeassistant python3 -c 'import json; entries=json.load(open("
 Locate `services.yaml` and print it. If the first command returns more than one path, run the second command for each path.
 
 ```sh
-sudo docker exec homeassistant sh -c 'find /config/custom_components /usr/local/lib/python*/site-packages/homeassistant/components -path "*meshtastic*/services.yaml" -type f 2>/dev/null'
+docker exec homeassistant sh -c 'find /config/custom_components /usr/local/lib/python*/site-packages/homeassistant/components -path "*meshtastic*/services.yaml" -type f 2>/dev/null'
 ```
 
 ```sh
-sudo docker exec homeassistant sh -c 'cat /config/custom_components/meshtastic/services.yaml'
+docker exec homeassistant sh -c 'cat /config/custom_components/meshtastic/services.yaml'
 ```
 
 The public website must only use the read-only projection described in steps 5 to 8. It must never call a service that transmits over the radio.
@@ -57,24 +57,24 @@ Channel entity states may contain message text. Review every value in the output
 Replace `GATEWAY_ENTITY_ID` with the gateway entity ID from step 2. If your deployment sets `SIGNAL_RELAY_MESHTASTIC_CHANNEL_PREFIX` to something other than the gateway ID plus `_channel_`, change `prefix` to match it.
 
 ```sh
-sudo docker exec homeassistant python3 -c 'import json; gateway="GATEWAY_ENTITY_ID"; data=json.load(open("/config/.storage/core.restore_state")).get("data", {}); states=data.get("states", []); prefix=gateway + "_channel_"; matches=[{"entity_id": state.get("state", {}).get("entity_id"), "state": state.get("state", {}).get("state"), "last_changed": state.get("state", {}).get("last_changed")} for state in states if (entity_id := state.get("state", {}).get("entity_id", "")) == gateway or entity_id.startswith(prefix) or (entity_id.startswith("sensor.") and "_stats_nodes_" in entity_id)]; print(json.dumps(matches, indent=2, ensure_ascii=False))'
+docker exec homeassistant python3 -c 'import json; gateway="GATEWAY_ENTITY_ID"; data=json.load(open("/config/.storage/core.restore_state")).get("data", {}); states=data.get("states", []); prefix=gateway + "_channel_"; matches=[{"entity_id": state.get("state", {}).get("entity_id"), "state": state.get("state", {}).get("state"), "last_changed": state.get("state", {}).get("last_changed")} for state in states if (entity_id := state.get("state", {}).get("entity_id", "")) == gateway or entity_id.startswith(prefix) or (entity_id.startswith("sensor.") and "_stats_nodes_" in entity_id)]; print(json.dumps(matches, indent=2, ensure_ascii=False))'
 ```
 
 ## 5b. Verify the channel and message fields (verify on the host)
 
-The relay can only publish what these fields expose, and it does not guess their names. This command prints, for each channel entity under the prefix, the attribute names, the value types, and three shape checks. It never prints attribute values, state values, or friendly names. The `node_id_shape` check is true only for a string shaped like `!` plus eight hexadecimal digits. The `hop_value` check is true for an integer from 0 to 7. The `dm_word` check is a looser substring test than the relay's whole-word exclusion, so `true` is a hint to review and not a guarantee in either direction.
+The relay can only publish what these fields expose, and it does not guess their names. This command prints, for each channel entity under the prefix, the attribute names, the value types, and three shape checks. It never prints attribute values, state values, or friendly names. The `node_id_shape` check is true only for a string shaped like `!` plus eight hexadecimal digits. The `hop_value` check is true for an integer from 0 to 7. The `dm_word` check applies the same word-token list as the relay to the entity suffix after the prefix and to the friendly name. It is a heuristic: a direct message with a neutral name shows `dm_word` false, so review every name yourself.
 
 Replace `GATEWAY_ENTITY_ID` as in step 5.
 
 ```sh
-sudo docker exec homeassistant python3 -c 'import json, re; gateway="GATEWAY_ENTITY_ID"; prefix=gateway + "_channel_"; data=json.load(open("/config/.storage/core.restore_state")).get("data", {}); states=[item.get("state", {}) for item in data.get("states", [])]; describe=lambda v: {"type": type(v).__name__, "node_id_shape": isinstance(v, str) and re.fullmatch(r"![0-9A-Fa-f]{8}", v) is not None, "hop_value": isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 7}; dm=lambda s: any(word in (str(s.get("entity_id", "")) + " " + str((s.get("attributes") or {}).get("friendly_name", ""))).lower() for word in ("dm", "direct", "private", "pm")); report=[{"entity_id": s.get("entity_id"), "state_type": type(s.get("state")).__name__, "dm_word": dm(s), "fields": {name: describe(value) for name, value in (s.get("attributes") or {}).items()}} for s in states if str(s.get("entity_id", "")).startswith(prefix)]; print(json.dumps(report, indent=2, ensure_ascii=False))'
+docker exec homeassistant python3 -c 'import json, re; gateway="GATEWAY_ENTITY_ID"; prefix=gateway + "_channel_"; data=json.load(open("/config/.storage/core.restore_state")).get("data", {}); states=[item.get("state", {}) for item in data.get("states", [])]; describe=lambda v: {"type": type(v).__name__, "node_id_shape": isinstance(v, str) and re.fullmatch(r"![0-9A-Fa-f]{8}", v) is not None, "hop_value": isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 7}; dm_tokens={"dm", "dms", "pm", "pms", "direct", "directa", "directas", "directo", "directos", "private", "privada", "privadas", "privado", "privados", "whisper", "secret"}; dm=lambda s: not dm_tokens.isdisjoint(set(re.split(r"[^a-z0-9]+", (str(s.get("entity_id", ""))[len(prefix):] + " " + str((s.get("attributes") or {}).get("friendly_name", ""))).lower()))); report=[{"entity_id": s.get("entity_id"), "state_type": type(s.get("state")).__name__, "dm_word": dm(s), "fields": {name: describe(value) for name, value in (s.get("attributes") or {}).items()}} for s in states if str(s.get("entity_id", "")).startswith(prefix)]; print(json.dumps(report, indent=2, ensure_ascii=False))'
 ```
 
 The restore-state file may not list every live entity, and the relay reads the live entity list. Treat a channel that is missing here as unverified, not as absent, and recheck it after the relay is recreated with the step 8 check.
 
 Use the output to decide each setting in step 7. Check each item:
 
-- **Channel discovery:** public channels should show `dm_word` false, and direct-message entities should show `dm_word` true. A direct-message entity with `dm_word` false would be published, so add its name to `SIGNAL_RELAY_MESHTASTIC_CHANNEL_DENYLIST` (step 7) before recreating the relay, and tell the maintainer that the detection words need extending.
+- **Channel discovery:** list in `SIGNAL_RELAY_MESHTASTIC_CHANNEL_ALLOWLIST` (step 7) only the names of public channels; an entity that is not allowlisted is never published. For each direct-message entity, add its name to `SIGNAL_RELAY_MESHTASTIC_CHANNEL_DENYLIST` (step 7) even if it is not allowlisted today, because `dm_word` is only a heuristic, and tell the maintainer when a direct message is missed by the token list.
 - **Text:** find the attribute that holds the message text. If the text is the entity state, leave `text` out of `SIGNAL_RELAY_MESHTASTIC_CHANNEL_FIELDS`. If it is an attribute, configure its name as `text`.
 - **Sender:** find the attribute with `node_id_shape` true. Configure its name as `node_id`. Without it, no message is published.
 - **Time:** an attribute with an ISO-8601 or epoch type can be configured as `timestamp`. Otherwise the entity's `last_changed` is used.
@@ -99,7 +99,10 @@ In the private directory where Signal Relay is deployed, set these values in its
 SIGNAL_RELAY_MESHTASTIC_ENTITY_IDS={"gateway": "GATEWAY_ENTITY_ID", "nodes_online": "ONLINE_COUNT_ENTITY_ID", "nodes_total": "TOTAL_COUNT_ENTITY_ID", ...all other required keys, one entity ID each...}
 # Optional. Defaults to the gateway entity ID plus "_channel_".
 SIGNAL_RELAY_MESHTASTIC_CHANNEL_PREFIX=
-# Optional comma-separated channel names to hide. Direct-message entities are always hidden.
+# Default-deny: comma-separated names of the only public channels to publish. Empty publishes no channels.
+# Each name is 1 to 32 letters, digits, spaces, underscores, or hyphens; matching ignores case and treats spaces, underscores, and hyphens alike.
+SIGNAL_RELAY_MESHTASTIC_CHANNEL_ALLOWLIST=
+# Extra layer applied after the allowlist: names hidden even when allowlisted, with the same name rules.
 SIGNAL_RELAY_MESHTASTIC_CHANNEL_DENYLIST=
 # Optional JSON map from published fields to the attribute names verified in step 5b.
 # Leave empty to publish channel names without messages. Use the names verified on the host.
@@ -107,12 +110,12 @@ SIGNAL_RELAY_MESHTASTIC_CHANNEL_FIELDS='{"text": "TEXT_ATTRIBUTE", "node_id": "N
 SIGNAL_RELAY_MESHTASTIC_STATUS_CACHE_SECONDS=900
 ```
 
-The map must contain every key listed in `services/signal-relay/README.md`; the three status keys are required before `GET /v1/lab/meshtastic-status` becomes available. The gateway entity must report exactly `Connected`. Remove any field from `SIGNAL_RELAY_MESHTASTIC_CHANNEL_FIELDS` that you have not verified; an unset field is never read. The relay rejects negative, non-integer, or inconsistent counts, and never publishes entity IDs, Home Assistant attributes, author names, serial numbers, MAC addresses, full node IDs, or direct messages. A failure while discovering channels omits `channels` and keeps the counts available. Do not lower the cache below 900 seconds.
+The map must contain every key listed in `services/signal-relay/README.md`; the three status keys are required before `GET /v1/lab/meshtastic-status` becomes available. The gateway entity must report exactly `Connected`. Remove any field from `SIGNAL_RELAY_MESHTASTIC_CHANNEL_FIELDS` that you have not verified; an unset field is never read. The relay rejects negative, non-integer, or inconsistent counts, and never publishes entity IDs, Home Assistant attributes, author names, serial numbers, MAC addresses, full node IDs, or direct messages. The relay refuses to start on a malformed entity ID or an invalid channel setting, so check that the container is running after recreation. A failure while discovering channels omits `channels` and keeps the counts available. Values below 900 seconds for the status cache are raised to 900.
 
 Recreate only the relay after changing its environment:
 
 ```sh
-sudo docker compose up -d --force-recreate signal-relay
+docker compose up -d --force-recreate signal-relay
 ```
 
 ## 8. Verify the projection without exposing private data
@@ -120,7 +123,7 @@ sudo docker compose up -d --force-recreate signal-relay
 Run this check on the relay host. It confirms that the route returns only the public contract. It checks key names, the channel count, and the masked node-ID shape, and it does not print any values:
 
 ```sh
-sudo docker compose exec -T signal-relay python -c 'import json, re; from urllib.request import urlopen; payload=json.load(urlopen("http://127.0.0.1:8787/v1/lab/meshtastic-status")); assert payload.get("status") == "available"; assert set(payload) <= {"status", "onlineNodes", "totalNodes", "channels", "refreshedAt"}; assert isinstance(payload["onlineNodes"], int) and isinstance(payload["totalNodes"], int) and payload["onlineNodes"] <= payload["totalNodes"]; channels=payload.get("channels", []); assert len(channels) <= 16; assert all(set(channel) <= {"name", "last"} for channel in channels); assert all(set(channel["last"]) <= {"nodeId", "text", "time", "hops"} and re.fullmatch(r"![0-9A-Fa-f]{6}\*\*", channel["last"]["nodeId"]) for channel in channels if "last" in channel)'
+docker compose exec -T signal-relay python -c 'import json, re; from urllib.request import urlopen; payload=json.load(urlopen("http://127.0.0.1:8787/v1/lab/meshtastic-status")); assert payload.get("status") == "available"; assert set(payload) <= {"status", "onlineNodes", "totalNodes", "channels", "refreshedAt"}; assert isinstance(payload["onlineNodes"], int) and isinstance(payload["totalNodes"], int) and payload["onlineNodes"] <= payload["totalNodes"]; channels=payload.get("channels", []); assert len(channels) <= 16; assert all(set(channel) <= {"name", "last"} for channel in channels); assert all(set(channel["last"]) <= {"nodeId", "text", "time", "hops"} and re.fullmatch(r"![0-9A-Fa-f]{6}\*\*", channel["last"]["nodeId"]) for channel in channels if "last" in channel)'
 ```
 
-If `channels` is missing, channel discovery failed while the counts still succeeded. Check the channel prefix, the denylist, and whether the relay's token can read the entity states. If the route returns `503 meshtastic_status_unavailable`, private configuration is missing or Home Assistant did not answer the counts. Do not open a host port or publish Home Assistant to troubleshoot it.
+If `channels` is missing, either `SIGNAL_RELAY_MESHTASTIC_CHANNEL_ALLOWLIST` is empty or channel discovery failed while the counts still succeeded. Check the allowlist, the channel prefix, the denylist, and whether the relay's token can read the entity states. If the route returns `503 meshtastic_status_unavailable`, private configuration is missing or Home Assistant did not answer the counts. Do not open a host port or publish Home Assistant to troubleshoot it.

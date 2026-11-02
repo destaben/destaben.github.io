@@ -64,9 +64,14 @@ CHANNEL_PREFIX = "meshtastic.gateway_private_channel_"
 MESH_FIELDS = {"text": "message", "node_id": "from_id", "hop_start": "hop_start", "hop_limit": "hop_limit"}
 
 
+# Channels are published only when named here; the fixture allowlists the names the channel tests expect to appear.
+TEST_CHANNEL_ALLOWLIST = ("Longfast", "A", "B", "C", "D", "Ok", "Dmitri", "Telemetry", "Secret Room")
+
+
 class FixtureMeshtastic(ResponsesMixin, MeshtasticLabClient):
     def __init__(self, responses, *, cache_seconds=1, **options):
         options.setdefault("channel_fields", MESH_FIELDS)
+        options.setdefault("channel_allowlist", TEST_CHANNEL_ALLOWLIST)
         super().__init__(
             "http://home-assistant", "private-token", GATEWAY,
             "sensor.private_online", "sensor.private_total",
@@ -427,7 +432,7 @@ def test_channels_without_a_usable_name_are_dropped_and_long_names_are_truncated
             mesh_state(CHANNEL_PREFIX + "___", "three", message_attributes()),
             mesh_state(CHANNEL_PREFIX + "x" * 40, "four", message_attributes()),
         ],
-    }))
+    }), channel_allowlist=("X" + "x" * 31, "Longfast"))
 
     names = [channel["name"] for channel in client.status()["channels"]]
 
@@ -438,7 +443,7 @@ def test_channels_without_a_usable_name_are_dropped_and_long_names_are_truncated
 def test_at_most_sixteen_channels_are_published_in_entity_id_order():
     client = FixtureMeshtastic(meshtastic_responses({
         "/api/states": [mesh_state(f"{CHANNEL_PREFIX}c{index:02d}", "hi", message_attributes()) for index in reversed(range(20))],
-    }))
+    }), channel_allowlist=[f"c{index:02d}" for index in range(20)])
 
     names = [channel["name"] for channel in client.status()["channels"]]
 
@@ -622,7 +627,7 @@ def test_channel_discovery_that_starts_after_the_refresh_deadline_omits_channels
     monkeypatch.setattr(home_assistant, "urlopen", slow_urlopen)
     client = MeshtasticLabClient(
         "http://home-assistant", "private-token", GATEWAY, "sensor.private_online", "sensor.private_total",
-        channel_fields=MESH_FIELDS,
+        channel_fields=MESH_FIELDS, channel_allowlist=("Longfast",),
     )
 
     status = client.status()
@@ -643,13 +648,85 @@ def test_channels_are_discovered_with_one_entity_list_read(monkeypatch):
     monkeypatch.setattr(home_assistant, "urlopen", fake_urlopen)
     client = MeshtasticLabClient(
         "http://home-assistant", "private-token", GATEWAY, "sensor.private_online", "sensor.private_total",
-        channel_fields=MESH_FIELDS,
+        channel_fields=MESH_FIELDS, channel_allowlist=("Longfast",),
     )
 
     client.status()
 
     assert requested.count("/api/states") == 1
     assert "/api/states/sensor.private_online" in requested
+
+
+def test_a_dm_like_entity_named_after_a_person_is_not_published_unless_allowlisted():
+    # No direct-message token appears in this name, so only the allowlist keeps it private.
+    client = FixtureMeshtastic(meshtastic_responses({
+        "/api/states": [mesh_state(CHANNEL_PREFIX + "alice_phone", "SENTINEL-ALICE-TEXT", message_attributes(friendly_name="Alice"))],
+    }), channel_allowlist=("Longfast",))
+
+    status = client.status()
+
+    assert status["channels"] == []
+    assert "SENTINEL" not in json.dumps(status)
+    assert "Alice" not in json.dumps(status)
+
+
+def test_only_allowlisted_channels_are_published():
+    client = FixtureMeshtastic(meshtastic_responses({
+        "/api/states": [
+            mesh_state(CHANNEL_PREFIX + "longfast", "Hello mesh", message_attributes()),
+            mesh_state(CHANNEL_PREFIX + "alice_phone", "SENTINEL-ALICE-TEXT", message_attributes(friendly_name="Alice")),
+            mesh_state(CHANNEL_PREFIX + "family", "SENTINEL-FAMILY-TEXT", message_attributes()),
+        ],
+    }), channel_allowlist=("Longfast",))
+
+    status = client.status()
+
+    assert [channel["name"] for channel in status["channels"]] == ["Longfast"]
+    assert status["channels"][0]["last"]["text"] == "Hello mesh"
+    assert "SENTINEL" not in json.dumps(status)
+
+
+def test_allowlist_entries_match_channel_names_after_normalization():
+    client = FixtureMeshtastic(meshtastic_responses({
+        "/api/states": [mesh_state(CHANNEL_PREFIX + "field_team", "Hello", message_attributes())],
+    }), channel_allowlist=("  FIELD team ",))
+
+    assert [channel["name"] for channel in client.status()["channels"]] == ["Field team"]
+
+
+def test_denylist_takes_precedence_over_the_allowlist():
+    client = FixtureMeshtastic(meshtastic_responses({
+        "/api/states": [mesh_state(CHANNEL_PREFIX + "longfast", "Hello mesh", message_attributes())],
+    }), channel_allowlist=("Longfast",), channel_denylist={"LONGFAST"})
+
+    assert client.status()["channels"] == []
+
+
+def test_an_empty_allowlist_publishes_no_channels_and_reads_no_channel_list():
+    client = FixtureMeshtastic(meshtastic_responses({
+        "/api/states": [mesh_state(CHANNEL_PREFIX + "longfast", "Hello mesh", message_attributes())],
+    }), channel_allowlist=())
+
+    status = client.status()
+
+    assert status["status"] == "available"
+    assert "channels" not in status
+    assert "/api/states" not in client.requests
+
+
+@pytest.mark.parametrize("slug", [
+    "directos", "directas", "privados", "privadas", "mensajes_directos", "directo_bob",
+    "whisper_bob", "secret_chat", "private_chat", "pm_alice", "dms", "dm_alice", "direct_chat",
+])
+def test_direct_message_tokens_exclude_a_channel_even_when_it_is_allowlisted(slug):
+    client = FixtureMeshtastic(meshtastic_responses({
+        "/api/states": [mesh_state(CHANNEL_PREFIX + slug, "SENTINEL-DM-TEXT", message_attributes())],
+    }), channel_allowlist=(slug,))
+
+    status = client.status()
+
+    assert status["channels"] == []
+    assert "SENTINEL" not in json.dumps(status)
 
 
 def test_meshtastic_status_is_cached_for_at_least_fifteen_minutes(clock):

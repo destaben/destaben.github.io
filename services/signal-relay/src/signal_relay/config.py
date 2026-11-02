@@ -205,7 +205,7 @@ def _entity_id_prefix(value: str | None, setting: str) -> str | None:
     return value
 
 
-def _channel_denylist(value: str | None) -> frozenset[str]:
+def _channel_names(value: str | None, setting: str) -> frozenset[str]:
     if not value:
         return frozenset()
     names = set()
@@ -215,7 +215,7 @@ def _channel_denylist(value: str | None) -> frozenset[str]:
             continue
         if not _CHANNEL_NAME_SETTING.fullmatch(name):
             raise ValueError(
-                "SIGNAL_RELAY_MESHTASTIC_CHANNEL_DENYLIST must contain channel names of 1 to 32 letters, digits, spaces, underscores, or hyphens"
+                f"{setting} must contain channel names of 1 to 32 letters, digits, spaces, underscores, or hyphens"
             )
         names.add(name)
     return frozenset(names)
@@ -261,6 +261,8 @@ class Settings:
     meshtastic_message_cooldown_seconds: int = 300
     # None derives the channel namespace from the gateway entity ID in meshtastic_entity_ids.
     meshtastic_channel_prefix: str | None = None
+    # Default-deny: only channels named here can be published. An empty allowlist publishes no channels.
+    meshtastic_channel_allowlist: frozenset[str] = frozenset()
     meshtastic_channel_denylist: frozenset[str] = frozenset()
     # Maps the fields text, node_id, timestamp, hop_start, and hop_limit to Home Assistant attribute names.
     meshtastic_channel_fields: dict[str, str] | None = None
@@ -316,9 +318,10 @@ class Settings:
                 int(os.environ.get("SIGNAL_RELAY_MESHTASTIC_MESSAGE_COOLDOWN_SECONDS", "300")), 60
             ),
             meshtastic_channel_prefix=_entity_id_prefix(os.environ.get("SIGNAL_RELAY_MESHTASTIC_CHANNEL_PREFIX"), "SIGNAL_RELAY_MESHTASTIC_CHANNEL_PREFIX"),
-            meshtastic_channel_denylist=_channel_denylist(os.environ.get("SIGNAL_RELAY_MESHTASTIC_CHANNEL_DENYLIST")),
+            meshtastic_channel_allowlist=_channel_names(os.environ.get("SIGNAL_RELAY_MESHTASTIC_CHANNEL_ALLOWLIST"), "SIGNAL_RELAY_MESHTASTIC_CHANNEL_ALLOWLIST"),
+            meshtastic_channel_denylist=_channel_names(os.environ.get("SIGNAL_RELAY_MESHTASTIC_CHANNEL_DENYLIST"), "SIGNAL_RELAY_MESHTASTIC_CHANNEL_DENYLIST"),
             meshtastic_channel_fields=_channel_fields(os.environ.get("SIGNAL_RELAY_MESHTASTIC_CHANNEL_FIELDS")),
-            meshtastic_status_cache_seconds=int(os.environ.get("SIGNAL_RELAY_MESHTASTIC_STATUS_CACHE_SECONDS", "900")),
+            meshtastic_status_cache_seconds=max(int(os.environ.get("SIGNAL_RELAY_MESHTASTIC_STATUS_CACHE_SECONDS", "900")), 900),
             public_tcp_node_aliases=public_tcp_node_aliases,
             public_tcp_node_urls=public_tcp_node_urls,
         )

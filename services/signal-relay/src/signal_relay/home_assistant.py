@@ -32,8 +32,12 @@ _MAX_HOPS = 7
 # Largest epoch second accepted as a message time; keeps the conversion inside datetime's range.
 _MAX_EPOCH_SECONDS = 4_102_444_800
 _NODE_ID = re.compile(r"![0-9A-Fa-f]{8}")
-# Word tokens that mark an entity or name as a direct message. Any hit excludes the channel (fail closed).
-_DIRECT_MESSAGE_TOKENS = frozenset({"dm", "dms", "direct", "directa", "directo", "pm", "pms", "private", "privada", "privado"})
+# Word tokens that mark an entity or name as a direct message. Any hit excludes the channel. This is an extra
+# layer only: publication is default-deny through SIGNAL_RELAY_MESHTASTIC_CHANNEL_ALLOWLIST.
+_DIRECT_MESSAGE_TOKENS = frozenset({
+    "dm", "dms", "pm", "pms", "direct", "directa", "directas", "directo", "directos",
+    "private", "privada", "privadas", "privado", "privados", "whisper", "secret",
+})
 
 
 def _finite_state(payload: dict[str, object], error_code: str) -> float:
@@ -213,6 +217,7 @@ class MeshtasticLabClient(_HomeAssistantClient):
         cache_seconds: int = 900,
         *,
         channel_prefix: str | None = None,
+        channel_allowlist: Iterable[str] = (),
         channel_denylist: Iterable[str] = (),
         channel_fields: Mapping[str, str] | None = None,
     ) -> None:
@@ -222,6 +227,8 @@ class MeshtasticLabClient(_HomeAssistantClient):
         self.nodes_total_entity_id = nodes_total_entity_id
         # Defaults to the gateway's channel namespace, the same convention used when locating entities on the host.
         self.channel_prefix = channel_prefix if channel_prefix is not None else f"{gateway_entity_id}_channel_"
+        # Default-deny: a channel is published only when its sanitized name is allowlisted.
+        self._channel_allowlist = frozenset(_normalized_name(name) for name in channel_allowlist)
         self._channel_denylist = frozenset(_normalized_name(name) for name in channel_denylist)
         # Attribute names are configured per deployment; a field without a configured name is never read.
         self._channel_fields = dict(channel_fields or {})
@@ -254,7 +261,10 @@ class MeshtasticLabClient(_HomeAssistantClient):
         return int(value)
 
     def _channels(self) -> list[dict[str, object]] | None:
-        """Returns the published channels, or None when discovery fails so the channels field is omitted."""
+        """Returns the allowlisted channels, or None when none are allowlisted or discovery fails, so the field is omitted."""
+        if not self._channel_allowlist:
+            # Nothing is publishable, so the entity list is not read at all.
+            return None
         try:
             states = self._get_list("/api/states")
         except (OSError, ValueError):
@@ -287,7 +297,8 @@ class MeshtasticLabClient(_HomeAssistantClient):
         if _is_direct_message(slug, friendly_name if isinstance(friendly_name, str) else ""):
             return None
         name = _channel_name(slug)
-        if name is None or self._is_denied(name, slug):
+        # Default-deny: the sanitized name must be allowlisted, and the denylist still wins over the allowlist.
+        if name is None or _normalized_name(name) not in self._channel_allowlist or self._is_denied(name, slug):
             return None
         channel: dict[str, object] = {"name": name}
         last = self._last_message(attributes, state)

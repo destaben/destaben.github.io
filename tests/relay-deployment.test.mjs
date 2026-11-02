@@ -22,7 +22,7 @@ test("exposes Meshtastic channels through the discovery settings and no retired 
     readRepositoryFile("services/signal-relay/.env.example"),
   ]);
 
-  for (const setting of ["SIGNAL_RELAY_MESHTASTIC_CHANNEL_PREFIX", "SIGNAL_RELAY_MESHTASTIC_CHANNEL_DENYLIST", "SIGNAL_RELAY_MESHTASTIC_CHANNEL_FIELDS"]) {
+  for (const setting of ["SIGNAL_RELAY_MESHTASTIC_CHANNEL_PREFIX", "SIGNAL_RELAY_MESHTASTIC_CHANNEL_ALLOWLIST", "SIGNAL_RELAY_MESHTASTIC_CHANNEL_DENYLIST", "SIGNAL_RELAY_MESHTASTIC_CHANNEL_FIELDS"]) {
     assert.match(compose, new RegExp(`${setting}: \\$\\{${setting}:-\\}`));
     assert.match(envExample, new RegExp(`^${setting}=`, "m"));
   }
