@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import http.client
 import json
+import re
 import threading
 import time
 from urllib.error import HTTPError, URLError
@@ -1296,3 +1297,24 @@ def test_a_full_node_id_in_message_text_never_appears_in_the_projection():
     assert "!7E5D1A**" in rendered
     assert "7e5d1a42" not in rendered
     assert "7E5D1A99" not in rendered
+
+
+@pytest.mark.parametrize("visible_hex", range(1, 9))
+def test_a_node_id_straddling_the_message_limit_never_leaves_a_fragment(visible_hex):
+    # The ID starts so that exactly `visible_hex` of its digits fall inside the 200-character limit.
+    text = "x" * (199 - visible_hex) + "!52302e42" + " tail"
+    client = FixtureMeshtastic(meshtastic_responses({
+        "/api/states": [mesh_state(CHANNEL_PREFIX + "longfast", "state", message_attributes(message=text))],
+    }))
+
+    published = client.status()["channels"][0]["last"]["text"]
+
+    assert len(published) <= 200
+    assert "52302e42" not in published
+    assert re.search(r"!52302e[0-9A-Fa-f]", published) is None
+    if visible_hex == 8:
+        # The whole ID fits, so it is masked like any other node ID.
+        assert published == "x" * 191 + "!52302e**"
+    else:
+        # A partial ID at the cut is dropped entirely.
+        assert published == "x" * (199 - visible_hex)

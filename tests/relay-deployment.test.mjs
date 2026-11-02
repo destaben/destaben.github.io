@@ -61,3 +61,51 @@ test("gives the browser enough time for a cold relay refresh", async () => {
   // The relay's worst case is its 10 second refresh deadline plus a final 5 second read.
   assert.ok(timeout >= 15_000, `requestTimeoutMs must cover the worst cold refresh, got ${timeout}`);
 });
+
+
+test("keeps the direct-message token list identical in the code, the relay docs, and the inventory script", async () => {
+  const [code, relayDocs, readme, inventory] = await Promise.all([
+    readRepositoryFile("services/signal-relay/src/signal_relay/home_assistant.py"),
+    readRepositoryFile("docs/SIGNAL-RELAY.md"),
+    readRepositoryFile("services/signal-relay/README.md"),
+    readRepositoryFile("docs/MESHTASTIC-INVENTORY.md"),
+  ]);
+  const quoted = (block) => [...block.matchAll(/"([a-z]+)"/g)].map((match) => match[1]).sort();
+  const backticked = (text) => [...text.matchAll(/`([a-z]+)`/g)].map((match) => match[1]).sort();
+
+  const fromCode = quoted(code.match(/_DIRECT_MESSAGE_TOKENS = frozenset\(\{([\s\S]*?)\}\)/)[1]);
+  const fromInventory = quoted(inventory.match(/DM_TOKENS = \{([\s\S]*?)\}/)[1]);
+  const fromRelayDocs = backticked(relayDocs.match(/direct-message list \(([^)]*)\)/)[1]);
+  const fromReadme = backticked(readme.match(/direct-message list \(([^)]*)\)/)[1]);
+
+  assert.ok(fromCode.length >= 16, "the code list is found");
+  assert.deepEqual(fromInventory, fromCode);
+  assert.deepEqual(fromRelayDocs, fromCode);
+  assert.deepEqual(fromReadme, fromCode);
+});
+
+test("keeps one canonical Behavior changes list in docs/SIGNAL-RELAY.md and links to it from the README", async () => {
+  const [relayDocs, readme] = await Promise.all([
+    readRepositoryFile("docs/SIGNAL-RELAY.md"),
+    readRepositoryFile("services/signal-relay/README.md"),
+  ]);
+  const section = (text) => text.match(/^## Behavior changes\n([\s\S]*?)(?=^## )/m)?.[1] ?? "";
+
+  assert.match(section(readme), /docs\/SIGNAL-RELAY\.md#behavior-changes/);
+  assert.doesNotMatch(section(readme), /^- /m, "the README repeats no bullets");
+  assert.match(section(relayDocs), /^- Channels publish only when allowlisted/m);
+  assert.match(section(relayDocs), /20 seconds/);
+  assert.match(section(relayDocs), /direct-message/);
+  assert.match(section(relayDocs), /stop the relay at startup/);
+});
+
+test("documents the status cache minimum and masking in the env example and the instructions", async () => {
+  const [envExample, instructions] = await Promise.all([
+    readRepositoryFile("services/signal-relay/.env.example"),
+    readRepositoryFile(".github/instructions/signal-relay.instructions.md"),
+  ]);
+
+  assert.match(envExample, /clamped to a minimum of 900 seconds/);
+  assert.match(instructions, /SIGNAL_RELAY_MESHTASTIC_CHANNEL_ALLOWLIST/);
+  assert.match(instructions, /masked/);
+});

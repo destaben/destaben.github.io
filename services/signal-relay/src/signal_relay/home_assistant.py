@@ -41,6 +41,9 @@ _MAX_EPOCH_SECONDS = 4_102_444_800
 _NODE_ID = re.compile(r"![0-9A-Fa-f]{8}")
 # A node ID written in message text: an exclamation mark, then at least eight hexadecimal digits.
 _NODE_ID_IN_TEXT = re.compile(r"!([0-9A-Fa-f]{8})[0-9A-Fa-f]*")
+# A partial node ID at the end of a truncated message: an exclamation mark, hex digits, and at most one masking star.
+# A complete masked ID ends in two stars and is kept.
+_TRAILING_NODE_ID_FRAGMENT = re.compile(r"!(?:[0-9A-Fa-f]+\*?)$")
 # Word tokens that mark an entity or name as a direct message. Any hit excludes the channel. This is an extra
 # layer only: publication is default-deny through SIGNAL_RELAY_MESHTASTIC_CHANNEL_ALLOWLIST.
 _DIRECT_MESSAGE_TOKENS = frozenset({
@@ -393,7 +396,8 @@ class MeshtasticLabClient(_HomeAssistantClient):
         raw = self._field_value(attributes, "text") if "text" in self._channel_fields else state.get("state")
         if not isinstance(raw, str):
             return None
-        text = _mask_node_ids(_clean_text(raw, _MAX_MESSAGE_TEXT_LENGTH))
+        # Mask first, so that a node ID cannot be cut in half and leave its digits behind.
+        text = _truncate_message(_mask_node_ids(_clean_text(raw)))
         if not text or text.casefold() in _PLACEHOLDER_STATES:
             return None
         return text
@@ -418,11 +422,17 @@ def _normalized_name(name: str) -> str:
     return re.sub(r"[\s_-]+", "_", name.strip().casefold())
 
 
-def _clean_text(value: str, limit: int) -> str:
-    """Drops control and format characters, collapses whitespace, and truncates to the limit."""
+def _truncate_message(text: str) -> str:
+    """Cuts an already masked message to its limit, then drops a partial node ID left at the cut."""
+    return _TRAILING_NODE_ID_FRAGMENT.sub("", text[:_MAX_MESSAGE_TEXT_LENGTH]).rstrip()
+
+
+def _clean_text(value: str, limit: int | None = None) -> str:
+    """Drops control and format characters and collapses whitespace; truncates only when a limit is given."""
     spaced = "".join(" " if character.isspace() else character for character in value)
     printable = "".join(character for character in spaced if unicodedata.category(character)[0] != "C")
-    return " ".join(printable.split())[:limit].rstrip()
+    collapsed = " ".join(printable.split())
+    return collapsed if limit is None else collapsed[:limit].rstrip()
 
 
 def _channel_name(slug: str) -> str | None:
