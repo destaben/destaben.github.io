@@ -78,7 +78,7 @@ The relay uses a dedicated long-lived Home Assistant token plus explicitly confi
 
 `POST /v1/lab/meshtastic/messages` accepts only `{"message":"...","turnstileToken":"..."}` and returns `202 {"status":"accepted"}` only after Home Assistant accepts the fixed `meshtastic_public_broadcast` event. A Home Assistant automation maps that event only to `script.meshtastic_public_broadcast`. The message must be one trimmed, printable UTF-8 line of at most 237 bytes. The route rejects missing/invalid Turnstile responses, unavailable configuration, invalid payloads, and per-client/global cooldowns. It never accepts a channel, recipient, radio setting, node identifier, or arbitrary Home Assistant service. Accepted means Home Assistant accepted the event; it is not an RF delivery acknowledgement.
 
-The static portfolio loads Turnstile only when the public build variable `PUBLIC_TURNSTILE_SITE_KEY` is present. GitHub Pages builds receive it from the repository Actions variable `TURNSTILE_SITE_KEY`; it is public by design. Create a managed Turnstile widget for `info.destaben.dev` before setting that variable, then set the widget secret only as `SIGNAL_RELAY_MESHTASTIC_TURNSTILE_SECRET` in the private Signal Relay deployment `.env`. Never commit the secret or expose it to the browser.
+The static portfolio loads Turnstile only when the public build variable `PUBLIC_TURNSTILE_SITE_KEY` is present. GitHub Pages builds read it from the repository Actions variable `TURNSTILE_SITE_KEY`, falling back to a secret of the same name; pull-request CI builds read only the variable. The value is public by design. Create a managed Turnstile widget for `info.destaben.dev` before setting that variable, then set the widget secret only as `SIGNAL_RELAY_MESHTASTIC_TURNSTILE_SECRET` in the private Signal Relay deployment `.env`. Never commit the secret or expose it to the browser.
 
 `WSS /v1/events` emits only these server events:
 
@@ -123,6 +123,8 @@ An optional `AutoInterface` supports local discovery only. For off-LAN LXMF deli
 The supported container image is `ghcr.io/destaben/signal-relay:latest`. It is published for `linux/amd64` and `linux/arm64` by `.github/workflows/publish-signal-relay.yml`. Its Compose file keeps the relay off the host network, exposes no host port, persists Reticulum configuration and service state, and drops Linux capabilities. The separate edge joins the same `destaben-edge` Docker network and routes only explicitly allowed paths. See `services/signal-relay/README.md` and [`destaben/lab-inverse-proxy`](https://github.com/destaben/lab-inverse-proxy) for host setup and updates.
 
 ## Acceptance checks
+
+Pull requests also run the relay `pytest` suite and the Compose `config` check through `.github/workflows/ci.yml`; these checks do not replace the host checks below.
 
 1. Restarting the bridge retains the same LXMF destination identity.
 2. An incoming LXMF message produces one retained plain-text inbox entry without exposing sender metadata.
