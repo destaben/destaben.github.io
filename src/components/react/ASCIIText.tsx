@@ -555,13 +555,16 @@ export default function ASCIIText({
       state.ripples.push({ x: state.pointerX, y: state.pointerY, age: 0 });
     };
 
-    const resizeObserver = new ResizeObserver(resize);
-    resizeObserver.observe(container);
-    const visibility = new IntersectionObserver(entries => {
-      state.visible = entries.some(entry => entry.isIntersecting);
-      if (state.visible) wake();
-    });
-    visibility.observe(container);
+    const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(resize);
+    resizeObserver?.observe(container);
+    const visibility =
+      typeof IntersectionObserver === 'undefined'
+        ? null
+        : new IntersectionObserver(entries => {
+            state.visible = entries.some(entry => entry.isIntersecting);
+            if (state.visible) wake();
+          });
+    visibility?.observe(container);
     container.addEventListener('pointermove', onMove);
     container.addEventListener('pointerdown', onDown);
     container.addEventListener('pointerleave', onLeave);
@@ -572,8 +575,8 @@ export default function ASCIIText({
       alive = false;
       cancelAnimationFrame(raf);
       buildRef.current = null;
-      resizeObserver.disconnect();
-      visibility.disconnect();
+      resizeObserver?.disconnect();
+      visibility?.disconnect();
       container.removeEventListener('pointermove', onMove);
       container.removeEventListener('pointerdown', onDown);
       container.removeEventListener('pointerleave', onLeave);

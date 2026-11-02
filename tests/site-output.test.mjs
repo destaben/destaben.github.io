@@ -268,9 +268,12 @@ test("disables every hero animation under reduced motion", async () => {
   const source = await readFile(new URL("../src/components/SystemGraphic.astro", import.meta.url), "utf8");
   const block = source.match(/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[\s\S]*?\n\s*\}\n/)?.[0] ?? "";
   for (const selector of [".sg-orbit", ".sg-upright", ".sg-event", ".log-alert", ".log-triage", ".log-resolved"]) {
-    assert.ok(block.includes(selector), `${selector} is listed in the reduced-motion block`);
+    assert.match(
+      block,
+      new RegExp(`(^|[\\s,])${selector.replace(".", "\\.")}\\s*[,{][^}]*?animation:\\s*none`),
+      `${selector} sets animation: none under reduced motion`,
+    );
   }
-  assert.match(block, /animation:\s*none/);
 });
 
 test("keeps the numbered section labels as final plain text and scrambles them only as decorative islands", async () => {

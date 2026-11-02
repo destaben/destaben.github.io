@@ -498,7 +498,13 @@ export default function DecryptedText({
     const viewTrigger = animateOn === 'view' || animateOn === 'inViewHover';
     if (!viewTrigger && !loop) return;
     const node = containerRef.current;
-    if (!node || typeof IntersectionObserver === 'undefined') return;
+    if (!node) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      // Without IntersectionObserver there is no view trigger: show the final text instead of staying scrambled.
+      maskRef.current = chars.map(() => true);
+      engineRef.current?.paint();
+      return;
+    }
     const observer = new IntersectionObserver(
       entries => {
         const visible = entries.some(entry => entry.isIntersecting);

@@ -4,7 +4,7 @@ import ASCIIText from "./ASCIIText";
 const motionQuery = "(prefers-reduced-motion: reduce)";
 const narrowQuery = "(max-width: 520px)";
 
-// The static "DE" is what visitors see without JavaScript, under reduced motion, on narrow screens, and without WebGL 2.
+// The static "DE" is what visitors see without JavaScript, under reduced motion, on narrow screens, and without WebGL 2 (ASCIIText renders the same static text when it cannot create a context).
 const staticStyle: CSSProperties = {
   position: "absolute",
   inset: 0,
@@ -17,28 +17,21 @@ const staticStyle: CSSProperties = {
   lineHeight: 1,
 };
 
-const supportsWebGL2 = () => {
-  const canvas = document.createElement("canvas");
-  const gl = canvas.getContext("webgl2");
-  if (!gl) return false;
-  gl.getExtension("WEBGL_lose_context")?.loseContext();
-  return true;
-};
-
 export default function SystemCore() {
   const [live, setLive] = useState(false);
 
   useEffect(() => {
+    if (!window.matchMedia) return undefined;
     const motion = window.matchMedia(motionQuery);
     const narrow = window.matchMedia(narrowQuery);
     // The first render is always static, so server and client markup match before this effect runs.
-    const update = () => setLive(!motion.matches && !narrow.matches && supportsWebGL2());
+    const update = () => setLive(!motion.matches && !narrow.matches);
     update();
-    motion.addEventListener("change", update);
-    narrow.addEventListener("change", update);
+    motion.addEventListener?.("change", update);
+    narrow.addEventListener?.("change", update);
     return () => {
-      motion.removeEventListener("change", update);
-      narrow.removeEventListener("change", update);
+      motion.removeEventListener?.("change", update);
+      narrow.removeEventListener?.("change", update);
     };
   }, []);
 
