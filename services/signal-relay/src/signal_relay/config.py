@@ -27,6 +27,10 @@ _DNS_NAME = re.compile(r"[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*")
 _IPV6_LITERAL = re.compile(r"[0-9A-Fa-f:.]+")
 _INVALID_TCP_URL = "SIGNAL_RELAY_PUBLIC_TCP_NODE_URLS must contain public tcp://host:port URLs"
 _ENTITY_ID = re.compile(r"[a-z0-9_]+\.[a-z0-9_]+")
+_CHANNEL_NAME_SETTING = re.compile(r"[A-Za-z0-9_ -]{1,32}")
+_ATTRIBUTE_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]{0,63}")
+_CHANNEL_FIELD_NAMES = frozenset({"text", "node_id", "timestamp", "hop_start", "hop_limit"})
+_CHANNEL_FIELDS_MESSAGE = "SIGNAL_RELAY_MESHTASTIC_CHANNEL_FIELDS must be a JSON object that maps supported fields to attribute names"
 
 MESHTASTIC_ENTITY_KEYS = frozenset(
     {
@@ -201,6 +205,45 @@ def _entity_id(value: str | None, setting: str) -> str | None:
     return value
 
 
+def _entity_id_prefix(value: str | None, setting: str) -> str | None:
+    if not value:
+        return None
+    if not _ENTITY_ID.fullmatch(value):
+        raise ValueError(f"{setting} must be a Home Assistant entity ID prefix")
+    return value
+
+
+def _channel_names(value: str | None, setting: str) -> frozenset[str]:
+    if not value:
+        return frozenset()
+    names = set()
+    for raw_name in value.split(","):
+        name = raw_name.strip()
+        if not name:
+            continue
+        if not _CHANNEL_NAME_SETTING.fullmatch(name):
+            raise ValueError(
+                f"{setting} must contain channel names of 1 to 32 letters, digits, spaces, underscores, or hyphens"
+            )
+        names.add(name)
+    return frozenset(names)
+
+
+def _channel_fields(value: str | None) -> dict[str, str] | None:
+    if not value:
+        return None
+    try:
+        fields = json.loads(value)
+    except ValueError:
+        raise ValueError(_CHANNEL_FIELDS_MESSAGE) from None
+    if not isinstance(fields, dict) or not all(
+        key in _CHANNEL_FIELD_NAMES and isinstance(attribute, str) and _ATTRIBUTE_NAME.fullmatch(attribute)
+        for key, attribute in fields.items()
+    ):
+        raise ValueError(_CHANNEL_FIELDS_MESSAGE)
+    return fields
+
+
 @dataclass(frozen=True)
 class Settings:
     mode: str
@@ -224,7 +267,13 @@ class Settings:
     meshtastic_cache_seconds: int = 30
     meshtastic_turnstile_secret: str | None = None
     meshtastic_message_cooldown_seconds: int = 300
-    meshtastic_last_node_entity_id: str | None = None
+    # None derives the channel namespace from the gateway entity ID in meshtastic_entity_ids.
+    meshtastic_channel_prefix: str | None = None
+    # Default-deny: only channels named here can be published. An empty allowlist publishes no channels.
+    meshtastic_channel_allowlist: frozenset[str] = frozenset()
+    meshtastic_channel_denylist: frozenset[str] = frozenset()
+    # Maps the fields text, node_id, timestamp, hop_start, and hop_limit to Home Assistant attribute names.
+    meshtastic_channel_fields: dict[str, str] | None = None
     meshtastic_status_cache_seconds: int = 900
     public_tcp_node_aliases: dict[str, str] | None = None
     public_tcp_node_urls: dict[str, str] | None = None
@@ -276,7 +325,10 @@ class Settings:
             meshtastic_message_cooldown_seconds=max(
                 int(os.environ.get("SIGNAL_RELAY_MESHTASTIC_MESSAGE_COOLDOWN_SECONDS", "300")), 60
             ),
-            meshtastic_last_node_entity_id=_entity_id(os.environ.get("SIGNAL_RELAY_MESHTASTIC_LAST_NODE_ENTITY_ID"), "SIGNAL_RELAY_MESHTASTIC_LAST_NODE_ENTITY_ID"),
+            meshtastic_channel_prefix=_entity_id_prefix(os.environ.get("SIGNAL_RELAY_MESHTASTIC_CHANNEL_PREFIX"), "SIGNAL_RELAY_MESHTASTIC_CHANNEL_PREFIX"),
+            meshtastic_channel_allowlist=_channel_names(os.environ.get("SIGNAL_RELAY_MESHTASTIC_CHANNEL_ALLOWLIST"), "SIGNAL_RELAY_MESHTASTIC_CHANNEL_ALLOWLIST"),
+            meshtastic_channel_denylist=_channel_names(os.environ.get("SIGNAL_RELAY_MESHTASTIC_CHANNEL_DENYLIST"), "SIGNAL_RELAY_MESHTASTIC_CHANNEL_DENYLIST"),
+            meshtastic_channel_fields=_channel_fields(os.environ.get("SIGNAL_RELAY_MESHTASTIC_CHANNEL_FIELDS")),
             meshtastic_status_cache_seconds=max(int(os.environ.get("SIGNAL_RELAY_MESHTASTIC_STATUS_CACHE_SECONDS", "900")), 900),
             public_tcp_node_aliases=public_tcp_node_aliases,
             public_tcp_node_urls=public_tcp_node_urls,

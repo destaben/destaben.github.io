@@ -78,7 +78,7 @@ In repository settings, set Pages **Source** to **GitHub Actions**. The publishe
 
 The Meshtastic status panel depends on two other deployments, so roll it out in this order. Until step 2 is live, the panel shows its unavailable state.
 
-1. **Relay image and host.** Merge the relay change to `main`. `.github/workflows/publish-signal-relay.yml` publishes the image from `main`. On the relay host, deploy it with `services/signal-relay/scripts/deploy.sh`, after confirming the private `.env` contains the Meshtastic entity map and any optional last-node entity described in [services/signal-relay/README.md](services/signal-relay/README.md).
+1. **Relay image and host.** Merge the relay change to `main`. `.github/workflows/publish-signal-relay.yml` publishes the image from `main`. On the relay host, deploy it with `services/signal-relay/scripts/deploy.sh`, after confirming the private `.env` contains the Meshtastic entity map. Before enabling the channel projection, set `SIGNAL_RELAY_MESHTASTIC_CHANNEL_ALLOWLIST` to the public channels only (empty publishes none) and check every direct-message entity against `docs/MESHTASTIC-INVENTORY.md` step 5b, denylisting any it finds. The relay refuses to start on a malformed entity ID or invalid channel setting, so confirm it is running after recreation. Channel settings are described in [services/signal-relay/README.md](services/signal-relay/README.md).
 2. **Edge allowlist.** Add the `GET /v1/lab/meshtastic-status` entry in [`destaben/lab-inverse-proxy`](https://github.com/destaben/lab-inverse-proxy) (PR #7) and deploy the edge. Until this exists, the public route is not reachable through `lab.destaben.dev`.
 3. **Site.** Merge the portfolio change to `main`. GitHub Pages publishes the panel from that merge.
 

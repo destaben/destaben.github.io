@@ -63,8 +63,8 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /data-meshtastic-status-panel/);
   assert.match(spanish, /data-loading-label="Consultando malla"/);
   assert.match(spanish, /data-unavailable-label="La malla no está disponible ahora\."/);
-  assert.match(spanish, /Último nodo visto/);
-  assert.match(spanish, /Solo se publican contadores agregados/);
+  assert.doesNotMatch(spanish, /Último nodo visto/);
+  assert.match(spanish, /Solo se publican contadores agregados y el último mensaje de cada canal público/);
   assertLabOrder(spanish);
   assert.doesNotMatch(spanish, /data-inbox-source-label/);
   assert.match(spanish, /Reticulum online/);
@@ -99,8 +99,8 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(english, /data-meshtastic-status-panel/);
   assert.match(english, /data-loading-label="Checking mesh"/);
   assert.match(english, /data-unavailable-label="The mesh is unavailable right now\."/);
-  assert.match(english, /Latest node seen/);
-  assert.match(english, /Only aggregate counts and an optional selected name are published/);
+  assert.doesNotMatch(english, /Latest node seen/);
+  assert.match(english, /Only aggregate counts and the latest message of each public channel are published/);
   assert.match(english, /Air quality/);
   assert.match(english, /Aggregate status for a Meshtastic gateway/);
   assert.match(english, /Last 5 public activities/);
@@ -114,6 +114,54 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /<dt>Red profesional<\/dt><dd><a /);
   assert.doesNotMatch(spanish, /<footer class="shell site-footer">[\s\S]*?<a /);
   assert.doesNotMatch(english, /<footer class="shell site-footer">[\s\S]*?<a /);
+});
+
+const meshtasticStatusSection = (page) => {
+  const start = page.indexOf("data-meshtastic-status-panel");
+  assert.notEqual(start, -1);
+  return page.slice(start, page.indexOf("</article>", start));
+};
+
+test("publishes the Meshtastic status panel with channel labels and a contact note without an address", async () => {
+  const [spanish, english] = await Promise.all([readPage("index.html"), readPage("en/index.html")]);
+
+  const spanishPanel = meshtasticStatusSection(spanish);
+  assert.match(spanishPanel, /data-meshtastic-status-channels/);
+  assert.match(spanishPanel, />Canales públicos</);
+  assert.match(spanishPanel, /data-channel-label="Canal"/);
+  assert.match(spanishPanel, /data-last-message-label="Último mensaje"/);
+  assert.match(spanishPanel, /data-node-label="Nodo"/);
+  assert.match(spanishPanel, /data-time-label="Hora"/);
+  assert.match(spanishPanel, /data-hops-label="Saltos"/);
+  assert.match(spanishPanel, /data-no-messages-label="Sin mensajes recientes"/);
+  assert.match(spanishPanel, /Los mensajes proceden de canales públicos de Meshtastic\./);
+  assert.match(spanishPanel, /contacta a través de los enlaces de esta página/);
+  assert.doesNotMatch(spanishPanel, /@|mailto:/);
+
+  const englishPanel = meshtasticStatusSection(english);
+  assert.match(englishPanel, /data-meshtastic-status-channels/);
+  assert.match(englishPanel, />Public channels</);
+  assert.match(englishPanel, /data-channel-label="Channel"/);
+  assert.match(englishPanel, /data-last-message-label="Last message"/);
+  assert.match(englishPanel, /data-node-label="Node"/);
+  assert.match(englishPanel, /data-time-label="Time"/);
+  assert.match(englishPanel, /data-hops-label="Hops"/);
+  assert.match(englishPanel, /data-no-messages-label="No recent messages"/);
+  assert.match(englishPanel, /Messages come from public Meshtastic channels\./);
+  assert.match(englishPanel, /contact via the links on this page/);
+  assert.doesNotMatch(englishPanel, /@|mailto:/);
+});
+
+test("renders Meshtastic channel data with DOM text APIs only", async () => {
+  const page = await readPage("es/index.html");
+  // Astro inlines each component script as its own module block, so the panel script is found by its endpoint.
+  const scripts = [...page.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map((match) => match[1]);
+  const meshtasticScript = scripts.find((script) => script.includes("/v1/lab/meshtastic-status"));
+
+  assert.ok(meshtasticScript, "the Meshtastic panel script is present in the page");
+  assert.doesNotMatch(meshtasticScript, /innerHTML|outerHTML|insertAdjacentHTML|document\.write/);
+  assert.match(meshtasticScript, /createElement/);
+  assert.match(meshtasticScript, /textContent/);
 });
 
 test("declares locale alternates, og:locale, and RSS discovery in every page head", async () => {

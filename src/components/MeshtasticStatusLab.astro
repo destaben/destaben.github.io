@@ -5,15 +5,19 @@ interface Props { lab: MeshtasticStatusLab; }
 const { lab } = Astro.props;
 ---
 
-<article class="lab-card meshtastic-status-panel" data-lab-state="planned" data-meshtastic-status-panel data-local-url="http://127.0.0.1:8787" data-production-url="https://lab.destaben.dev" data-loading-label={lab.loadingLabel} data-unavailable-label={lab.unavailableLabel} data-available-label={lab.availableLabel} aria-labelledby={`${lab.id}-title`}>
+<article class="lab-card meshtastic-status-panel" data-lab-state="planned" data-meshtastic-status-panel data-local-url="http://127.0.0.1:8787" data-production-url="https://lab.destaben.dev" data-loading-label={lab.loadingLabel} data-unavailable-label={lab.unavailableLabel} data-available-label={lab.availableLabel} data-channel-label={lab.channelLabel} data-last-message-label={lab.lastMessageLabel} data-node-label={lab.nodeLabel} data-time-label={lab.timeLabel} data-hops-label={lab.hopsLabel} data-no-messages-label={lab.noMessagesLabel} aria-labelledby={`${lab.id}-title`}>
   <div class="lab-card-header"><p class="lab-status">{lab.statusLabel}</p><span class="meshtastic-status-state" data-meshtastic-status-state role="status">{lab.loadingLabel}</span></div>
   <h3 id={`${lab.id}-title`}>{lab.title}</h3>
   <p>{lab.summary}</p>
   <dl class="meshtastic-status-readings" data-meshtastic-status-readings hidden>
     <div><dt>{lab.onlineNodesLabel}</dt><dd data-meshtastic-status-online>--</dd></div>
     <div><dt>{lab.totalNodesLabel}</dt><dd data-meshtastic-status-total>--</dd></div>
-    <div data-meshtastic-status-last-wrap hidden><dt>{lab.lastNodeLabel}</dt><dd data-meshtastic-status-last>--</dd></div>
   </dl>
+  <section class="meshtastic-status-channels" data-meshtastic-status-channels-section hidden>
+    <h4 class="meshtastic-status-channels-title">{lab.channelsTitle}</h4>
+    <ul class="meshtastic-status-channel-list" data-meshtastic-status-channels></ul>
+    <p class="meshtastic-status-channels-note">{lab.channelsNote}</p>
+  </section>
   <p class="meshtastic-status-updated" data-meshtastic-status-updated></p>
   <div class="meshtastic-status-boundary"><p>{lab.privacyTitle}</p><span>{lab.privacyCopy}</span></div>
   <div class="tag-list">{lab.technologies.map((technology) => <span class="tag">{technology}</span>)}</div>
@@ -22,14 +26,108 @@ const { lab } = Astro.props;
 <script>
   // data-lab-state drives the card styling in global.css: "planned" for loading and
   // unavailable, "active" once a valid status payload has been rendered.
-  const requestTimeoutMs = 8000;
+  // Covers the relay's worst cold refresh: its 10 second refresh deadline plus a final 5 second read.
+  const requestTimeoutMs = 20000;
+  const maxChannels = 16;
+  const maxChannelNameLength = 32;
+  const maxMessageTextLength = 200;
+  // The same limit as _MAX_NODE_COUNT in the relay; both are documented in docs/SIGNAL-RELAY.md.
+  const maxCount = 100_000;
+  const maxHops = 7;
   const localHosts = new Set(["127.0.0.1", "localhost"]);
-  type Status = { status?: string; onlineNodes?: number; totalNodes?: number; lastNode?: unknown; refreshedAt?: string };
+  // The relay masks the last two characters of a node ID, so only six hexadecimal digits remain visible.
+  const maskedNodePattern = /^![0-9A-Fa-f]{6}\*\*$/;
 
-  const formatRefreshedAt = (value: string | undefined) => {
-    const date = value ? new Date(value) : null;
-    if (!date || Number.isNaN(date.getTime())) return "";
+  type Message = { nodeId: string; text: string; time: string; hops?: number };
+  type Channel = { name: string; last?: Message };
+  type Labels = { channel: string; lastMessage: string; node: string; time: string; hops: string; noMessages: string };
+  type ValidStatus = { onlineNodes: number; totalNodes: number; channels: Channel[] | null; refreshed: string };
+
+  const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null && !Array.isArray(value);
+  const isCount = (value: unknown): value is number =>
+    typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= maxCount;
+
+  // Turns every whitespace character into a space, drops control and format characters, collapses
+  // runs of spaces, and caps the length in code points so that no surrogate pair is split.
+  const cleanText = (value: string, limit: number) =>
+    Array.from(value.replace(/\s/g, " ").replace(/\p{Cc}|\p{Cf}/gu, "").replace(/ {2,}/g, " ").trim())
+      .slice(0, limit)
+      .join("")
+      .trim();
+
+  const formatTime = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
     return new Intl.DateTimeFormat(document.documentElement.lang, { dateStyle: "medium", timeStyle: "short" }).format(date);
+  };
+
+  const parseMessage = (raw: unknown): Message | undefined => {
+    if (!isRecord(raw)) return undefined;
+    const { nodeId, text, time, hops } = raw;
+    if (typeof nodeId !== "string" || !maskedNodePattern.test(nodeId)) return undefined;
+    if (typeof text !== "string" || typeof time !== "string" || Number.isNaN(Date.parse(time))) return undefined;
+    const cleaned = cleanText(text, maxMessageTextLength);
+    if (!cleaned) return undefined;
+    const validHops = typeof hops === "number" && Number.isInteger(hops) && hops >= 0 && hops <= maxHops ? hops : undefined;
+    return { nodeId, text: cleaned, time, hops: validHops };
+  };
+
+  const parseChannel = (raw: unknown): Channel | undefined => {
+    if (!isRecord(raw) || typeof raw.name !== "string") return undefined;
+    const name = cleanText(raw.name, maxChannelNameLength);
+    if (!name) return undefined;
+    const last = parseMessage(raw.last);
+    return last ? { name, last } : { name };
+  };
+
+  // Validates the whole payload before any DOM write. A malformed channel entry is dropped on its own.
+  const parseStatus = (payload: unknown): ValidStatus => {
+    if (!isRecord(payload) || payload.status !== "available") throw new Error("Invalid status payload");
+    const { onlineNodes, totalNodes, channels, refreshedAt } = payload;
+    if (!isCount(onlineNodes) || !isCount(totalNodes) || onlineNodes > totalNodes) throw new Error("Invalid status payload");
+    if (channels !== undefined && !Array.isArray(channels)) throw new Error("Invalid status payload");
+    return {
+      onlineNodes,
+      totalNodes,
+      // The relay omits channels when discovery fails; that is a valid payload, not an error.
+      channels: Array.isArray(channels)
+        ? channels.slice(0, maxChannels).map(parseChannel).filter((channel): channel is Channel => channel !== undefined)
+        : null,
+      refreshed: typeof refreshedAt === "string" ? formatTime(refreshedAt) : "",
+    };
+  };
+
+  // Every node is created with createElement and filled with textContent; no markup is parsed from data.
+  const element = <K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  };
+
+  const detail = (term: string, value: string) => {
+    const wrap = element("div");
+    wrap.append(element("dt", undefined, term), element("dd", undefined, value));
+    return wrap;
+  };
+
+  const renderChannel = (channel: Channel, labels: Labels) => {
+    const item = element("li", "meshtastic-status-channel");
+    item.append(element("p", "meshtastic-status-channel-label", labels.channel), element("h5", "meshtastic-status-channel-name", channel.name));
+    if (!channel.last) {
+      item.append(element("p", "meshtastic-status-message-empty", labels.noMessages));
+      return item;
+    }
+    const details = element("dl", "meshtastic-status-message-details");
+    details.append(detail(labels.node, channel.last.nodeId), detail(labels.time, formatTime(channel.last.time)));
+    if (channel.last.hops !== undefined) details.append(detail(labels.hops, String(channel.last.hops)));
+    item.append(
+      element("p", "meshtastic-status-message-label", labels.lastMessage),
+      element("p", "meshtastic-status-message", channel.last.text),
+      details,
+    );
+    return item;
   };
 
   const initMeshtasticStatusPanel = (panel: HTMLElement) => {
@@ -38,24 +136,38 @@ const { lab } = Astro.props;
     const readings = panel.querySelector<HTMLElement>("[data-meshtastic-status-readings]");
     const online = panel.querySelector<HTMLElement>("[data-meshtastic-status-online]");
     const total = panel.querySelector<HTMLElement>("[data-meshtastic-status-total]");
-    const last = panel.querySelector<HTMLElement>("[data-meshtastic-status-last]");
-    const lastWrap = panel.querySelector<HTMLElement>("[data-meshtastic-status-last-wrap]");
     const updated = panel.querySelector<HTMLElement>("[data-meshtastic-status-updated]");
+    const channelsSection = panel.querySelector<HTMLElement>("[data-meshtastic-status-channels-section]");
+    const channelList = panel.querySelector<HTMLElement>("[data-meshtastic-status-channels]");
+    const labels: Labels = {
+      channel: panel.dataset.channelLabel ?? "",
+      lastMessage: panel.dataset.lastMessageLabel ?? "",
+      node: panel.dataset.nodeLabel ?? "",
+      time: panel.dataset.timeLabel ?? "",
+      hops: panel.dataset.hopsLabel ?? "",
+      noMessages: panel.dataset.noMessagesLabel ?? "",
+    };
+
+    const showChannels = (channels: Channel[]) => {
+      if (channelList) channelList.replaceChildren(...channels.map((channel) => renderChannel(channel, labels)));
+      if (channelsSection) channelsSection.hidden = channels.length === 0;
+    };
 
     const showUnavailable = () => {
       panel.dataset.labState = "planned";
       if (state) state.textContent = panel.dataset.unavailableLabel || "Meshtastic unavailable";
       if (readings) readings.hidden = true;
       if (updated) updated.textContent = "";
+      showChannels([]);
     };
 
-    const fetchStatus = async (): Promise<Status> => {
+    const fetchStatus = async (): Promise<unknown> => {
       const controller = new AbortController();
       const timer = window.setTimeout(() => controller.abort(), requestTimeoutMs);
       try {
         const response = await fetch(`${baseUrl}/v1/lab/meshtastic-status`, { signal: controller.signal });
         if (!response.ok) throw new Error(`Unexpected status ${response.status}`);
-        return await response.json() as Status;
+        return (await response.json()) as unknown;
       } finally {
         window.clearTimeout(timer);
       }
@@ -63,17 +175,13 @@ const { lab } = Astro.props;
 
     const load = async () => {
       try {
-        const status = await fetchStatus();
-        if (status.status !== "available" || !Number.isInteger(status.onlineNodes) || !Number.isInteger(status.totalNodes)) throw new Error("Invalid status payload");
-        // Validate everything before touching the DOM so a bad payload cannot leave a mixed state.
-        const lastNode = typeof status.lastNode === "string" ? status.lastNode.trim() : "";
-        const refreshed = formatRefreshedAt(status.refreshedAt);
+        // Everything is validated before the first DOM write so a bad payload cannot leave a mixed state.
+        const status = parseStatus(await fetchStatus());
         if (online) online.textContent = String(status.onlineNodes);
         if (total) total.textContent = String(status.totalNodes);
-        if (lastWrap) lastWrap.hidden = !lastNode;
-        if (last && lastNode) last.textContent = lastNode;
+        showChannels(status.channels ?? []);
         if (readings) readings.hidden = false;
-        if (updated) updated.textContent = refreshed;
+        if (updated) updated.textContent = status.refreshed;
         if (state) state.textContent = panel.dataset.availableLabel || "Available";
         panel.dataset.labState = "active";
       } catch {

@@ -150,8 +150,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             meshtastic_entity_ids.get("gateway", ""),
             meshtastic_entity_ids.get("nodes_online", ""),
             meshtastic_entity_ids.get("nodes_total", ""),
-            relay_settings.meshtastic_last_node_entity_id,
             relay_settings.meshtastic_status_cache_seconds,
+            channel_prefix=relay_settings.meshtastic_channel_prefix,
+            channel_allowlist=relay_settings.meshtastic_channel_allowlist,
+            channel_denylist=relay_settings.meshtastic_channel_denylist,
+            channel_fields=relay_settings.meshtastic_channel_fields,
         )
         if all(meshtastic_status_settings)
         else None

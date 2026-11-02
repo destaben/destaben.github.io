@@ -4,6 +4,7 @@ import json
 import logging
 import pytest
 import RNS
+from urllib.error import HTTPError
 from urllib.parse import urlsplit
 
 from signal_relay import home_assistant
@@ -97,7 +98,7 @@ def test_meshtastic_status_only_returns_aggregate_public_signals(tmp_path):
                 "status": "available",
                 "onlineNodes": 12,
                 "totalNodes": 43,
-                "lastNode": "Field relay",
+                "channels": [{"name": "Longfast", "last": {"nodeId": "!7e5d1a**", "text": "Hello mesh", "time": "2026-09-25T08:14:00Z", "hops": 2}}],
                 "refreshedAt": "2026-09-25T08:15:00Z",
             }
 
@@ -109,7 +110,7 @@ def test_meshtastic_status_only_returns_aggregate_public_signals(tmp_path):
             "status": "available",
             "onlineNodes": 12,
             "totalNodes": 43,
-            "lastNode": "Field relay",
+            "channels": [{"name": "Longfast", "last": {"nodeId": "!7e5d1a**", "text": "Hello mesh", "time": "2026-09-25T08:14:00Z", "hops": 2}}],
             "refreshedAt": "2026-09-25T08:15:00Z",
         }
         assert "entity_id" not in response.text
@@ -214,8 +215,141 @@ def test_meshtastic_status_returns_503_for_null_or_inconsistent_counts(tmp_path,
         assert response.json()["detail"] == "meshtastic_status_unavailable"
 
 
+_MESHTASTIC_CHANNEL_FIELDS = {
+    "text": "message",
+    "node_id": "from_id",
+    "hop_start": "hop_start",
+    "hop_limit": "hop_limit",
+}
+
+
+def _meshtastic_channel_responses(states=None):
+    return {
+        "/api/": {"message": "API running."},
+        "/api/states/meshtastic.gateway_private": {"state": "Connected"},
+        "/api/states/sensor.private_online": {"state": "12"},
+        "/api/states/sensor.private_total": {"state": "43"},
+        "/api/states": [] if states is None else states,
+    }
+
+
+def _meshtastic_channel_app(tmp_path, channel_allowlist=frozenset({"Longfast"})):
+    return create_app(
+        Settings(
+            mode="demo", allowed_origins={"http://127.0.0.1:4321"}, rate_limit=2,
+            rate_window_seconds=60, reticulum_config_dir=None, storage_dir=tmp_path,
+            telegram_bot_token=None, telegram_chat_id=None,
+            **_HOME_ASSISTANT_SETTINGS, meshtastic_entity_ids=_MESHTASTIC_ENTITY_IDS,
+            meshtastic_channel_fields=_MESHTASTIC_CHANNEL_FIELDS,
+            meshtastic_channel_allowlist=frozenset(channel_allowlist),
+        )
+    )
+
+
+def test_meshtastic_route_omits_channels_when_no_channel_is_allowlisted(tmp_path, monkeypatch):
+    states = [{
+        "entity_id": "meshtastic.gateway_private_channel_longfast", "state": "Hello mesh",
+        "last_changed": "2026-09-25T08:14:00+00:00", "attributes": {"message": "Hello mesh", "from_id": "!7e5d1a42"},
+    }]
+    monkeypatch.setattr(home_assistant, "urlopen", _fake_home_assistant_api(_meshtastic_channel_responses(states)))
+
+    with TestClient(_meshtastic_channel_app(tmp_path, channel_allowlist=frozenset())) as client:
+        response = client.get("/v1/lab/meshtastic-status")
+
+    assert response.status_code == 200
+    assert "channels" not in response.json()
+    assert "Hello mesh" not in response.text
+
+
+def test_meshtastic_route_does_not_publish_a_person_named_channel_that_is_not_allowlisted(tmp_path, monkeypatch):
+    states = [{
+        "entity_id": "meshtastic.gateway_private_channel_alice_phone", "state": "SENTINEL-ALICE-TEXT",
+        "last_changed": "2026-09-25T08:14:00+00:00", "attributes": {"message": "SENTINEL-ALICE-TEXT", "from_id": "!7e5d1a42", "friendly_name": "Alice"},
+    }]
+    monkeypatch.setattr(home_assistant, "urlopen", _fake_home_assistant_api(_meshtastic_channel_responses(states)))
+
+    with TestClient(_meshtastic_channel_app(tmp_path)) as client:
+        response = client.get("/v1/lab/meshtastic-status")
+
+    assert response.status_code == 200
+    assert response.json()["channels"] == []
+    assert "SENTINEL" not in response.text
+    assert "Alice" not in response.text
+
+
+def test_meshtastic_route_publishes_only_the_whitelisted_channel_projection(tmp_path, monkeypatch):
+    states = [
+        {
+            "entity_id": "meshtastic.gateway_private_channel_longfast", "state": "Hello mesh",
+            "last_changed": "2026-09-25T08:14:00+00:00",
+            "attributes": {
+                "message": "Hello mesh", "from_id": "!7e5d1a42", "hop_start": 3, "hop_limit": 1,
+                "long_name": "SENTINEL-AUTHOR", "serial": "SENTINEL-SERIAL", "mac_address": "SENTINEL-MAC",
+                "friendly_name": "Longfast", "previous_message": "SENTINEL-OLDER",
+            },
+        },
+        {
+            "entity_id": "meshtastic.gateway_private_channel_direct_messages", "state": "SENTINEL-DM",
+            "last_changed": "2026-09-25T08:14:00+00:00", "attributes": {"message": "SENTINEL-DM", "from_id": "!7e5d1a42"},
+        },
+        {
+            "entity_id": "sensor.unrelated_channel_other", "state": "SENTINEL-OTHER",
+            "last_changed": "2026-09-25T08:14:00+00:00", "attributes": {"message": "SENTINEL-OTHER", "from_id": "!7e5d1a42"},
+        },
+    ]
+    monkeypatch.setattr(home_assistant, "urlopen", _fake_home_assistant_api(_meshtastic_channel_responses(states)))
+
+    with TestClient(_meshtastic_channel_app(tmp_path)) as client:
+        response = client.get("/v1/lab/meshtastic-status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert set(payload) == {"status", "onlineNodes", "totalNodes", "channels", "refreshedAt"}
+    assert payload["channels"] == [{
+        "name": "Longfast",
+        "last": {"nodeId": "!7e5d1a**", "text": "Hello mesh", "time": "2026-09-25T08:14:00Z", "hops": 2},
+    }]
+    for channel in payload["channels"]:
+        assert set(channel) <= {"name", "last"}
+        assert set(channel["last"]) <= {"nodeId", "text", "time", "hops"}
+    for sentinel in ("SENTINEL", "!7e5d1a42", "Direct", "direct_messages", "meshtastic.", "sensor.", "gateway_private", "unrelated"):
+        assert sentinel not in response.text, sentinel
+
+
+def test_meshtastic_route_omits_channels_when_discovery_fails_instead_of_returning_503(tmp_path, monkeypatch):
+    responses = _meshtastic_channel_responses()
+
+    def urlopen(request, timeout):
+        path = urlsplit(request.full_url).path
+        if path == "/api/states":
+            raise HTTPError(request.full_url, 500, "Failure", None, None)
+        return _JSONResponse(responses[path])
+
+    monkeypatch.setattr(home_assistant, "urlopen", urlopen)
+    with TestClient(_meshtastic_channel_app(tmp_path)) as client:
+        response = client.get("/v1/lab/meshtastic-status")
+
+    assert response.status_code == 200
+    assert set(response.json()) == {"status", "onlineNodes", "totalNodes", "refreshedAt"}
+    assert response.json()["onlineNodes"] == 12
+
+
+def test_meshtastic_route_still_returns_503_when_the_gateway_is_disconnected(tmp_path, monkeypatch):
+    responses = _meshtastic_channel_responses([{
+        "entity_id": "meshtastic.gateway_private_channel_longfast", "state": "Hello", "last_changed": "2026-09-25T08:14:00+00:00",
+        "attributes": {"message": "Hello", "from_id": "!7e5d1a42"},
+    }])
+    responses["/api/states/meshtastic.gateway_private"] = {"state": "disconnected"}
+    monkeypatch.setattr(home_assistant, "urlopen", _fake_home_assistant_api(responses))
+
+    with TestClient(_meshtastic_channel_app(tmp_path)) as client:
+        response = client.get("/v1/lab/meshtastic-status")
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "meshtastic_status_unavailable"
+
+
 @pytest.mark.parametrize("entity_setting", [
-    "SIGNAL_RELAY_MESHTASTIC_LAST_NODE_ENTITY_ID",
     "SIGNAL_RELAY_HOME_ASSISTANT_TEMPERATURE_ENTITY_ID",
     "SIGNAL_RELAY_HOME_ASSISTANT_HUMIDITY_ENTITY_ID",
     "SIGNAL_RELAY_HOME_ASSISTANT_AIR_QUALITY_ENTITY_ID",
@@ -254,12 +388,100 @@ def test_status_cache_window_is_clamped_to_900_seconds_while_the_send_projection
 def test_valid_entity_ids_are_accepted_and_empty_entity_ids_are_unset(monkeypatch):
     entity_ids = {**{key: f"sensor.private_{key}" for key in MESHTASTIC_ENTITY_KEYS}, "nodes_total": "sensor.private_total_2"}
     monkeypatch.setenv("SIGNAL_RELAY_MESHTASTIC_ENTITY_IDS", json.dumps(entity_ids))
-    monkeypatch.setenv("SIGNAL_RELAY_MESHTASTIC_LAST_NODE_ENTITY_ID", "")
+    monkeypatch.setenv("SIGNAL_RELAY_MESHTASTIC_CHANNEL_PREFIX", "")
 
     settings = Settings.from_environment()
 
     assert settings.meshtastic_entity_ids["nodes_total"] == "sensor.private_total_2"
-    assert settings.meshtastic_last_node_entity_id is None
+    assert settings.meshtastic_channel_prefix is None
+    assert settings.meshtastic_channel_denylist == frozenset()
+    assert settings.meshtastic_channel_fields is None
+
+
+def test_channel_prefix_denylist_and_fields_are_parsed_from_the_environment(monkeypatch):
+    monkeypatch.setenv("SIGNAL_RELAY_MESHTASTIC_CHANNEL_PREFIX", "meshtastic.gateway_private_channel_")
+    monkeypatch.setenv("SIGNAL_RELAY_MESHTASTIC_CHANNEL_DENYLIST", " Telemetry, Secret Room ,,")
+    monkeypatch.setenv("SIGNAL_RELAY_MESHTASTIC_CHANNEL_FIELDS", '{"text": "message", "node_id": "from_id", "timestamp": "rx_time", "hop_start": "hop_start", "hop_limit": "hop_limit"}')
+
+    settings = Settings.from_environment()
+
+    assert settings.meshtastic_channel_prefix == "meshtastic.gateway_private_channel_"
+    assert settings.meshtastic_channel_denylist == frozenset({"Telemetry", "Secret Room"})
+    assert settings.meshtastic_channel_fields == {
+        "text": "message", "node_id": "from_id", "timestamp": "rx_time", "hop_start": "hop_start", "hop_limit": "hop_limit",
+    }
+
+
+@pytest.mark.parametrize("bad_value", ["Sensor.Private", "sensor", "sensor.private/../x", " sensor.meshtastic_channel_", "sensor.a?x=1"])
+def test_channel_prefix_must_be_an_entity_id_shaped_prefix(monkeypatch, bad_value):
+    monkeypatch.setenv("SIGNAL_RELAY_MESHTASTIC_CHANNEL_PREFIX", bad_value)
+
+    with pytest.raises(ValueError) as error:
+        Settings.from_environment()
+
+    assert str(error.value) == "SIGNAL_RELAY_MESHTASTIC_CHANNEL_PREFIX must be a Home Assistant entity ID prefix"
+    assert bad_value not in str(error.value)
+
+
+@pytest.mark.parametrize("bad_name", ["bad/name", "x" * 33, "<script>", "name?x=1", "Ünïcode name"])
+def test_channel_denylist_entries_are_validated_without_echoing_them(monkeypatch, bad_name):
+    monkeypatch.setenv("SIGNAL_RELAY_MESHTASTIC_CHANNEL_DENYLIST", f"Telemetry,{bad_name}")
+
+    with pytest.raises(ValueError) as error:
+        Settings.from_environment()
+
+    assert str(error.value) == "SIGNAL_RELAY_MESHTASTIC_CHANNEL_DENYLIST must contain channel names of 1 to 32 letters, digits, spaces, underscores, or hyphens"
+    assert bad_name not in str(error.value)
+
+
+def test_channel_allowlist_is_parsed_from_the_environment_and_empty_means_no_channels(monkeypatch):
+    monkeypatch.setenv("SIGNAL_RELAY_MESHTASTIC_CHANNEL_ALLOWLIST", " Longfast, Field Team ,,")
+
+    assert Settings.from_environment().meshtastic_channel_allowlist == frozenset({"Longfast", "Field Team"})
+
+    monkeypatch.setenv("SIGNAL_RELAY_MESHTASTIC_CHANNEL_ALLOWLIST", "")
+
+    assert Settings.from_environment().meshtastic_channel_allowlist == frozenset()
+
+
+@pytest.mark.parametrize("bad_name", ["bad/name", "x" * 33, "<script>", "name?x=1", "Ünïcode name"])
+def test_channel_allowlist_entries_are_validated_without_echoing_them(monkeypatch, bad_name):
+    monkeypatch.setenv("SIGNAL_RELAY_MESHTASTIC_CHANNEL_ALLOWLIST", f"Longfast,{bad_name}")
+
+    with pytest.raises(ValueError) as error:
+        Settings.from_environment()
+
+    assert str(error.value) == "SIGNAL_RELAY_MESHTASTIC_CHANNEL_ALLOWLIST must contain channel names of 1 to 32 letters, digits, spaces, underscores, or hyphens"
+    assert bad_name not in str(error.value)
+
+
+@pytest.mark.parametrize("configured, effective", [("60", 900), ("0", 900), ("899", 900), ("900", 900), ("1200", 1200)])
+def test_status_cache_seconds_has_a_900_second_floor(monkeypatch, configured, effective):
+    monkeypatch.setenv("SIGNAL_RELAY_MESHTASTIC_STATUS_CACHE_SECONDS", configured)
+
+    assert Settings.from_environment().meshtastic_status_cache_seconds == effective
+
+
+@pytest.mark.parametrize("bad_value", [
+    "not json",
+    "null",
+    '["message"]',
+    '{"author": "from_name"}',
+    '{"text": "bad/attr"}',
+    '{"text": 3}',
+    '{"text": null}',
+    '{"text": ""}',
+    '{"text": "' + "x" * 65 + '"}',
+])
+def test_channel_fields_must_map_supported_fields_to_attribute_names_without_echoing_them(monkeypatch, bad_value):
+    monkeypatch.setenv("SIGNAL_RELAY_MESHTASTIC_CHANNEL_FIELDS", bad_value)
+
+    with pytest.raises(ValueError) as error:
+        Settings.from_environment()
+
+    assert str(error.value) == "SIGNAL_RELAY_MESHTASTIC_CHANNEL_FIELDS must be a JSON object that maps supported fields to attribute names"
+    assert "from_name" not in str(error.value)
+    assert "bad/attr" not in str(error.value)
 
 
 @pytest.mark.parametrize("bad_value", ["Sensor.Private", "sensor.private/../../api", "sensor", "sensor.private?x=1", " sensor.private"])
@@ -656,3 +878,20 @@ def test_meshtastic_message_requires_turnstile_and_respects_cooldown(tmp_path, m
             json={"message": "Again", "turnstileToken": "token"},
             headers={"X-Real-IP": "203.0.113.10"},
         ).status_code == 429
+
+
+def test_meshtastic_route_masks_node_ids_inside_published_message_text(tmp_path, monkeypatch):
+    states = [{
+        "entity_id": "meshtastic.gateway_private_channel_longfast", "state": "state",
+        "last_changed": "2026-09-25T08:14:00+00:00",
+        "attributes": {"message": "ping !7e5d1a42 and !7E5D1A99", "from_id": "!7e5d1a42", "hop_start": 3, "hop_limit": 1},
+    }]
+    monkeypatch.setattr(home_assistant, "urlopen", _fake_home_assistant_api(_meshtastic_channel_responses(states)))
+
+    with TestClient(_meshtastic_channel_app(tmp_path)) as client:
+        response = client.get("/v1/lab/meshtastic-status")
+
+    assert response.status_code == 200
+    assert response.json()["channels"][0]["last"]["text"] == "ping !7e5d1a** and !7E5D1A**"
+    for full_id in ("7e5d1a42", "7E5D1A99", "7e5d1a42".upper()):
+        assert full_id not in response.text, full_id

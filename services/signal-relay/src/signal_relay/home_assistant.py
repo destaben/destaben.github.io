@@ -4,11 +4,14 @@ from datetime import UTC, datetime
 import http.client
 import json
 import math
+import re
 import threading
 import time
-from typing import Mapping
-from urllib.error import HTTPError
+import unicodedata
+from typing import Iterable, Mapping
 from urllib.request import HTTPRedirectHandler, Request, build_opener
+
+from .config import _ENTITY_ID
 
 
 MESHTASTIC_BROADCAST_TIMEOUT_SECONDS = 15
@@ -22,9 +25,31 @@ _MAX_RESPONSE_BYTES = 1024 * 1024
 _READ_CHUNK_BYTES = 64 * 1024
 # One refresh issues at most a handful of reads; no new read starts once this much time has passed.
 _REFRESH_DEADLINE_SECONDS = 10
-_MAX_NODE_NAME_LENGTH = 64
-# Home Assistant placeholder states that mean "no usable name" rather than a name to publish.
+# Home Assistant placeholder states that mean "no usable value" rather than a value to publish.
 _PLACEHOLDER_STATES = frozenset({"", "unavailable", "unknown", "none"})
+_MAX_CHANNELS = 16
+# Whole-number node counts above this are rejected. The front end uses the same value (maxCount in MeshtasticStatusLab.astro).
+_MAX_NODE_COUNT = 100_000
+# A status whose channel list could not be read is kept for this long, so channels come back quickly while the counts stay cached.
+_PARTIAL_CHANNELS_CACHE_SECONDS = 60
+_MAX_CHANNEL_NAME_LENGTH = 32
+_MAX_MESSAGE_TEXT_LENGTH = 200
+# Meshtastic hop counts are three bits wide.
+_MAX_HOPS = 7
+# Largest epoch second accepted as a message time; keeps the conversion inside datetime's range.
+_MAX_EPOCH_SECONDS = 4_102_444_800
+_NODE_ID = re.compile(r"![0-9A-Fa-f]{8}")
+# A node ID written in message text: an exclamation mark, then at least eight hexadecimal digits.
+_NODE_ID_IN_TEXT = re.compile(r"!([0-9A-Fa-f]{8})[0-9A-Fa-f]*")
+# A partial node ID at the end of a truncated message: an exclamation mark, hex digits, and at most one masking star.
+# A complete masked ID ends in two stars and is kept.
+_TRAILING_NODE_ID_FRAGMENT = re.compile(r"!(?:[0-9A-Fa-f]+\*?)$")
+# Word tokens that mark an entity or name as a direct message. Any hit excludes the channel. This is an extra
+# layer only: publication is default-deny through SIGNAL_RELAY_MESHTASTIC_CHANNEL_ALLOWLIST.
+_DIRECT_MESSAGE_TOKENS = frozenset({
+    "dm", "dms", "pm", "pms", "direct", "directa", "directas", "directo", "directos",
+    "private", "privada", "privadas", "privado", "privados", "whisper", "secret",
+})
 
 
 def _finite_state(payload: dict[str, object], error_code: str) -> float:
@@ -71,7 +96,7 @@ def _read_body(response, started: float, budget: float) -> bytes:
         chunks.append(chunk)
 
 
-def _read_json(base_url: str, token: str, path: str, timeout: float) -> dict[str, object]:
+def _read_value(base_url: str, token: str, path: str, timeout: float) -> object:
     """One authenticated Home Assistant GET; shared by every client so the token handling lives in one place.
 
     Each socket operation waits at most ``timeout`` seconds. The body must also arrive within ``timeout`` seconds
@@ -88,9 +113,13 @@ def _read_json(base_url: str, token: str, path: str, timeout: float) -> dict[str
     except http.client.HTTPException as error:
         raise ValueError("invalid_home_assistant_response") from error
     try:
-        payload = json.loads(body)
+        return json.loads(body)
     except ValueError as error:
         raise ValueError("invalid_home_assistant_response") from error
+
+
+def _read_json(base_url: str, token: str, path: str, timeout: float) -> dict[str, object]:
+    payload = _read_value(base_url, token, path, timeout)
     if not isinstance(payload, dict):
         raise ValueError("invalid_home_assistant_response")
     return payload
@@ -134,8 +163,11 @@ class _HomeAssistantClient:
             finally:
                 self._refresh_deadline = math.inf
             self._cached_error = None
-            self._fresh_status = (time.monotonic() + self.cache_seconds, status)
+            self._fresh_status = (time.monotonic() + self._cache_window(), status)
             return status
+
+    def _cache_window(self) -> float:
+        return self.cache_seconds
 
     def _refresh(self) -> dict[str, object]:
         raise NotImplementedError
@@ -147,6 +179,14 @@ class _HomeAssistantClient:
         if time.monotonic() >= self._refresh_deadline:
             raise ValueError("home_assistant_refresh_deadline_exceeded")
         return _read_json(self.base_url, self.token, path, _REQUEST_TIMEOUT_SECONDS)
+
+    def _get_list(self, path: str) -> list[object]:
+        if time.monotonic() >= self._refresh_deadline:
+            raise ValueError("home_assistant_refresh_deadline_exceeded")
+        payload = _read_value(self.base_url, self.token, path, _REQUEST_TIMEOUT_SECONDS)
+        if not isinstance(payload, list):
+            raise ValueError("invalid_home_assistant_response")
+        return payload
 
 
 class HomeAssistantLabClient(_HomeAssistantClient):
@@ -205,7 +245,7 @@ class HomeAssistantLabClient(_HomeAssistantClient):
 
 
 class MeshtasticLabClient(_HomeAssistantClient):
-    """Publishes a deliberately small, read-only Meshtastic status projection."""
+    """Publishes aggregate Meshtastic counts and the latest message of each discovered public channel."""
 
     def __init__(
         self,
@@ -214,19 +254,41 @@ class MeshtasticLabClient(_HomeAssistantClient):
         gateway_entity_id: str,
         nodes_online_entity_id: str,
         nodes_total_entity_id: str,
-        last_node_entity_id: str | None,
         cache_seconds: int = 900,
+        *,
+        channel_prefix: str | None = None,
+        channel_allowlist: Iterable[str] = (),
+        channel_denylist: Iterable[str] = (),
+        channel_fields: Mapping[str, str] | None = None,
     ) -> None:
         super().__init__(base_url, token, cache_seconds)
         self.gateway_entity_id = gateway_entity_id
         self.nodes_online_entity_id = nodes_online_entity_id
         self.nodes_total_entity_id = nodes_total_entity_id
-        self.last_node_entity_id = last_node_entity_id
+        # Defaults to the gateway's channel namespace, the same convention used when locating entities on the host.
+        self.channel_prefix = channel_prefix if channel_prefix is not None else f"{gateway_entity_id}_channel_"
+        # Default-deny: a channel is published only when its sanitized name is allowlisted.
+        self._channel_allowlist = frozenset(_normalized_name(name) for name in channel_allowlist)
+        self._channel_denylist = frozenset(_normalized_name(name) for name in channel_denylist)
+        # Attribute names are configured per deployment; a field without a configured name is never read.
+        self._channel_fields = dict(channel_fields or {})
+        # Set by the last refresh: True when the channel list could not be read.
+        self._channels_partial = False
+        # Words of the gateway's friendly name, which are not evidence about any channel.
+        self._gateway_name_words: list[str] = []
+
+    def _cache_window(self) -> float:
+        return _PARTIAL_CHANNELS_CACHE_SECONDS if self._channels_partial else self.cache_seconds
 
     def _refresh(self) -> dict[str, object]:
+        self._channels_partial = False
         self._get_json("/api/")
         # The gateway state casing matches the Meshtastic send projection, which reads the same entity.
-        gateway_state = self._state(self.gateway_entity_id).get("state")
+        gateway = self._state(self.gateway_entity_id)
+        gateway_state = gateway.get("state")
+        attributes = gateway.get("attributes")
+        gateway_name = attributes.get("friendly_name") if isinstance(attributes, dict) else None
+        self._gateway_name_words = _word_list(gateway_name) if isinstance(gateway_name, str) else []
         if gateway_state != "Connected":
             raise ValueError("meshtastic_gateway_unavailable")
         online = self._count(self.nodes_online_entity_id)
@@ -239,37 +301,203 @@ class MeshtasticLabClient(_HomeAssistantClient):
             "totalNodes": total,
             "refreshedAt": datetime.now(UTC).replace(second=0, microsecond=0).isoformat().replace("+00:00", "Z"),
         }
-        if self.last_node_entity_id:
-            last_node = self._optional_node_name(self.last_node_entity_id)
-            if last_node is not None:
-                status["lastNode"] = last_node
+        channels = self._channels()
+        if channels is not None:
+            status["channels"] = channels
         return status
 
     def _count(self, entity_id: str) -> int:
         value = _finite_state(self._state(entity_id), "invalid_meshtastic_node_count")
-        if value < 0 or not value.is_integer():
+        if value < 0 or value > _MAX_NODE_COUNT or not value.is_integer():
             raise ValueError("invalid_meshtastic_node_count")
         return int(value)
 
-    def _optional_node_name(self, entity_id: str) -> str | None:
-        """Returns a publishable name, or None when the optional lastNode must be omitted."""
+    def _channels(self) -> list[dict[str, object]] | None:
+        """Returns the allowlisted channels, or None when none are allowlisted or discovery fails, so the field is omitted."""
+        if not self._channel_allowlist:
+            # Nothing is publishable, so the entity list is not read at all.
+            return None
         try:
-            state = self._state(entity_id).get("state")
-        except HTTPError as error:
-            # A removed or renamed entity only drops the optional name; other HTTP failures still fail the panel.
-            if error.code == 404:
+            states = self._get_list("/api/states")
+        except (OSError, ValueError):
+            self._channels_partial = True
+            return None
+        excluded = {self.gateway_entity_id, self.nodes_online_entity_id, self.nodes_total_entity_id}
+        found: list[tuple[str, dict[str, object]]] = []
+        for state in states:
+            if not isinstance(state, dict):
+                continue
+            entity_id = state.get("entity_id")
+            if not isinstance(entity_id, str) or not _ENTITY_ID.fullmatch(entity_id):
+                continue
+            if entity_id in excluded or not entity_id.startswith(self.channel_prefix):
+                continue
+            channel = self._channel(entity_id, state)
+            if channel is not None:
+                found.append((entity_id, channel))
+        found.sort(key=lambda item: item[0])
+        return [channel for _, channel in found[:_MAX_CHANNELS]]
+
+    def _channel(self, entity_id: str, state: dict[str, object]) -> dict[str, object] | None:
+        attributes = state.get("attributes")
+        # Fail closed: without readable attributes an entity cannot be ruled out as a direct message.
+        if not isinstance(attributes, dict):
+            return None
+        friendly_name = attributes.get("friendly_name")
+        if "friendly_name" in attributes and not isinstance(friendly_name, str):
+            return None
+        slug = entity_id[len(self.channel_prefix):]
+        if self._is_direct_message(entity_id, slug, friendly_name if isinstance(friendly_name, str) else ""):
+            return None
+        name = _channel_name(slug)
+        # Default-deny: the sanitized name must be allowlisted, and the denylist still wins over the allowlist.
+        if name is None or _normalized_name(name) not in self._channel_allowlist or self._is_denied(name, slug):
+            return None
+        channel: dict[str, object] = {"name": name}
+        last = self._last_message(attributes, state)
+        if last is not None:
+            channel["last"] = last
+        return channel
+
+    def _is_direct_message(self, entity_id: str, slug: str, friendly_name: str) -> bool:
+        """Heuristic: a direct-message word in the channel's own identity excludes it.
+
+        The words checked are the entity ID suffix, the channel friendly name with the gateway's friendly name removed,
+        and the words of a configured channel prefix that are not part of the gateway's own entity ID or friendly name.
+        """
+        gateway_words = set(_word_list(self.gateway_entity_id)) | set(self._gateway_name_words)
+        prefix_words = set(_word_list(entity_id[: len(self.channel_prefix)])) - gateway_words
+        name_words = _without_phrase(_word_list(friendly_name), self._gateway_name_words)
+        words = prefix_words | set(_word_list(slug)) | set(name_words)
+        return not _DIRECT_MESSAGE_TOKENS.isdisjoint(words)
+
+    def _is_denied(self, name: str, slug: str) -> bool:
+        return _normalized_name(name) in self._channel_denylist or _normalized_name(slug) in self._channel_denylist
+
+    def _last_message(self, attributes: dict[str, object], state: dict[str, object]) -> dict[str, object] | None:
+        # A message without a sender node ID, text, or time is not published; the channel stays listed.
+        node_id = _masked_node_id(self._field_value(attributes, "node_id"))
+        text = self._message_text(attributes, state)
+        time_value = self._message_time(attributes, state)
+        if node_id is None or text is None or time_value is None:
+            return None
+        last: dict[str, object] = {"nodeId": node_id, "text": text, "time": time_value}
+        hops = self._hops(attributes)
+        if hops is not None:
+            last["hops"] = hops
+        return last
+
+    def _field_value(self, attributes: dict[str, object], field: str) -> object:
+        attribute = self._channel_fields.get(field)
+        return None if attribute is None else attributes.get(attribute)
+
+    def _message_text(self, attributes: dict[str, object], state: dict[str, object]) -> str | None:
+        # Without a configured text attribute, the entity state carries the message.
+        raw = self._field_value(attributes, "text") if "text" in self._channel_fields else state.get("state")
+        if not isinstance(raw, str):
+            return None
+        # Mask first, so that a node ID cannot be cut in half and leave its digits behind.
+        text = _truncate_message(_mask_node_ids(_clean_text(raw)))
+        if not text or text.casefold() in _PLACEHOLDER_STATES:
+            return None
+        return text
+
+    def _message_time(self, attributes: dict[str, object], state: dict[str, object]) -> str | None:
+        candidates = [self._field_value(attributes, "timestamp"), state.get("last_changed")]
+        for candidate in candidates:
+            moment = _parse_moment(candidate)
+            if moment is not None:
+                return moment.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+        return None
+
+    def _hops(self, attributes: dict[str, object]) -> int | None:
+        start = _hop_count(self._field_value(attributes, "hop_start"))
+        limit = _hop_count(self._field_value(attributes, "hop_limit"))
+        if start is None or limit is None or limit > start:
+            return None
+        return start - limit
+
+
+def _normalized_name(name: str) -> str:
+    return re.sub(r"[\s_-]+", "_", name.strip().casefold())
+
+
+def _truncate_message(text: str) -> str:
+    """Cuts an already masked message to its limit, then drops a partial node ID left at the cut."""
+    return _TRAILING_NODE_ID_FRAGMENT.sub("", text[:_MAX_MESSAGE_TEXT_LENGTH]).rstrip()
+
+
+def _clean_text(value: str, limit: int | None = None) -> str:
+    """Drops control and format characters and collapses whitespace; truncates only when a limit is given."""
+    spaced = "".join(" " if character.isspace() else character for character in value)
+    printable = "".join(character for character in spaced if unicodedata.category(character)[0] != "C")
+    collapsed = " ".join(printable.split())
+    return collapsed if limit is None else collapsed[:limit].rstrip()
+
+
+def _channel_name(slug: str) -> str | None:
+    """De-slugifies the entity ID suffix; an empty result means the channel has no usable name."""
+    name = _clean_text(slug.replace("_", " "), _MAX_CHANNEL_NAME_LENGTH)
+    if not name:
+        return None
+    return name[0].upper() + name[1:]
+
+
+def _word_list(text: str) -> list[str]:
+    """Lowercase ASCII word tokens, in order. Non-ASCII letters separate words, so they never form a direct-message token."""
+    return [token for token in re.split(r"[^a-z0-9]+", text.casefold()) if token]
+
+
+def _without_phrase(words: list[str], phrase: list[str]) -> list[str]:
+    """Removes every run of consecutive words that equals the phrase, so a single shared word is kept."""
+    if not phrase:
+        return words
+    kept: list[str] = []
+    index = 0
+    while index < len(words):
+        if words[index:index + len(phrase)] == phrase:
+            index += len(phrase)
+            continue
+        kept.append(words[index])
+        index += 1
+    return kept
+
+
+def _mask_node_ids(text: str) -> str:
+    """Masks every node ID written in message text the same way as the sender field: six hex digits, then **."""
+    return _NODE_ID_IN_TEXT.sub(lambda match: "!" + match.group(0)[1:7] + "**", text)
+
+
+def _masked_node_id(value: object) -> str | None:
+    """Keeps the node ID's prefix and masks its last two characters; anything else is not a node ID."""
+    if not isinstance(value, str) or not _NODE_ID.fullmatch(value):
+        return None
+    return value[:-2] + "**"
+
+
+def _hop_count(value: object) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= _MAX_HOPS:
+        return None
+    return value
+
+
+def _parse_moment(value: object) -> datetime | None:
+    """Accepts a timezone-aware ISO-8601 string or epoch seconds, and returns it in UTC."""
+    if isinstance(value, bool):
+        return None
+    try:
+        if isinstance(value, (int, float)):
+            if not math.isfinite(value) or not 0 <= value <= _MAX_EPOCH_SECONDS:
                 return None
-            raise
-        if not isinstance(state, str):
-            return None
-        normalized = " ".join(state.split())
-        if (
-            normalized.casefold() in _PLACEHOLDER_STATES
-            or len(normalized) > _MAX_NODE_NAME_LENGTH
-            or not normalized.isprintable()
-        ):
-            return None
-        return normalized
+            return datetime.fromtimestamp(value, UTC)
+        if isinstance(value, str):
+            moment = datetime.fromisoformat(value)
+            if moment.tzinfo is None:
+                return None
+            return moment.astimezone(UTC)
+    except (ValueError, OverflowError, OSError):
+        return None
+    return None
 
 
 class HomeAssistantMeshtasticClient:

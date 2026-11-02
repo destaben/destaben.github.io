@@ -81,12 +81,22 @@ The relay uses a dedicated long-lived Home Assistant token plus explicitly confi
   "status": "available",
   "onlineNodes": 12,
   "totalNodes": 43,
-  "lastNode": "<optional configured display name>",
+  "channels": [
+    {
+      "name": "Longfast",
+      "last": {
+        "nodeId": "!7e5d1a**",
+        "text": "<sanitized public message>",
+        "time": "2026-09-25T08:14:00Z",
+        "hops": 2
+      }
+    }
+  ],
   "refreshedAt": "2026-09-25T08:15:00Z"
 }
 ```
 
-The relay uses the existing dedicated Home Assistant token and the private `SIGNAL_RELAY_MESHTASTIC_ENTITY_IDS` map shared with the Meshtastic send projection, reading only its `gateway`, `nodes_online`, and `nodes_total` entities. The gateway state must be `Connected`, matching that projection. An optional `SIGNAL_RELAY_MESHTASTIC_LAST_NODE_ENTITY_ID` supplies a selected latest-node name. It must never hold a personal name, such as a person's phone or an owner's name, because its value is published on every refresh. The lastNode field is planned for removal in a follow-up PR (#10). Successful values are cached for at least 15 minutes (`SIGNAL_RELAY_MESHTASTIC_STATUS_CACHE_SECONDS`, default and minimum 900), and a failed refresh is remembered for 30 seconds before Home Assistant is queried again. Like the home-status route, redirects are never followed, so the Bearer token is never sent to another location, and the same read bounds apply. The public route never exposes Home Assistant entity IDs, gateway names, node identifiers, locations, telemetry, message traffic, attributes, individual timestamps, channels, or controls. The optional `lastNode` is absent unless the operator selects a name-only state suitable for publication. It is also omitted, without failing the route, when its entity is missing (HTTP 404) or that state is a Home Assistant placeholder (`unavailable`, `unknown`, `none`, or empty), contains non-printable characters, or exceeds 64 characters after whitespace normalization. Other HTTP errors (such as 401 or 500) and transport errors still make the route return `503 meshtastic_status_unavailable`. This status route is read-only; public sending is the separate `POST` route documented below.
+The relay uses the existing dedicated Home Assistant token and the private `SIGNAL_RELAY_MESHTASTIC_ENTITY_IDS` map shared with the Meshtastic send projection, reading only its `gateway`, `nodes_online`, and `nodes_total` entities for the counts and gateway state. Channel discovery is separate: only when the allowlist is set does the relay also read the entity list from `GET /api/states`. The gateway state must be `Connected`, matching that projection. Malformed Meshtastic or Home Assistant entity IDs, and invalid channel allowlist, denylist, prefix, or field settings, stop the relay at startup with an error that names the setting and never echoes the value. Successful values are cached for at least 15 minutes (`SIGNAL_RELAY_MESHTASTIC_STATUS_CACHE_SECONDS`, default and minimum 900), and a failed refresh is remembered for 30 seconds before Home Assistant is queried again. Publication is default-deny. Only channels whose sanitized name appears in the private `SIGNAL_RELAY_MESHTASTIC_CHANNEL_ALLOWLIST` can be published, and an empty allowlist omits `channels` entirely without reading the entity list. When the allowlist is set, channels are discovered from one `GET /api/states` read per refresh. An entity is a candidate only when its ID starts with the private `SIGNAL_RELAY_MESHTASTIC_CHANNEL_PREFIX` (default: the gateway entity ID followed by `_channel_`), passes the entity-ID check, and is allowlisted by name. `SIGNAL_RELAY_MESHTASTIC_CHANNEL_DENYLIST` wins over the allowlist and hides channels by name or slug. `SIGNAL_RELAY_MESHTASTIC_CHANNEL_FIELDS` maps `text`, `node_id`, `timestamp`, `hop_start`, and `hop_limit` to the attribute names carried on the host; a field without a configured name is never read. Direct-message detection is a heuristic, not the safeguard: a candidate whose checked words (see below) contain a word token from the direct-message list (`dm`, `dms`, `pm`, `pms`, `direct`, `directa`, `directas`, `directo`, `directos`, `private`, `privada`, `privadas`, `privado`, `privados`, `whisper`, `secret`) is excluded, and so is one whose attributes cannot be read. The check covers the entity ID suffix, the channel friendly name with the gateway's own friendly name removed, and any words of a custom channel prefix that the gateway's entity ID and friendly name do not already contain. A direct message without such a token is published only if its name is allowlisted, so the allowlist and denylist must be reviewed before the projection is enabled. At most 16 channels are published, in entity-ID order. Each carries its name and only its last public message. The sender node ID keeps its first six hexadecimal digits and replaces its last two characters with `**`; the text is sanitized and capped at 200 characters; the time is UTC; hops appear only when hop start and limit are consistent. Node IDs written inside the message text are masked the same way. A channel without a usable message is listed without one, and a failed channel read omits `channels` without failing the counts. The counts stay cached for their normal window, but a status whose channel list could not be read is kept for only 60 seconds, so channel discovery is retried soon after. The entity list read shares the 1 MiB Home Assistant response cap, so on a very large installation the list may be too large and channels are omitted. The public route never exposes Home Assistant entity IDs, gateway names, full node identifiers, locations, telemetry, direct messages, attributes, or controls, and the message time is the only timestamp it publishes. Counts are whole numbers from 0 to 100000, the same limit in the relay and in the browser; a larger count is invalid and returns `503 meshtastic_status_unavailable`. Gateway states other than `Connected`, invalid counts, other HTTP errors (such as 401 or 500) on the gateway or count reads, and transport errors on those reads still make the route return `503 meshtastic_status_unavailable`. This status route is read-only; public sending is the separate `POST` route documented below.
 
 `GET /v1/lab/meshtastic` returns a bounded public Meshtastic projection or `503 meshtastic_unavailable`. It includes the configured local node's public name, gateway availability and power state, aggregate node and packet counters, channel utilization, airtime, per-minute traffic/error rates, and at most five explicitly sanitized MediumFast public-channel records, newest first. Each record includes the sender's public node name. The relay reads only the five fixed Home Assistant helpers configured for this public queue; malformed or incomplete entries are omitted. It never enumerates the mesh or exposes Home Assistant entity IDs, attributes, device configuration, channel keys, node IDs, positions, SNR, RSSI, routes, other channels, unbounded message history, or Home Assistant errors.
 
@@ -123,6 +133,27 @@ Public input remains disabled until the service has all of the following:
 - Metrics, alerts, and a documented kill switch
 
 When enabled, `POST /v1/signals` accepts only a fixed action vocabulary. It does not accept arbitrary chat messages.
+
+## Behavior changes
+
+These changes reach existing deployments when they run this relay version. This is the single canonical list; the relay README links here.
+
+- `/v1/lab/home-status` no longer follows Home Assistant redirects, so the Bearer token is never replayed. A redirect now returns `503 home_status_unavailable`.
+- A failed `/v1/lab/home-status` refresh is remembered for 30 seconds, so an outage is no longer retried on every public request.
+- `SIGNAL_RELAY_HOME_ASSISTANT_*_ENTITY_ID` values are validated at startup. An invalid ID stops the relay with an error that names the setting and never echoes the value.
+- Home Assistant reads, including the Meshtastic send projection and broadcast, refuse redirects, cap each response at 1 MiB, and cut off a slow body after 5 seconds.
+- Entity domains may start with a digit, as Home Assistant allows.
+- Public TCP node URLs additionally reject 6to4, local-use NAT64, Teredo, and router or home-network hostnames such as `.box`, `.router`, `.gateway`, `.modem`, `.wan`, `.domain` and `.mshome.net`.
+- The Meshtastic status cache is clamped to at least 900 seconds, as documented. The Meshtastic send projection keeps its 15-second floor.
+- Channels publish only when allowlisted in `SIGNAL_RELAY_MESHTASTIC_CHANNEL_ALLOWLIST`. An empty allowlist publishes no channels and omits `channels` entirely, and the entity list is not read.
+- The `lastNode` field and `SIGNAL_RELAY_MESHTASTIC_LAST_NODE_ENTITY_ID` are removed. A leftover `SIGNAL_RELAY_MESHTASTIC_LAST_NODE_ENTITY_ID` value is ignored.
+- Counts above 100000 are rejected with `503 meshtastic_status_unavailable`, matching the browser's limit.
+- A failed channel-list read keeps the counts cached but retries channel discovery after 60 seconds, instead of hiding channels for the full 15-minute window.
+- Node IDs written inside published message text are masked the same way as the sender field, so `!52302e42` becomes `!52302e**`. A partial ID cut off at the message limit is dropped.
+- Malformed Meshtastic or Home Assistant entity IDs, and invalid channel allowlist, denylist, prefix, or field settings, stop the relay at startup with an error that names the setting and never echoes the value.
+- The browser waits up to 20 seconds for the status route, which covers a cold relay refresh. Before, it gave up after 8 seconds and showed the panel as unavailable.
+- Direct-message detection is a heuristic. A direct-message channel whose name has no listed token is published only if its name is allowlisted, so keep direct-message channels out of the allowlist and list them in `SIGNAL_RELAY_MESHTASTIC_CHANNEL_DENYLIST`.
+- The entity list read shares the 1 MiB response cap. On a very large Home Assistant installation the list can be too large, and channels are then omitted while the counts still show `available`. See [docs/MESHTASTIC-INVENTORY.md](MESHTASTIC-INVENTORY.md) step 8 for the workarounds.
 
 ## Deployment
 
