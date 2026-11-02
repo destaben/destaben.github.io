@@ -1,0 +1,142 @@
+# Automatic PR review using the bug-hunter and documenter agents
+# (.claude/agents/bug-hunter.md, .claude/agents/documenter.md).
+#
+# INACTIVE until you add the CLAUDE_CODE_OAUTH_TOKEN secret: generate it with
+# `claude setup-token`. Runs bill against your Claude subscription quota, not
+# pay-per-token API billing — confirmed at
+# https://code.claude.com/docs/en/github-actions. It is tied to the account that
+# ran `claude setup-token`; fine here since this is a personal repo. There is
+# deliberately no API-key fallback: when the quota runs out, runs fail and post
+# nothing — see docs/decisions/0002-cost-and-quota.md.
+#
+# Runs on every same-repo, non-draft PR (opened/synchronize/reopened/
+# ready_for_review), not just on an
+# `@claude review` comment: see docs/decisions/0002-cost-and-quota.md,
+# which relaxes the old comment-only trigger now that the review runs on
+# Haiku 5.5 at low effort — cheap enough per run that the per-push cost is
+# acceptable against the shared subscription quota. The comment and manual
+# triggers stay as a fallback. To bound that draw, draft PRs are skipped until
+# marked ready, and a newer run on the same PR cancels the one in progress, so
+# a burst of pushes costs one review, not one per push.
+name: claude-pr-review
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch: {}
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  review:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.draft == false &&
+       github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event.issue.pull_request != null &&
+       contains(github.event.comment.body, '@claude review') &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'),
+                github.event.comment.author_association))
+    # One live review per PR. Comments that don't ask for a review, or come from someone
+    # who may not (and the manual trigger) get a unique group so they can never cancel a real one;
+    # whether a job skipped by `if` joins its group is not documented, so this
+    # doesn't depend on it.
+    concurrency:
+      group: >-
+        ${{ (github.event_name == 'workflow_dispatch' ||
+             (github.event_name == 'issue_comment' &&
+              !(contains(github.event.comment.body, '@claude review') &&
+                contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'),
+                         github.event.comment.author_association))))
+            && github.run_id
+            || format('claude-pr-review-{0}', github.event.pull_request.number || github.event.issue.number) }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Run bug-hunter and documenter review
+        id: review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Use the workflow's own token instead of the OIDC exchange for the
+          # Claude GitHub App token, which needs `id-token: write` and the
+          # app installed on the repo.
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          claude_args: >-
+            --model claude-haiku-5-5 --effort low
+            --allowedTools "Bash(gh pr diff:*),Bash(gh pr view:*),Bash(git show:*),Read,Grep,Glob"
+            --disallowedTools "Read(.git/**)"
+          prompt: |
+            Review pull request #${{ github.event.pull_request.number || github.event.issue.number }}
+            of this repository (HEAD is detached, so use this number with
+            `gh pr view`/`gh pr diff`; run commands from the repo root with
+            relative paths, no `git -C`). Review it using the bug-hunter agent defined in
+            .claude/agents/bug-hunter.md and the severity definitions in
+            .claude/skills/release-policy/SKILL.md. Then run the documenter
+            agent defined in .claude/agents/documenter.md to check whether
+            docs need updating for this change. Post the combined findings
+            as Markdown in your FINAL message, and make that message the review
+            itself (no preamble such as "I posted..."): a later workflow step
+            posts it as the PR comment. If there are no findings, say so
+            briefly instead of leaving it empty.
+            In this run you can only read the code: you cannot write files,
+            run tests (CI already runs them), or post to GitHub. The documenter reports only, and the
+            bug-hunter reviews the diff without running the suite.
+            Run the agents in the foreground and wait for their results: this
+            is a non-interactive run that ends when you stop, so do not end
+            your turn until you have written the final review message.
+
+      # The agent has no write tools and no `gh pr comment`: its final message
+      # is the review and this step posts it. That removes the "run gh with
+      # arbitrary content" path, but not influence: an injected diff can still
+      # make the review say anything (including "no findings"), and the
+      # `@claude review` comment path also runs on fork PRs when a trusted user
+      # asks for it. Treat the review as advisory. A workflow_dispatch run has
+      # no PR number, so there is nothing to post to and it is skipped.
+      - name: Post the review
+        if: ${{ !cancelled() && (github.event.pull_request.number || github.event.issue.number) }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+          EXECUTION_FILE: ${{ steps.review.outputs.execution_file }}
+        run: |
+          if [ -f "$EXECUTION_FILE" ]; then
+            jq -r '
+              [.[]? | select(.type == "result" and .subtype == "success" and (.is_error | not))]
+              | last | .result // empty
+            ' "$EXECUTION_FILE" > "$RUNNER_TEMP/review.md"
+          fi
+          if [ -s "$RUNNER_TEMP/review.md" ]; then
+            gh pr comment "$PR_NUMBER" --body-file "$RUNNER_TEMP/review.md"
+          else
+            echo "no final review message found; nothing to post"
+          fi
+
+# Checked 2026-10-25 against the action's action.yml and the CLI reference: the
+# inputs `claude_code_oauth_token`, `github_token`,
+# `prompt`, `claude_args` and the `execution_file` output exist, `--effort` is
+# a valid flag, and `claude-haiku-5-5` is a valid model id. Re-check them
+# before relying on this workflow later; the action may have moved on.
+#
+# To reuse this in a DIFFERENT repo: this file itself (project-specific CI)
+# and .claude/agents/{bug-hunter,documenter}.md + .claude/skills/release-policy/
+# must all be committed into that repo. A GitHub Actions runner only checks
+# out the target repo, not your ~/.claude — user-scope install isn't visible
+# to it. Run `python3 scripts/install.py --mode project --target <path-to-that-repo>`
+# from this dotclaude repo to install the agents/skills there, then copy this
+# workflow file in too. `destaben/github-config`'s `apply.sh` automates the
+# `CLAUDE_CODE_OAUTH_TOKEN` secret for every public repo tagged with the
+# `github-config` topic, but not the agent/skill files or this workflow file
+# itself — those still need `install.py --mode project` plus a manual copy
+# per target repo.

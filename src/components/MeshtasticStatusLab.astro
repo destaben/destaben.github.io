@@ -1,0 +1,88 @@
+---
+import type { MeshtasticStatusLab } from "../data/portfolio";
+
+interface Props { lab: MeshtasticStatusLab; }
+const { lab } = Astro.props;
+---
+
+<article class="lab-card meshtastic-status-panel" data-lab-state="planned" data-meshtastic-status-panel data-local-url="http://127.0.0.1:8787" data-production-url="https://lab.destaben.dev" data-loading-label={lab.loadingLabel} data-unavailable-label={lab.unavailableLabel} data-available-label={lab.availableLabel} aria-labelledby={`${lab.id}-title`}>
+  <div class="lab-card-header"><p class="lab-status">{lab.statusLabel}</p><span class="meshtastic-status-state" data-meshtastic-status-state role="status">{lab.loadingLabel}</span></div>
+  <h3 id={`${lab.id}-title`}>{lab.title}</h3>
+  <p>{lab.summary}</p>
+  <dl class="meshtastic-status-readings" data-meshtastic-status-readings hidden>
+    <div><dt>{lab.onlineNodesLabel}</dt><dd data-meshtastic-status-online>--</dd></div>
+    <div><dt>{lab.totalNodesLabel}</dt><dd data-meshtastic-status-total>--</dd></div>
+    <div data-meshtastic-status-last-wrap hidden><dt>{lab.lastNodeLabel}</dt><dd data-meshtastic-status-last>--</dd></div>
+  </dl>
+  <p class="meshtastic-status-updated" data-meshtastic-status-updated></p>
+  <div class="meshtastic-status-boundary"><p>{lab.privacyTitle}</p><span>{lab.privacyCopy}</span></div>
+  <div class="tag-list">{lab.technologies.map((technology) => <span class="tag">{technology}</span>)}</div>
+</article>
+
+<script>
+  // data-lab-state drives the card styling in global.css: "planned" for loading and
+  // unavailable, "active" once a valid status payload has been rendered.
+  const requestTimeoutMs = 8000;
+  const localHosts = new Set(["127.0.0.1", "localhost"]);
+  type Status = { status?: string; onlineNodes?: number; totalNodes?: number; lastNode?: unknown; refreshedAt?: string };
+
+  const formatRefreshedAt = (value: string | undefined) => {
+    const date = value ? new Date(value) : null;
+    if (!date || Number.isNaN(date.getTime())) return "";
+    return new Intl.DateTimeFormat(document.documentElement.lang, { dateStyle: "medium", timeStyle: "short" }).format(date);
+  };
+
+  const initMeshtasticStatusPanel = (panel: HTMLElement) => {
+    const baseUrl = (localHosts.has(window.location.hostname) ? panel.dataset.localUrl : panel.dataset.productionUrl) ?? "";
+    const state = panel.querySelector<HTMLElement>("[data-meshtastic-status-state]");
+    const readings = panel.querySelector<HTMLElement>("[data-meshtastic-status-readings]");
+    const online = panel.querySelector<HTMLElement>("[data-meshtastic-status-online]");
+    const total = panel.querySelector<HTMLElement>("[data-meshtastic-status-total]");
+    const last = panel.querySelector<HTMLElement>("[data-meshtastic-status-last]");
+    const lastWrap = panel.querySelector<HTMLElement>("[data-meshtastic-status-last-wrap]");
+    const updated = panel.querySelector<HTMLElement>("[data-meshtastic-status-updated]");
+
+    const showUnavailable = () => {
+      panel.dataset.labState = "planned";
+      if (state) state.textContent = panel.dataset.unavailableLabel || "Meshtastic unavailable";
+      if (readings) readings.hidden = true;
+      if (updated) updated.textContent = "";
+    };
+
+    const fetchStatus = async (): Promise<Status> => {
+      const controller = new AbortController();
+      const timer = window.setTimeout(() => controller.abort(), requestTimeoutMs);
+      try {
+        const response = await fetch(`${baseUrl}/v1/lab/meshtastic-status`, { signal: controller.signal });
+        if (!response.ok) throw new Error(`Unexpected status ${response.status}`);
+        return await response.json() as Status;
+      } finally {
+        window.clearTimeout(timer);
+      }
+    };
+
+    const load = async () => {
+      try {
+        const status = await fetchStatus();
+        if (status.status !== "available" || !Number.isInteger(status.onlineNodes) || !Number.isInteger(status.totalNodes)) throw new Error("Invalid status payload");
+        // Validate everything before touching the DOM so a bad payload cannot leave a mixed state.
+        const lastNode = typeof status.lastNode === "string" ? status.lastNode.trim() : "";
+        const refreshed = formatRefreshedAt(status.refreshedAt);
+        if (online) online.textContent = String(status.onlineNodes);
+        if (total) total.textContent = String(status.totalNodes);
+        if (lastWrap) lastWrap.hidden = !lastNode;
+        if (last && lastNode) last.textContent = lastNode;
+        if (readings) readings.hidden = false;
+        if (updated) updated.textContent = refreshed;
+        if (state) state.textContent = panel.dataset.availableLabel || "Available";
+        panel.dataset.labState = "active";
+      } catch {
+        showUnavailable();
+      }
+    };
+
+    void load();
+  };
+
+  document.querySelectorAll<HTMLElement>("[data-meshtastic-status-panel]").forEach(initMeshtasticStatusPanel);
+</script>

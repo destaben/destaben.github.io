@@ -73,15 +73,14 @@ Entity IDs are private configuration. Keep them out of Git and out of the public
 In the private directory where Signal Relay is deployed, set these values in its ignored `.env` file. Use the dedicated read-only Home Assistant token configured for the relay. Never write the token into this document or into Git.
 
 ```sh
-SIGNAL_RELAY_MESHTASTIC_GATEWAY_ENTITY_ID=GATEWAY_ENTITY_ID
-SIGNAL_RELAY_MESHTASTIC_NODES_ONLINE_ENTITY_ID=ONLINE_COUNT_ENTITY_ID
-SIGNAL_RELAY_MESHTASTIC_NODES_TOTAL_ENTITY_ID=TOTAL_COUNT_ENTITY_ID
+# The same private map the Meshtastic send projection already requires. The status route reads only its gateway, nodes_online, and nodes_total keys.
+SIGNAL_RELAY_MESHTASTIC_ENTITY_IDS={"gateway": "GATEWAY_ENTITY_ID", "nodes_online": "ONLINE_COUNT_ENTITY_ID", "nodes_total": "TOTAL_COUNT_ENTITY_ID", ...all other required keys, one entity ID each...}
 # Optional: only an entity whose state is a name that is safe to publish.
 SIGNAL_RELAY_MESHTASTIC_LAST_NODE_ENTITY_ID=
-SIGNAL_RELAY_MESHTASTIC_CACHE_SECONDS=900
+SIGNAL_RELAY_MESHTASTIC_STATUS_CACHE_SECONDS=900
 ```
 
-The first three entity IDs are required before `GET /v1/lab/meshtastic-status` becomes available. The last one is optional: a missing entity (HTTP 404) omits `lastNode`, while other HTTP errors (such as 401 or 500) and transport errors still make the route return `503`. The relay rejects negative, non-integer, or inconsistent counts, and never publishes entity IDs or Home Assistant attributes. Do not lower the cache below 900 seconds.
+The map must contain every key listed in `services/signal-relay/README.md`; the three status keys are required before `GET /v1/lab/meshtastic-status` becomes available. The gateway entity must report exactly `Connected`. The optional last-node entity is omitted from the response when it is missing (HTTP 404), a placeholder, or not publishable text; other HTTP errors (such as 401 or 500) and transport errors still make the route return `503`. The relay rejects negative, non-integer, or inconsistent counts, and never publishes entity IDs or Home Assistant attributes. Do not lower `SIGNAL_RELAY_MESHTASTIC_STATUS_CACHE_SECONDS` below 900 seconds.
 
 Recreate only the relay after changing its environment:
 

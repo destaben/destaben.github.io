@@ -115,11 +115,52 @@ export interface MeshtasticLab extends LabBase {
   loadingLabel: string;
   unavailableLabel: string;
   availableLabel: string;
+  gatewayLabel: string;
+  networkLabel: string;
+  packetsLabel: string;
+  ratesLabel: string;
+  latestActivityLabel: string;
+  uptimeLabel: string;
+  batteryLabel: string;
+  voltageLabel: string;
+  nodesLabel: string;
+  channelUtilizationLabel: string;
+  airtimeLabel: string;
+  rxLabel: string;
+  txLabel: string;
+  badPacketsLabel: string;
+  duplicatePacketsLabel: string;
+  rfErrorsLabel: string;
+  senderLabel: string;
+  channelLabel: string;
+  receivedLabel: string;
+  senderHopsLabel: string;
+  noActivityLabel: string;
+  unavailableValueLabel: string;
+  refreshedLabel: string;
+  sendTitle: string;
+  sendLabel: string;
+  sendPlaceholder: string;
+  sendUnavailableLabel: string;
+  sendSendingLabel: string;
+  sendAcceptedLabel: string;
+  sendVerificationFailedLabel: string;
+  sendRateLimitedLabel: string;
+  sendFailedLabel: string;
+  privacyTitle: string;
+  privacyCopy: string;
+}
+
+export interface MeshtasticStatusLab extends LabBase {
+  kind: "meshtastic-status";
+  loadingLabel: string;
+  unavailableLabel: string;
+  availableLabel: string;
   onlineNodesLabel: string;
   totalNodesLabel: string;
   lastNodeLabel: string;
-  sendingTitle: string;
-  sendingCopy: string;
+  privacyTitle: string;
+  privacyCopy: string;
 }
 
 export const profile = {
@@ -136,13 +177,15 @@ export const labSummaries: Record<Locale, Record<string, string>> = {
     "signal-relay": "Un punto de contacto Reticulum autohospedado para recibir mensajes desde clientes compatibles. El recorrido guiado permite entender cómo se prepara, cifra y confirma una prueba antes de enviarla.",
     "container-metrics": "Uso de CPU y memoria agregado de los servicios de mi servidor personal, consultado a través de Prometheus. Puedes comparar ambos recursos, seleccionar servicios y revisar un intervalo concreto.",
     "home-status": "Temperatura, humedad y calidad del aire interior como una lectura agregada del hogar. Sirve para consultar el estado actual de mi hogar manteniendo la privacidad.",
-    "meshtastic": "Una vista agregada y retrasada de la malla Meshtastic que alcanza mi gateway doméstico, sin publicar identificadores, posiciones ni tráfico.",
+    "meshtastic": "Estado agregado de una pasarela Meshtastic y del canal público MediumFast. Consulta actividad, uso de radio y el último mensaje visible sin exponer la red privada.",
+    "meshtastic-status": "Una vista agregada y retrasada de la malla Meshtastic que alcanza mi gateway doméstico, sin publicar identificadores, posiciones ni tráfico.",
   },
   en: {
     "signal-relay": "A self-hosted Reticulum contact point for receiving messages from compatible clients. The guided journey shows how a test is prepared, encrypted, and confirmed before it is sent.",
     "container-metrics": "Aggregated CPU and memory use from my personal server services, queried through Prometheus. Compare both resources, select services, and inspect a specific time range.",
     "home-status": "Indoor temperature, humidity, and air quality as an aggregate home reading. Check the current state of my home while preserving privacy.",
-    "meshtastic": "A delayed aggregate view of the Meshtastic mesh reaching my home gateway, without publishing identities, locations, or traffic.",
+    "meshtastic": "Aggregate status for a Meshtastic gateway and its public MediumFast channel. Inspect activity, radio use, and the latest visible message without exposing the private network.",
+    "meshtastic-status": "A delayed aggregate view of the Meshtastic mesh reaching my home gateway, without publishing identities, locations, or traffic.",
   },
 };
 
@@ -163,8 +206,9 @@ export const portfolio = {
       { id: "signal-relay", kind: "relay", title: "Reticulum", summary: "Un punto de contacto Reticulum autohospedado para recibir mensajes desde clientes compatibles.", status: "active", statusLabel: "Activo", technologies: ["Reticulum", "FastAPI"], addressLabel: "Dirección Reticulum", addressPending: "Dirección disponible al publicar el nodo", copyLabel: "Copiar", copiedLabel: "Copiada", checkingLabel: "Comprobando Reticulum", onlineLabel: "Reticulum online", offlineLabel: "Reticulum offline", inboxLabel: "Mensajes recibidos", inboxEmpty: "Todavía no hay mensajes registrados.", inboxNote: "Se muestran los cinco mensajes más recientes como texto plano. Las conexiones TCP públicas del relay indican los servidores configurados, no la ruta de un mensaje concreto.", officialLinkLabel: "Web oficial de Reticulum", wizard: { title: "Recorrido Reticulum", copy: "La identidad temporal se crea sólo al enviar esta prueba. El navegador no recibe claves privadas ni se conecta directamente a Reticulum.", steps: ["Origen temporal", "Destino Reticulum", "Cifrado", "Confirmación"], openLabel: "Explorar recorrido Reticulum", closeLabel: "Cerrar recorrido", sourcePending: "Se crea al enviar la prueba", sourceLabel: "Origen temporal", destinationLabel: "Destino de David", messageLabel: "Nota para esta prueba", messagePlaceholder: "Escribe un mensaje breve", sendLabel: "Enviar prueba", preparingLabel: "Preparando sesión segura", unavailableLabel: "El envío educativo no está habilitado en este nodo.", queuedLabel: "Mensaje en cola", deliveredLabel: "Entrega confirmada", failedLabel: "No se pudo entregar", routeWaitingLabel: "Pendiente", routeSourceReadyLabel: "Identidad temporal preparada", routeEncryptedLabel: "Mensaje cifrado por Reticulum", routeRoutingLabel: "Esperando acuse de la ruta", routeReceivedLabel: "Recibido por Reticulum", routeConfirmedLabel: "Acuse de Reticulum confirmado", routeDeliveryFailedLabel: "El destino no confirmó la entrega", routeOutboundFailedLabel: "El nodo no pudo emitir el mensaje", routeUnknownFailedLabel: "La entrega terminó con un error", telegramLabel: "Aviso Telegram", telegramConfiguredLabel: "Telegram configurado", telegramUnavailableLabel: "Telegram no configurado", telegramCopy: "Cuando Reticulum recibe el mensaje, puede enviar un aviso privado por Telegram." } },
       { id: "container-metrics", kind: "metrics", title: "Observabilidad de servicios", summary: "Uso de CPU y memoria de los servicios de mi servidor personal, consultado a través de Prometheus.", status: "active", statusLabel: "En directo", technologies: ["Prometheus", "Contenedores"], titleLabel: "Métricas de servicios", cpuLabel: "CPU", memoryLabel: "Memoria", servicesLabel: "Servicios", startLabel: "Inicio", endLabel: "Fin", applyLabel: "Aplicar", previousLabel: "Intervalo anterior", nextLabel: "Intervalo siguiente", nowLabel: "Volver a ahora", loadingLabel: "Cargando métricas", unavailableLabel: "Las métricas no están disponibles ahora.", noDataLabel: "No hay muestras en este intervalo." },
       { id: "home-status", kind: "home-status", title: "Monitorización y automatización del hogar", summary: "Temperatura, humedad y calidad del aire interior.", status: "active", statusLabel: "Activo", technologies: ["Home Assistant", "Privacidad"], loadingLabel: "Consultando estado", unavailableLabel: "El estado no está disponible ahora.", availableLabel: "Actualizado", temperatureLabel: "Temperatura", humidityLabel: "Humedad", airQualityLabel: "Calidad ambiental", goodLabel: "Buena", regularLabel: "Regular", badLabel: "Mala", privacyTitle: "Datos protegidos", privacyCopy: "No se publica presencia, cámaras, cerraduras, dispositivos ni habitaciones." },
-      { id: "meshtastic", kind: "meshtastic", title: "Malla Meshtastic", summary: "Estado agregado de los nodos que ve mi gateway Meshtastic.", status: "active", statusLabel: "Estado", technologies: ["Meshtastic", "Home Assistant", "Privacidad"], loadingLabel: "Consultando malla", unavailableLabel: "La malla no está disponible ahora.", availableLabel: "Gateway disponible", onlineNodesLabel: "Nodos activos", totalNodesLabel: "Nodos conocidos", lastNodeLabel: "Último nodo visto", sendingTitle: "Envío protegido", sendingCopy: "El envío desde la web permanece deshabilitado hasta que haya controles antiabuso y canales explícitamente autorizados." },
-    ] satisfies (RelayLab | MetricsLab | HomeStatusLab | MeshtasticLab)[],
+      { id: "meshtastic", kind: "meshtastic", title: "Meshtastic", summary: "Estado agregado de la pasarela y del canal público MediumFast.", status: "active", statusLabel: "En directo", technologies: ["Meshtastic", "MediumFast"], loadingLabel: "Consultando radio", unavailableLabel: "El estado de Meshtastic no está disponible ahora.", availableLabel: "Actualizado", gatewayLabel: "Pasarela", networkLabel: "Red", packetsLabel: "Paquetes", ratesLabel: "Por minuto", latestActivityLabel: "Últimas 5 actividades públicas", uptimeLabel: "Tiempo activo", batteryLabel: "Batería", voltageLabel: "Voltaje", nodesLabel: "Nodos", channelUtilizationLabel: "Uso de canal", airtimeLabel: "Airtime TX", rxLabel: "RX", txLabel: "TX", badPacketsLabel: "RX erróneos", duplicatePacketsLabel: "Duplicados", rfErrorsLabel: "Errores RF", senderLabel: "Emisor", channelLabel: "Canal", receivedLabel: "Recibido", senderHopsLabel: "Saltos del emisor", noActivityLabel: "Todavía no hay actividad pública visible.", unavailableValueLabel: "No disponible", refreshedLabel: "Actualizado", sendTitle: "Enviar a MediumFast", sendLabel: "Enviar mensaje", sendPlaceholder: "Escribe un mensaje breve", sendUnavailableLabel: "El envío público estará disponible tras configurar la verificación antiabuso.", sendSendingLabel: "Enviando mensaje a la radio…", sendAcceptedLabel: "La pasarela ha aceptado el mensaje para su difusión.", sendVerificationFailedLabel: "La verificación antiabuso no se ha completado. Inténtalo de nuevo.", sendRateLimitedLabel: "Espera un momento antes de enviar otro mensaje.", sendFailedLabel: "No se ha podido enviar el mensaje ahora.", privacyTitle: "Datos protegidos", privacyCopy: "Solo se muestran los cinco mensajes públicos más recientes; no se publican identificadores de nodo, posiciones, SNR, RSSI, claves ni otros canales." },
+      { id: "meshtastic-status", kind: "meshtastic-status", title: "Estado de la malla Meshtastic", summary: "Estado agregado de los nodos que ve mi gateway Meshtastic.", status: "active", statusLabel: "Estado", technologies: ["Meshtastic", "Home Assistant", "Privacidad"], loadingLabel: "Consultando malla", unavailableLabel: "La malla no está disponible ahora.", availableLabel: "Gateway disponible", onlineNodesLabel: "Nodos activos", totalNodesLabel: "Nodos conocidos", lastNodeLabel: "Último nodo visto", privacyTitle: "Datos protegidos", privacyCopy: "Solo se publican contadores agregados y, si se elige, un nombre seleccionado; no se muestran identificadores, posiciones ni tráfico." },
+    ] satisfies (RelayLab | MetricsLab | HomeStatusLab | MeshtasticLab | MeshtasticStatusLab)[],
     experience: { label: "Trayectoria", title: "Experiencia en software, cloud y operaciones.", items: [
       { period: "abr 2021 - hoy", role: "Site Reliability Engineer", company: "adidas", focus: "Fiabilidad de servicios, automatización y orquestación." },
       { period: "may 2020 - abr 2021", role: "Cloud Engineer", company: "NTT", focus: "Infraestructura cloud, optimización de costes e integración." },
@@ -192,8 +236,9 @@ export const portfolio = {
       { id: "signal-relay", kind: "relay", title: "Reticulum", summary: "A self-hosted Reticulum contact point for receiving messages from compatible clients.", status: "active", statusLabel: "Active", technologies: ["Reticulum", "FastAPI"], addressLabel: "Reticulum address", addressPending: "Address available once the node is published", copyLabel: "Copy", copiedLabel: "Copied", checkingLabel: "Checking Reticulum", onlineLabel: "Reticulum online", offlineLabel: "Reticulum offline", inboxLabel: "Received messages", inboxEmpty: "No messages have been recorded yet.", inboxNote: "The five most recent messages are shown as plain text. The relay's public TCP connections identify configured servers, not the route for a specific message.", officialLinkLabel: "Reticulum official website", wizard: { title: "Reticulum journey", copy: "The temporary identity is created only when this test is sent. The browser never receives private keys or connects directly to Reticulum.", steps: ["Temporary source", "Reticulum destination", "Encryption", "Confirmation"], openLabel: "Explore the Reticulum journey", closeLabel: "Close journey", sourcePending: "Created when the test is sent", sourceLabel: "Temporary source", destinationLabel: "David's destination", messageLabel: "Note for this test", messagePlaceholder: "Write a short message", sendLabel: "Send test", preparingLabel: "Preparing secure session", unavailableLabel: "Educational sending is not enabled on this node.", queuedLabel: "Message queued", deliveredLabel: "Delivery confirmed", failedLabel: "Delivery failed", routeWaitingLabel: "Waiting", routeSourceReadyLabel: "Temporary identity prepared", routeEncryptedLabel: "Message encrypted by Reticulum", routeRoutingLabel: "Waiting for route acknowledgement", routeReceivedLabel: "Received by Reticulum", routeConfirmedLabel: "Reticulum acknowledgement confirmed", routeDeliveryFailedLabel: "The destination did not confirm delivery", routeOutboundFailedLabel: "The node could not emit the message", routeUnknownFailedLabel: "Delivery ended with an error", telegramLabel: "Telegram notice", telegramConfiguredLabel: "Telegram configured", telegramUnavailableLabel: "Telegram not configured", telegramCopy: "When Reticulum receives the message, it can send a private Telegram notification." } },
       { id: "container-metrics", kind: "metrics", title: "Service observability", summary: "CPU and memory use from my personal server services, queried through Prometheus.", status: "active", statusLabel: "Live", technologies: ["Prometheus", "Containers"], titleLabel: "Service metrics", cpuLabel: "CPU", memoryLabel: "Memory", servicesLabel: "Services", startLabel: "Start", endLabel: "End", applyLabel: "Apply", previousLabel: "Previous interval", nextLabel: "Next interval", nowLabel: "Back to now", loadingLabel: "Loading metrics", unavailableLabel: "Metrics are unavailable right now.", noDataLabel: "There are no samples in this interval." },
       { id: "home-status", kind: "home-status", title: "Home monitoring and automation", summary: "Indoor temperature, humidity, and air quality.", status: "active", statusLabel: "Active", technologies: ["Home Assistant", "Privacy"], loadingLabel: "Checking status", unavailableLabel: "Home status is unavailable right now.", availableLabel: "Updated", temperatureLabel: "Temperature", humidityLabel: "Humidity", airQualityLabel: "Air quality", goodLabel: "Good", regularLabel: "Regular", badLabel: "Bad", privacyTitle: "Protected data", privacyCopy: "Presence, cameras, locks, devices, and rooms are not published." },
-      { id: "meshtastic", kind: "meshtastic", title: "Meshtastic mesh", summary: "Aggregate status of nodes visible to my Meshtastic gateway.", status: "active", statusLabel: "Status", technologies: ["Meshtastic", "Home Assistant", "Privacy"], loadingLabel: "Checking mesh", unavailableLabel: "The mesh is unavailable right now.", availableLabel: "Gateway available", onlineNodesLabel: "Online nodes", totalNodesLabel: "Known nodes", lastNodeLabel: "Latest node seen", sendingTitle: "Protected sending", sendingCopy: "Web sending remains disabled until anti-abuse controls and explicitly approved channels are in place." },
-    ] satisfies (RelayLab | MetricsLab | HomeStatusLab | MeshtasticLab)[],
+      { id: "meshtastic", kind: "meshtastic", title: "Meshtastic", summary: "Aggregate status for the gateway and public MediumFast channel.", status: "active", statusLabel: "Live", technologies: ["Meshtastic", "MediumFast"], loadingLabel: "Checking radio", unavailableLabel: "Meshtastic status is unavailable right now.", availableLabel: "Updated", gatewayLabel: "Gateway", networkLabel: "Network", packetsLabel: "Packets", ratesLabel: "Per minute", latestActivityLabel: "Last 5 public activities", uptimeLabel: "Uptime", batteryLabel: "Battery", voltageLabel: "Voltage", nodesLabel: "Nodes", channelUtilizationLabel: "Channel use", airtimeLabel: "TX airtime", rxLabel: "RX", txLabel: "TX", badPacketsLabel: "Bad RX", duplicatePacketsLabel: "Duplicates", rfErrorsLabel: "RF errors", senderLabel: "Sender", channelLabel: "Channel", receivedLabel: "Received", senderHopsLabel: "Sender hops away", noActivityLabel: "There is no visible public activity yet.", unavailableValueLabel: "Unavailable", refreshedLabel: "Updated", sendTitle: "Send to MediumFast", sendLabel: "Send message", sendPlaceholder: "Write a short message", sendUnavailableLabel: "Public sending will be available after anti-abuse verification is configured.", sendSendingLabel: "Sending message to the radio…", sendAcceptedLabel: "The gateway accepted the message for broadcast.", sendVerificationFailedLabel: "The anti-abuse verification did not complete. Try again.", sendRateLimitedLabel: "Please wait before sending another message.", sendFailedLabel: "The message could not be sent right now.", privacyTitle: "Protected data", privacyCopy: "Only the five most recent public messages are shown; node IDs, locations, SNR, RSSI, keys, and other channels are not published." },
+      { id: "meshtastic-status", kind: "meshtastic-status", title: "Meshtastic mesh status", summary: "Aggregate status of nodes visible to my Meshtastic gateway.", status: "active", statusLabel: "Status", technologies: ["Meshtastic", "Home Assistant", "Privacy"], loadingLabel: "Checking mesh", unavailableLabel: "The mesh is unavailable right now.", availableLabel: "Gateway available", onlineNodesLabel: "Online nodes", totalNodesLabel: "Known nodes", lastNodeLabel: "Latest node seen", privacyTitle: "Protected data", privacyCopy: "Only aggregate counts and an optional selected name are published; identifiers, locations, and traffic stay private." },
+    ] satisfies (RelayLab | MetricsLab | HomeStatusLab | MeshtasticLab | MeshtasticStatusLab)[],
     experience: { label: "Experience", title: "Experience across software, cloud, and operations.", items: [
       { period: "Apr 2021 - present", role: "Site Reliability Engineer", company: "adidas", focus: "Service reliability, automation, and orchestration." },
       { period: "May 2020 - Apr 2021", role: "Cloud Engineer", company: "NTT", focus: "Cloud infrastructure, cost optimisation, and integration." },

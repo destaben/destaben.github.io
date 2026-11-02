@@ -17,6 +17,39 @@ _IPV6_LITERAL = re.compile(r"[0-9A-Fa-f:.]+")
 _INVALID_TCP_URL = "SIGNAL_RELAY_PUBLIC_TCP_NODE_URLS must contain public tcp://host:port URLs"
 _ENTITY_ID = re.compile(r"[a-z_]+\.[a-z0-9_]+")
 
+MESHTASTIC_ENTITY_KEYS = frozenset(
+    {
+        "gateway",
+        "node_long_name",
+        "node_short_name",
+        "uptime_seconds",
+        "battery_percent",
+        "voltage",
+        "channel_utilization_percent",
+        "airtime_tx_percent",
+        "nodes_online",
+        "nodes_total",
+        "packets_rx",
+        "packets_tx",
+        "packets_rx_bad",
+        "packets_rx_duplicate",
+        "packets_tx_relayed",
+        "packets_tx_relay_cancelled",
+        "rx_per_minute",
+        "tx_per_minute",
+        "rf_errors_per_minute",
+        "duplicates_per_minute",
+        "relay_cancelled_per_minute",
+        "recent_activity_1",
+        "recent_activity_2",
+        "recent_activity_3",
+        "recent_activity_4",
+        "recent_activity_5",
+    }
+)
+
+MESHTASTIC_REQUIRED_ENTITY_KEYS = MESHTASTIC_ENTITY_KEYS
+
 
 _PRIVATE_HOST_SUFFIXES = (
     ".local",
@@ -48,6 +81,20 @@ def _is_public_hostname(name: str) -> bool:
     last_label = name.rsplit(".", 1)[-1]
     # Non-canonical IPv4 spellings such as 127.1, 0x7f.1 or 0177.0.0.1 end in a numeric label.
     return not (last_label.isdigit() or last_label.startswith("0x"))
+
+
+def _meshtastic_entity_ids(value: str | None) -> dict[str, str] | None:
+    if not value:
+        return None
+    try:
+        entity_ids = json.loads(value)
+    except json.JSONDecodeError as error:
+        raise ValueError("SIGNAL_RELAY_MESHTASTIC_ENTITY_IDS must be JSON") from error
+    if not isinstance(entity_ids, dict) or not MESHTASTIC_REQUIRED_ENTITY_KEYS <= set(entity_ids) <= MESHTASTIC_ENTITY_KEYS:
+        raise ValueError("SIGNAL_RELAY_MESHTASTIC_ENTITY_IDS must define the required keys")
+    if not all(isinstance(entity_id, str) and _ENTITY_ID.fullmatch(entity_id) for entity_id in entity_ids.values()):
+        raise ValueError("SIGNAL_RELAY_MESHTASTIC_ENTITY_IDS contains an invalid entity ID")
+    return {key: entity_id for key, entity_id in entity_ids.items() if key in MESHTASTIC_REQUIRED_ENTITY_KEYS}
 
 
 def _public_tcp_node_aliases(value: str | None) -> dict[str, str]:
@@ -154,11 +201,12 @@ class Settings:
     home_assistant_humidity_entity_id: str | None = None
     home_assistant_air_quality_entity_id: str | None = None
     home_assistant_cache_seconds: int = 900
-    meshtastic_gateway_entity_id: str | None = None
-    meshtastic_nodes_online_entity_id: str | None = None
-    meshtastic_nodes_total_entity_id: str | None = None
+    meshtastic_entity_ids: dict[str, str] | None = None
+    meshtastic_cache_seconds: int = 30
+    meshtastic_turnstile_secret: str | None = None
+    meshtastic_message_cooldown_seconds: int = 300
     meshtastic_last_node_entity_id: str | None = None
-    meshtastic_cache_seconds: int = 900
+    meshtastic_status_cache_seconds: int = 900
     public_tcp_node_aliases: dict[str, str] | None = None
     public_tcp_node_urls: dict[str, str] | None = None
 
@@ -203,11 +251,14 @@ class Settings:
             home_assistant_humidity_entity_id=_entity_id(os.environ.get("SIGNAL_RELAY_HOME_ASSISTANT_HUMIDITY_ENTITY_ID"), "SIGNAL_RELAY_HOME_ASSISTANT_HUMIDITY_ENTITY_ID"),
             home_assistant_air_quality_entity_id=_entity_id(os.environ.get("SIGNAL_RELAY_HOME_ASSISTANT_AIR_QUALITY_ENTITY_ID"), "SIGNAL_RELAY_HOME_ASSISTANT_AIR_QUALITY_ENTITY_ID"),
             home_assistant_cache_seconds=int(os.environ.get("SIGNAL_RELAY_HOME_ASSISTANT_CACHE_SECONDS", "900")),
-            meshtastic_gateway_entity_id=_entity_id(os.environ.get("SIGNAL_RELAY_MESHTASTIC_GATEWAY_ENTITY_ID"), "SIGNAL_RELAY_MESHTASTIC_GATEWAY_ENTITY_ID"),
-            meshtastic_nodes_online_entity_id=_entity_id(os.environ.get("SIGNAL_RELAY_MESHTASTIC_NODES_ONLINE_ENTITY_ID"), "SIGNAL_RELAY_MESHTASTIC_NODES_ONLINE_ENTITY_ID"),
-            meshtastic_nodes_total_entity_id=_entity_id(os.environ.get("SIGNAL_RELAY_MESHTASTIC_NODES_TOTAL_ENTITY_ID"), "SIGNAL_RELAY_MESHTASTIC_NODES_TOTAL_ENTITY_ID"),
+            meshtastic_entity_ids=_meshtastic_entity_ids(os.environ.get("SIGNAL_RELAY_MESHTASTIC_ENTITY_IDS")),
+            meshtastic_cache_seconds=max(int(os.environ.get("SIGNAL_RELAY_MESHTASTIC_CACHE_SECONDS", "30")), 15),
+            meshtastic_turnstile_secret=os.environ.get("SIGNAL_RELAY_MESHTASTIC_TURNSTILE_SECRET") or None,
+            meshtastic_message_cooldown_seconds=max(
+                int(os.environ.get("SIGNAL_RELAY_MESHTASTIC_MESSAGE_COOLDOWN_SECONDS", "300")), 60
+            ),
             meshtastic_last_node_entity_id=_entity_id(os.environ.get("SIGNAL_RELAY_MESHTASTIC_LAST_NODE_ENTITY_ID"), "SIGNAL_RELAY_MESHTASTIC_LAST_NODE_ENTITY_ID"),
-            meshtastic_cache_seconds=int(os.environ.get("SIGNAL_RELAY_MESHTASTIC_CACHE_SECONDS", "900")),
+            meshtastic_status_cache_seconds=int(os.environ.get("SIGNAL_RELAY_MESHTASTIC_STATUS_CACHE_SECONDS", "900")),
             public_tcp_node_aliases=public_tcp_node_aliases,
             public_tcp_node_urls=public_tcp_node_urls,
         )
