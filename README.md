@@ -68,9 +68,9 @@ When refreshing Reticulum bootstrap transports or recovering a broken private co
 
 ## Deployment
 
-Every push to `main` runs [.github/workflows/deploy-pages.yml](.github/workflows/deploy-pages.yml). The workflow uses Node 22, runs `npm ci`, builds `dist/`, and deploys the generated artifact to GitHub Pages. GitHub Actions is the only publishing path; do not commit generated files or publish from a branch.
+Every push to `main` runs [.github/workflows/deploy-pages.yml](.github/workflows/deploy-pages.yml). The workflow uses Node 22, runs `npm ci`, runs the Signal Relay `pytest` suite and `npm run verify` (Astro check, tests and build), and deploys the generated `dist/` artifact to GitHub Pages. GitHub Actions is the only publishing path; do not commit generated files or publish from a branch.
 
-Every pull request to `main`, and every manual `workflow_dispatch`, runs [.github/workflows/ci.yml](.github/workflows/ci.yml) with read-only permissions: the Signal Relay `pytest` suite, `docker compose config` validation, and `npm run verify` (Astro check, tests and build). Its actions are pinned to commit SHAs. It deploys nothing, uses only the default read-only `GITHUB_TOKEN`, and reads no repository secrets; make its jobs required status checks in branch protection if you want merges gated on them.
+Every pull request to `main`, and every manual `workflow_dispatch`, runs [.github/workflows/ci.yml](.github/workflows/ci.yml) with read-only permissions: the Signal Relay `pytest` suite, `docker compose config` validation, and `npm run verify` (Astro check, tests and build). Its actions are pinned to commit SHAs. It deploys nothing, uses only the default read-only `GITHUB_TOKEN`, and reads no repository secrets; make its jobs required status checks in branch protection if you want merges gated on them. The check names are `Signal Relay tests` and `Site check, tests and build`; use exactly those names. Each job has a 15-minute timeout.
 
 In repository settings, set Pages **Source** to **GitHub Actions**. The published artifact includes `public/CNAME`; this preserves the domain in deployed files but does not configure the custom domain in GitHub by itself.
 
