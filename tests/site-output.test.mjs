@@ -261,9 +261,16 @@ test("renders the decorative hero graphic hidden from assistive technology, with
     // The core is a React island; without JavaScript, or under reduced motion, the server markup is the static "DE".
     assert.match(graphic, /component-url="\/_astro\/SystemCore\.[^"]+"[^>]*client="visible"/);
     assert.match(graphic, /<div style="[^"]*">DE<\/div>/);
-    const reducedMotion = page.match(/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[^@]*?\}\}/g) ?? [];
-    assert.ok(reducedMotion.some(block => /\.sg-orbit[^{]*\{[^}]*animation:\s*none/.test(block)), "reduced motion disables the orbit animation");
   }
+});
+
+test("disables every hero animation under reduced motion", async () => {
+  const source = await readFile(new URL("../src/components/SystemGraphic.astro", import.meta.url), "utf8");
+  const block = source.match(/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[\s\S]*?\n\s*\}\n/)?.[0] ?? "";
+  for (const selector of [".sg-orbit", ".sg-upright", ".sg-event", ".log-alert", ".log-triage", ".log-resolved"]) {
+    assert.ok(block.includes(selector), `${selector} is listed in the reduced-motion block`);
+  }
+  assert.match(block, /animation:\s*none/);
 });
 
 test("keeps the numbered section labels as final plain text and scrambles them only as decorative islands", async () => {

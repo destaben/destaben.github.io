@@ -1,7 +1,7 @@
 /*
  * Adapted from React Bits (https://github.com/DavidHDev/react-bits, src/ts-default/TextAnimations/ASCIIText).
  * Copyright (c) David Haz. Licensed under MIT + Commons Clause; the full notice is in THIRD_PARTY_NOTICES.md at the repository root.
- * Used in a non-profit personal website (no commercial use or sale); the component is not redistributed as a standalone product.
+ * Used in a non-profit personal website (not sold or redistributed as a component); the component is not redistributed as a standalone product.
  * Local changes: a DOM text fallback when WebGL 2 is unavailable or the context is lost, settings/build refs, WebGL context loss/restore handling,
  * explicit context release on unmount, a device-pixel-ratio cap of 1.5 (upstream 2), a roughly 60 fps frame cap, and a 'use client' directive.
  * The shader and rendering logic are otherwise unchanged.
@@ -41,7 +41,7 @@ type Ripple = { x: number; y: number; age: number };
 type Build = (value: string, family: string, weight: number | string, color: string, characters: string) => void;
 
 const CHARSET = ' .\'`^",:;Il!i~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$';
-const FONT = "'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+const FONT = '"SFMono-Regular", Consolas, ui-monospace, Menlo, monospace';
 const GLYPH_WIDTH = 40;
 const GLYPH_HEIGHT = 64;
 const TEXT_PX = 256;
@@ -631,7 +631,7 @@ export default function ASCIIText({
             justifyContent: 'center',
             fontFamily,
             fontWeight,
-            fontSize: `${8 * textScale}vw`,
+            fontSize: `${7 * textScale}cqi`,
             color: textColor
           }}
         >

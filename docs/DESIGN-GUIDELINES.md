@@ -40,6 +40,6 @@ The portfolio demonstrates David Estaben's engineering judgement through clear c
 - Keep semantic landmarks, visible keyboard focus, skip navigation, and reduced-motion support.
 - Decorative motion (the hero graphic, its ASCII core, and the section-label scramble) must be `aria-hidden` or backed by real text, and must never carry information the page does not also state in text.
 - Every motion effect respects `prefers-reduced-motion`: the page shows its final text and the static fallback, and no animation or WebGL context starts. Effects also pause when they are off-screen.
-- WebGL is limited to the hero core island, which shows the static "DE" without WebGL 2 or on narrow screens. Do not add other WebGL, third-party scripts, or animation libraries beyond `motion` for the section labels.
+- WebGL is limited to the hero core island, which shows the static "DE" without WebGL 2 or on narrow screens. Do not add other WebGL, third-party scripts, or animation libraries.
 - Validate at mobile and desktop widths. Text, controls, and system panels must not clip or overlap.
 - Maintain sufficient contrast for every state, including status indicators.

@@ -1,8 +1,8 @@
 /*
  * Adapted from React Bits (https://github.com/DavidHDev/react-bits, src/ts-default/TextAnimations/DecryptedText).
  * Copyright (c) David Haz. Licensed under MIT + Commons Clause; the full notice is in THIRD_PARTY_NOTICES.md at the repository root.
- * Used in a non-profit personal website (no commercial use or sale); the component is not redistributed as a standalone product.
- * Local changes: the initial frame shows the final text (so server HTML is final); the hidden state starts after mount. Removed the startsHidden flag. A label already in view starts decrypting in the same commit as the hidden state.
+ * Used in a non-profit personal website (not sold or redistributed as a component); the component is not redistributed as a standalone product.
+ * Local changes: the initial frame shows the final text (so server HTML is final); the hidden state starts after mount. Removed the startsHidden flag and the motion dependency (the wrapper is a plain span). A label already in view starts decrypting in the same commit as the hidden state.
  */
 'use client';
 
@@ -13,10 +13,9 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type MouseEvent as ReactMouseEvent
+  type MouseEvent as ReactMouseEvent,
+  type HTMLAttributes
 } from 'react';
-import { motion } from 'motion/react';
-import type { HTMLMotionProps } from 'motion/react';
 
 const styles: Record<'wrapper' | 'srOnly' | 'word' | 'cell' | 'ghost' | 'glyph', CSSProperties> = {
   wrapper: {
@@ -57,7 +56,7 @@ const FADE_PEAK = 0.62;
 const FADE_LEAD = 6;
 const SETTLE = 'color 0.7s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1)';
 
-interface DecryptedTextProps extends HTMLMotionProps<'span'> {
+interface DecryptedTextProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'children'> {
   text: string;
   speed?: number;
   maxIterations?: number;
@@ -632,7 +631,7 @@ export default function DecryptedText({
       : {};
 
   return (
-    <motion.span className={parentClassName} ref={containerRef} style={styles.wrapper} {...animateProps} {...props}>
+    <span className={parentClassName} ref={containerRef} style={styles.wrapper} {...animateProps} {...props}>
       <span style={styles.srOnly}>{chars.join('')}</span>
 
       <span aria-hidden="true">
@@ -668,6 +667,6 @@ export default function DecryptedText({
           )
         )}
       </span>
-    </motion.span>
+    </span>
   );
 }
