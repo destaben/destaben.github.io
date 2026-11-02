@@ -16,7 +16,6 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || "";
     <section aria-labelledby={`${lab.id}-network`}><h4 id={`${lab.id}-network`}>{lab.networkLabel}</h4><dl class="meshtastic-readings"><div><dt>{lab.nodesLabel}</dt><dd data-meshtastic-nodes>--</dd></div><div><dt>{lab.channelUtilizationLabel}</dt><dd data-meshtastic-channel-use>--</dd></div><div><dt>{lab.airtimeLabel}</dt><dd data-meshtastic-airtime>--</dd></div></dl></section>
   </div>
   {status && <MeshtasticStatusSection lab={status} />}
-  <section class="meshtastic-activity" aria-labelledby={`${lab.id}-activity`}><div><h4 id={`${lab.id}-activity`}>{lab.latestActivityLabel}</h4></div><p data-meshtastic-no-activity>{lab.noActivityLabel}</p><ol data-meshtastic-activity-list hidden></ol></section>
   <section class="meshtastic-send" aria-labelledby={`${lab.id}-send`}><h4 id={`${lab.id}-send`}>{lab.sendTitle}</h4><form data-meshtastic-send-form><label>{lab.sendLabel}<textarea data-meshtastic-message-input placeholder={lab.sendPlaceholder} maxlength="237" disabled></textarea></label><div class="meshtastic-turnstile" data-meshtastic-turnstile></div><button data-meshtastic-send-button type="submit" disabled>{lab.sendLabel}</button></form><p class="meshtastic-send-status" data-meshtastic-send-status data-state="unavailable" role="status" aria-live="polite">{lab.sendUnavailableLabel}</p></section>
   <p class="meshtastic-refreshed" data-meshtastic-refreshed></p>
   <div class="home-privacy"><p>{lab.privacyTitle}</p><span>{lab.privacyCopy}</span></div>
@@ -49,8 +48,6 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || "";
     };
     const state = panel.querySelector<HTMLElement>("[data-meshtastic-state]");
     const groups = panel.querySelector<HTMLElement>("[data-meshtastic-groups]");
-    const noActivity = panel.querySelector<HTMLElement>("[data-meshtastic-no-activity]");
-    const activityList = panel.querySelector<HTMLOListElement>("[data-meshtastic-activity-list]");
     const form = panel.querySelector<HTMLFormElement>("[data-meshtastic-send-form]");
     const messageInput = panel.querySelector<HTMLTextAreaElement>("[data-meshtastic-message-input]");
     const sendButton = panel.querySelector<HTMLButtonElement>("[data-meshtastic-send-button]");
@@ -100,8 +97,6 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || "";
     const unavailable = () => {
       if (state) state.textContent = panel.dataset.unavailableLabel || "Meshtastic unavailable";
       if (groups) groups.hidden = true;
-      if (noActivity) noActivity.hidden = false;
-      if (activityList) { activityList.replaceChildren(); activityList.hidden = true; }
       radioAvailable = false;
       updateSender();
       value("[data-meshtastic-refreshed]", "");
@@ -120,22 +115,6 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || "";
         value("[data-meshtastic-channel-use]", number(status.network?.channelUtilizationPercent, "%"));
         value("[data-meshtastic-airtime]", number(status.network?.airtimeTxPercent, "%"));
         if (groups) groups.hidden = false;
-        const activity = Array.isArray(status.recentActivity) ? status.recentActivity.slice(0, 5) : [];
-        if (activityList) {
-          activityList.replaceChildren(...activity.flatMap((entry) => {
-            if (!entry.message || !entry.sender || !entry.channel || !entry.receivedAt) return [];
-            const item = document.createElement("li");
-            const message = document.createElement("strong");
-            message.textContent = entry.message;
-            const details = document.createElement("span");
-            const timestamp = new Intl.DateTimeFormat(document.documentElement.lang, { dateStyle: "medium", timeStyle: "short" }).format(new Date(entry.receivedAt));
-            details.textContent = `${entry.sender} · ${entry.channel} · ${timestamp}`;
-            item.append(message, details);
-            return [item];
-          }));
-          activityList.hidden = activityList.childElementCount === 0;
-          if (noActivity) noActivity.hidden = activityList.childElementCount > 0;
-        }
         if (status.refreshedAt) value("[data-meshtastic-refreshed]", `${panel.dataset.refreshedLabel || "Updated"}: ${new Intl.DateTimeFormat(document.documentElement.lang, { dateStyle: "medium", timeStyle: "short" }).format(new Date(status.refreshedAt))}`);
         radioAvailable = true;
         renderTurnstile();

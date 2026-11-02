@@ -53,7 +53,7 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /data-bad-label="Mala"/);
   assert.match(spanish, /Estado agregado de una pasarela Meshtastic/);
   assert.match(spanish, /data-meshtastic-panel/);
-  assert.match(spanish, /Últimas 5 actividades públicas/);
+  assert.doesNotMatch(spanish, /Últimas 5 actividades públicas/);
   assert.match(spanish, /Enviar a MediumFast/);
   assert.match(spanish, /Enviando mensaje a la radio/);
   assert.match(spanish, /La pasarela ha aceptado el mensaje para su difusión/);
@@ -103,7 +103,7 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(english, /Only aggregate counts and the latest message of each public channel are published/);
   assert.match(english, /Air quality/);
   assert.match(english, /Aggregate status for a Meshtastic gateway/);
-  assert.match(english, /Last 5 public activities/);
+  assert.doesNotMatch(english, /Last 5 public activities/);
   assert.match(english, /Send to MediumFast/);
   assert.match(english, /Sending message to the radio/);
   assert.match(english, /The gateway accepted the message for broadcast/);
@@ -133,7 +133,7 @@ test("publishes the Meshtastic status panel with channel labels and a contact no
   assert.match(spanishPanel, /data-node-label="Nodo"/);
   assert.match(spanishPanel, /data-time-label="Hora"/);
   assert.match(spanishPanel, /data-hops-label="Saltos"/);
-  assert.match(spanishPanel, /data-no-messages-label="Sin mensajes recientes"/);
+  assert.match(spanishPanel, /data-no-messages-label="No hay mensajes nuevos"/);
   assert.match(spanishPanel, /Los mensajes proceden de canales públicos de Meshtastic\./);
   assert.match(spanishPanel, /contacta a través de los enlaces de esta página/);
   assert.doesNotMatch(spanishPanel, /@|mailto:/);
@@ -146,7 +146,7 @@ test("publishes the Meshtastic status panel with channel labels and a contact no
   assert.match(englishPanel, /data-node-label="Node"/);
   assert.match(englishPanel, /data-time-label="Time"/);
   assert.match(englishPanel, /data-hops-label="Hops"/);
-  assert.match(englishPanel, /data-no-messages-label="No recent messages"/);
+  assert.match(englishPanel, /data-no-messages-label="No new messages"/);
   assert.match(englishPanel, /Messages come from public Meshtastic channels\./);
   assert.match(englishPanel, /contact via the links on this page/);
   assert.doesNotMatch(englishPanel, /@|mailto:/);
