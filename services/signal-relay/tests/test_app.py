@@ -4,7 +4,7 @@ import RNS
 
 from signal_relay.app import create_app
 from signal_relay.bridge import LAB_SESSION_FIELD, LabSession, RelayBridge
-from signal_relay.config import Settings, _public_tcp_node_urls
+from signal_relay.config import MESHTASTIC_ENTITY_KEYS, Settings, _public_tcp_node_urls
 from signal_relay.lab_sender import public_node_alias
 
 
@@ -75,6 +75,58 @@ def test_home_status_is_unavailable_without_private_configuration(tmp_path):
     )
     with TestClient(app) as client:
         assert client.get("/v1/lab/home-status").status_code == 503
+
+
+def test_meshtastic_endpoints_require_private_configuration(tmp_path):
+    app = create_app(
+        Settings(
+            mode="demo", allowed_origins={"http://127.0.0.1:4321"}, rate_limit=2,
+            rate_window_seconds=60, reticulum_config_dir=None, storage_dir=tmp_path,
+            telegram_bot_token=None, telegram_chat_id=None,
+        )
+    )
+    with TestClient(app) as client:
+        assert client.get("/v1/lab/meshtastic").status_code == 503
+        assert client.post("/v1/lab/meshtastic/messages", json={"message": "Hello", "turnstileToken": "token"}).status_code == 503
+
+
+def test_meshtastic_message_requires_turnstile_and_respects_cooldown(tmp_path, monkeypatch):
+    entity_ids = {key: f"sensor.{key}" for key in MESHTASTIC_ENTITY_KEYS}
+    app = create_app(
+        Settings(
+            mode="demo", allowed_origins={"http://127.0.0.1:4321"}, rate_limit=2,
+            rate_window_seconds=60, reticulum_config_dir=None, storage_dir=tmp_path,
+            telegram_bot_token=None, telegram_chat_id=None,
+            home_assistant_url="http://nginx:8081", home_assistant_token="private-token",
+            meshtastic_entity_ids=entity_ids, meshtastic_turnstile_secret="private-secret",
+        )
+    )
+
+    class Meshtastic:
+        def __init__(self):
+            self.messages = []
+
+        def broadcast(self, message):
+            self.messages.append(message)
+
+    meshtastic = Meshtastic()
+    app.state.meshtastic = meshtastic
+    monkeypatch.setattr("signal_relay.app.verify_turnstile", lambda *_: True)
+    with TestClient(app) as client:
+        assert client.post("/v1/lab/meshtastic/messages", json={"message": " Hello", "turnstileToken": "token"}).status_code == 422
+        accepted = client.post(
+            "/v1/lab/meshtastic/messages",
+            json={"message": "Hello mesh", "turnstileToken": "token"},
+            headers={"X-Real-IP": "203.0.113.10"},
+        )
+        assert accepted.status_code == 202
+        assert accepted.json() == {"status": "accepted"}
+        assert meshtastic.messages == ["Hello mesh"]
+        assert client.post(
+            "/v1/lab/meshtastic/messages",
+            json={"message": "Again", "turnstileToken": "token"},
+            headers={"X-Real-IP": "203.0.113.10"},
+        ).status_code == 429
 
 
 def test_health_status_and_signal_acknowledgement(tmp_path):
