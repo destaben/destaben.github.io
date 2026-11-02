@@ -62,12 +62,56 @@ docker exec homeassistant python3 -c 'import json; gateway="GATEWAY_ENTITY_ID"; 
 
 ## 5b. Verify the channel and message fields (verify on the host)
 
-The relay can only publish what these fields expose, and it does not guess their names. This command prints, for each channel entity under the prefix, the attribute names, the value types, and three shape checks. It never prints attribute values, state values, or friendly names. The `node_id_shape` check is true only for a string shaped like `!` plus eight hexadecimal digits. The `hop_value` check is true for an integer from 0 to 7. The `dm_word` check applies the same word-token list as the relay to the entity suffix after the prefix and to the friendly name. It is a heuristic: a direct message with a neutral name shows `dm_word` false, so review every name yourself.
+The relay can only publish what these fields expose, and it does not guess their names. This command prints, for each channel entity under the prefix, the attribute names, the value types, and three shape checks. It never prints attribute values, state values, or friendly names. The `node_id_shape` check is true only for a string shaped like `!` plus eight hexadecimal digits. The `hop_value` check is true for an integer from 0 to 7. The `dm_word` check applies the relay's word-token list to the same words the relay checks: the entity ID suffix, the friendly name with the gateway's own friendly name removed, and any custom-prefix words that the gateway's entity ID and friendly name do not contain. It is a heuristic: a direct message with a neutral name shows `dm_word` false, so review every name yourself.
 
-Replace `GATEWAY_ENTITY_ID` as in step 5.
+Replace `GATEWAY_ENTITY_ID` as in step 5. The script runs inside the container, reads only the restore-state file, and prints JSON.
 
 ```sh
-docker exec homeassistant python3 -c 'import json, re; gateway="GATEWAY_ENTITY_ID"; prefix=gateway + "_channel_"; data=json.load(open("/config/.storage/core.restore_state")).get("data", {}); states=[item.get("state", {}) for item in data.get("states", [])]; describe=lambda v: {"type": type(v).__name__, "node_id_shape": isinstance(v, str) and re.fullmatch(r"![0-9A-Fa-f]{8}", v) is not None, "hop_value": isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 7}; dm_tokens={"dm", "dms", "pm", "pms", "direct", "directa", "directas", "directo", "directos", "private", "privada", "privadas", "privado", "privados", "whisper", "secret"}; dm=lambda s: not dm_tokens.isdisjoint(set(re.split(r"[^a-z0-9]+", (str(s.get("entity_id", ""))[len(prefix):] + " " + str((s.get("attributes") or {}).get("friendly_name", ""))).lower()))); report=[{"entity_id": s.get("entity_id"), "state_type": type(s.get("state")).__name__, "dm_word": dm(s), "fields": {name: describe(value) for name, value in (s.get("attributes") or {}).items()}} for s in states if str(s.get("entity_id", "")).startswith(prefix)]; print(json.dumps(report, indent=2, ensure_ascii=False))'
+docker exec -i homeassistant python3 - <<'PY'
+import json
+import re
+
+gateway = "GATEWAY_ENTITY_ID"
+prefix = gateway + "_channel_"
+DM_TOKENS = {"dm", "dms", "pm", "pms", "direct", "directa", "directas", "directo", "directos",
+             "private", "privada", "privadas", "privado", "privados", "whisper", "secret"}
+
+
+def words(text):
+    return [token for token in re.split(r"[^a-z0-9]+", str(text).lower()) if token]
+
+
+data = json.load(open("/config/.storage/core.restore_state")).get("data", {})
+states = [item.get("state", {}) for item in data.get("states", [])]
+gateway_entry = next((s for s in states if s.get("entity_id") == gateway), {})
+gateway_name = str((gateway_entry.get("attributes") or {}).get("friendly_name", ""))
+gateway_words = set(words(gateway)) | set(words(gateway_name))
+gateway_phrase = words(gateway_name)
+
+
+def checked_words(state):
+    entity_id = str(state.get("entity_id", ""))
+    friendly = str((state.get("attributes") or {}).get("friendly_name", "")).lower()
+    if gateway_phrase:
+        friendly = re.sub(r"\b" + r"[^a-z0-9]+".join(re.escape(w) for w in gateway_phrase) + r"\b", " ", friendly)
+    return ((set(words(entity_id[:len(prefix)])) - gateway_words)
+            | set(words(entity_id[len(prefix):]))
+            | set(words(friendly)))
+
+
+def describe(value):
+    return {"type": type(value).__name__,
+            "node_id_shape": isinstance(value, str) and re.fullmatch(r"![0-9A-Fa-f]{8}", value) is not None,
+            "hop_value": isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 7}
+
+
+report = [{"entity_id": s.get("entity_id"),
+           "state_type": type(s.get("state")).__name__,
+           "dm_word": not DM_TOKENS.isdisjoint(checked_words(s)),
+           "fields": {name: describe(value) for name, value in (s.get("attributes") or {}).items()}}
+          for s in states if str(s.get("entity_id", "")).startswith(prefix)]
+print(json.dumps(report, indent=2, ensure_ascii=False))
+PY
 ```
 
 The restore-state file may not list every live entity, and the relay reads the live entity list. Treat a channel that is missing here as unverified, not as absent, and recheck it after the relay is recreated with the step 8 check.

@@ -37,3 +37,18 @@ test("ships a standalone Reticulum template with an interfaces section", async (
   assert.match(config, /^\[interfaces\]\n\n\[\[RNS Arborisis\]\]/m);
   assert.doesNotMatch(config, /TCPServerInterface/);
 });
+
+test("uses one documented node-count limit in the relay and the front end", async () => {
+  const [relay, panel, docs] = await Promise.all([
+    readRepositoryFile("services/signal-relay/src/signal_relay/home_assistant.py"),
+    readRepositoryFile("src/components/MeshtasticStatusLab.astro"),
+    readRepositoryFile("docs/SIGNAL-RELAY.md"),
+  ]);
+
+  const relayLimit = relay.match(/^_MAX_NODE_COUNT = ([0-9_]+)$/m)?.[1];
+  const frontEndLimit = panel.match(/const maxCount = ([0-9_]+);/)?.[1];
+
+  assert.equal(relayLimit, "100_000");
+  assert.equal(frontEndLimit, relayLimit);
+  assert.match(docs, /whole numbers from 0 to 100000/);
+});

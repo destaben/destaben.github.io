@@ -28,6 +28,10 @@ _REFRESH_DEADLINE_SECONDS = 10
 # Home Assistant placeholder states that mean "no usable value" rather than a value to publish.
 _PLACEHOLDER_STATES = frozenset({"", "unavailable", "unknown", "none"})
 _MAX_CHANNELS = 16
+# Whole-number node counts above this are rejected. The front end uses the same value (maxCount in MeshtasticStatusLab.astro).
+_MAX_NODE_COUNT = 100_000
+# A status whose channel list could not be read is kept for this long, so channels come back quickly while the counts stay cached.
+_PARTIAL_CHANNELS_CACHE_SECONDS = 60
 _MAX_CHANNEL_NAME_LENGTH = 32
 _MAX_MESSAGE_TEXT_LENGTH = 200
 # Meshtastic hop counts are three bits wide.
@@ -154,8 +158,11 @@ class _HomeAssistantClient:
             finally:
                 self._refresh_deadline = math.inf
             self._cached_error = None
-            self._fresh_status = (time.monotonic() + self.cache_seconds, status)
+            self._fresh_status = (time.monotonic() + self._cache_window(), status)
             return status
+
+    def _cache_window(self) -> float:
+        return self.cache_seconds
 
     def _refresh(self) -> dict[str, object]:
         raise NotImplementedError
@@ -260,11 +267,23 @@ class MeshtasticLabClient(_HomeAssistantClient):
         self._channel_denylist = frozenset(_normalized_name(name) for name in channel_denylist)
         # Attribute names are configured per deployment; a field without a configured name is never read.
         self._channel_fields = dict(channel_fields or {})
+        # Set by the last refresh: True when the channel list could not be read.
+        self._channels_partial = False
+        # Words of the gateway's friendly name, which are not evidence about any channel.
+        self._gateway_name_words: list[str] = []
+
+    def _cache_window(self) -> float:
+        return _PARTIAL_CHANNELS_CACHE_SECONDS if self._channels_partial else self.cache_seconds
 
     def _refresh(self) -> dict[str, object]:
+        self._channels_partial = False
         self._get_json("/api/")
         # The gateway state casing matches the Meshtastic send projection, which reads the same entity.
-        gateway_state = self._state(self.gateway_entity_id).get("state")
+        gateway = self._state(self.gateway_entity_id)
+        gateway_state = gateway.get("state")
+        attributes = gateway.get("attributes")
+        gateway_name = attributes.get("friendly_name") if isinstance(attributes, dict) else None
+        self._gateway_name_words = _word_list(gateway_name) if isinstance(gateway_name, str) else []
         if gateway_state != "Connected":
             raise ValueError("meshtastic_gateway_unavailable")
         online = self._count(self.nodes_online_entity_id)
@@ -284,7 +303,7 @@ class MeshtasticLabClient(_HomeAssistantClient):
 
     def _count(self, entity_id: str) -> int:
         value = _finite_state(self._state(entity_id), "invalid_meshtastic_node_count")
-        if value < 0 or not value.is_integer():
+        if value < 0 or value > _MAX_NODE_COUNT or not value.is_integer():
             raise ValueError("invalid_meshtastic_node_count")
         return int(value)
 
@@ -296,6 +315,7 @@ class MeshtasticLabClient(_HomeAssistantClient):
         try:
             states = self._get_list("/api/states")
         except (OSError, ValueError):
+            self._channels_partial = True
             return None
         excluded = {self.gateway_entity_id, self.nodes_online_entity_id, self.nodes_total_entity_id}
         found: list[tuple[str, dict[str, object]]] = []
@@ -322,7 +342,7 @@ class MeshtasticLabClient(_HomeAssistantClient):
         if "friendly_name" in attributes and not isinstance(friendly_name, str):
             return None
         slug = entity_id[len(self.channel_prefix):]
-        if _is_direct_message(slug, friendly_name if isinstance(friendly_name, str) else ""):
+        if self._is_direct_message(entity_id, slug, friendly_name if isinstance(friendly_name, str) else ""):
             return None
         name = _channel_name(slug)
         # Default-deny: the sanitized name must be allowlisted, and the denylist still wins over the allowlist.
@@ -333,6 +353,18 @@ class MeshtasticLabClient(_HomeAssistantClient):
         if last is not None:
             channel["last"] = last
         return channel
+
+    def _is_direct_message(self, entity_id: str, slug: str, friendly_name: str) -> bool:
+        """Heuristic: a direct-message word in the channel's own identity excludes it.
+
+        The words checked are the entity ID suffix, the channel friendly name with the gateway's friendly name removed,
+        and the words of a configured channel prefix that are not part of the gateway's own entity ID or friendly name.
+        """
+        gateway_words = set(_word_list(self.gateway_entity_id)) | set(self._gateway_name_words)
+        prefix_words = set(_word_list(entity_id[: len(self.channel_prefix)])) - gateway_words
+        name_words = _without_phrase(_word_list(friendly_name), self._gateway_name_words)
+        words = prefix_words | set(_word_list(slug)) | set(name_words)
+        return not _DIRECT_MESSAGE_TOKENS.isdisjoint(words)
 
     def _is_denied(self, name: str, slug: str) -> bool:
         return _normalized_name(name) in self._channel_denylist or _normalized_name(slug) in self._channel_denylist
@@ -399,9 +431,24 @@ def _channel_name(slug: str) -> str | None:
     return name[0].upper() + name[1:]
 
 
-def _is_direct_message(*texts: str) -> bool:
-    tokens = {token for text in texts for token in re.split(r"[^a-z0-9]+", text.casefold())}
-    return not _DIRECT_MESSAGE_TOKENS.isdisjoint(tokens)
+def _word_list(text: str) -> list[str]:
+    """Lowercase ASCII word tokens, in order. Non-ASCII letters separate words, so they never form a direct-message token."""
+    return [token for token in re.split(r"[^a-z0-9]+", text.casefold()) if token]
+
+
+def _without_phrase(words: list[str], phrase: list[str]) -> list[str]:
+    """Removes every run of consecutive words that equals the phrase, so a single shared word is kept."""
+    if not phrase:
+        return words
+    kept: list[str] = []
+    index = 0
+    while index < len(words):
+        if words[index:index + len(phrase)] == phrase:
+            index += len(phrase)
+            continue
+        kept.append(words[index])
+        index += 1
+    return kept
 
 
 def _masked_node_id(value: object) -> str | None:

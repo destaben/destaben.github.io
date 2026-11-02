@@ -1172,3 +1172,96 @@ def test_meshtastic_status_hides_invalid_recent_activity():
             return {"state": states[key]}
 
     assert EmptyActivityClient("http://home-assistant", "private-token", entity_ids).status()["recentActivity"] == []
+
+
+def test_a_failed_channel_read_keeps_the_counts_cached_but_retries_channels_after_a_minute(clock):
+    responses = meshtastic_responses({"/api/states": URLError("refused")})
+    client = FixtureMeshtastic(responses)
+
+    first = client.status()
+
+    assert "channels" not in first
+    responses["/api/states"] = [mesh_state(CHANNEL_PREFIX + "longfast", "Hello mesh", message_attributes())]
+    requests_after_first = len(client.requests)
+    clock.now += 59
+    # Within the partial window nothing is re-read, so the counts and the missing channels stay as they were.
+    assert client.status() == first
+    assert len(client.requests) == requests_after_first
+    clock.now += 1
+    second = client.status()
+    assert [channel["name"] for channel in second["channels"]] == ["Longfast"]
+    assert second["onlineNodes"] == first["onlineNodes"]
+    assert len(client.requests) > requests_after_first
+
+
+def test_a_successful_channel_read_keeps_the_full_status_window(clock):
+    client = FixtureMeshtastic(meshtastic_responses({
+        "/api/states": [mesh_state(CHANNEL_PREFIX + "longfast", "Hello mesh", message_attributes())],
+    }))
+    first = client.status()
+    requests = len(client.requests)
+
+    clock.now += 899
+
+    assert client.status() == first
+    assert len(client.requests) == requests
+
+
+@pytest.mark.parametrize("path", ["/api/states/sensor.private_online", "/api/states/sensor.private_total"])
+@pytest.mark.parametrize("state", ["100001", 100001, "1000001"])
+def test_node_counts_above_the_documented_limit_are_rejected(path, state):
+    # Both counts start at the limit so that only the tested count can be the reason for the rejection.
+    client = FixtureMeshtastic(meshtastic_responses({
+        "/api/states/sensor.private_online": {"state": "100000"},
+        "/api/states/sensor.private_total": {"state": "100000"},
+        path: {"state": state},
+    }))
+
+    with pytest.raises(ValueError, match=r"^invalid_meshtastic_node_count$"):
+        client.status()
+
+
+def test_node_counts_at_the_documented_limit_are_accepted():
+    client = FixtureMeshtastic(meshtastic_responses({
+        "/api/states/sensor.private_online": {"state": "100000"},
+        "/api/states/sensor.private_total": {"state": "100000"},
+    }))
+
+    status = client.status()
+
+    assert status["onlineNodes"] == 100000
+    assert status["totalNodes"] == 100000
+
+
+def test_gateway_friendly_name_words_are_ignored_for_direct_message_detection():
+    # The gateway is named "Private Gateway", so its own words must not make every channel look private.
+    client = FixtureMeshtastic(meshtastic_responses({
+        "/api/states/meshtastic.gateway_private": {"state": "Connected", "attributes": {"friendly_name": "Private Gateway"}},
+        "/api/states": [mesh_state(CHANNEL_PREFIX + "longfast", "Hello mesh", message_attributes(friendly_name="Private Gateway Longfast"))],
+    }), channel_allowlist=("Longfast",))
+
+    assert [channel["name"] for channel in client.status()["channels"]] == ["Longfast"]
+
+
+def test_a_private_word_that_is_not_the_gateway_name_still_excludes_the_channel():
+    client = FixtureMeshtastic(meshtastic_responses({
+        "/api/states/meshtastic.gateway_private": {"state": "Connected", "attributes": {"friendly_name": "Private Gateway"}},
+        "/api/states": [mesh_state(CHANNEL_PREFIX + "longfast", "Hello mesh", message_attributes(friendly_name="Private chat"))],
+    }), channel_allowlist=("Longfast",))
+
+    assert client.status()["channels"] == []
+
+
+def test_direct_message_words_in_a_custom_channel_prefix_exclude_the_channel():
+    client = FixtureMeshtastic(meshtastic_responses({
+        "/api/states": [mesh_state("sensor.dm_longfast", "SENTINEL-DM-TEXT", message_attributes())],
+    }), channel_prefix="sensor.dm_", channel_allowlist=("Longfast",))
+
+    status = client.status()
+
+    assert status["channels"] == []
+    assert "SENTINEL" not in json.dumps(status)
+
+
+def test_the_relay_node_count_limit_is_the_documented_value():
+    assert home_assistant._MAX_NODE_COUNT == 100_000

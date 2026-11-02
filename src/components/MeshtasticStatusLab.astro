@@ -30,7 +30,8 @@ const { lab } = Astro.props;
   const maxChannels = 16;
   const maxChannelNameLength = 32;
   const maxMessageTextLength = 200;
-  const maxCount = 1_000_000;
+  // The same limit as _MAX_NODE_COUNT in the relay; both are documented in docs/SIGNAL-RELAY.md.
+  const maxCount = 100_000;
   const maxHops = 7;
   const localHosts = new Set(["127.0.0.1", "localhost"]);
   // The relay masks the last two characters of a node ID, so only six hexadecimal digits remain visible.
