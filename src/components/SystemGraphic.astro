@@ -1,0 +1,117 @@
+---
+// Decorative hero graphic. The whole element is aria-hidden; OBSERVE and RESPOND stay as real text in the DOM.
+// Orbits, events and the log are CSS keyframes. Only the core is a React island, and it falls back to a static "DE".
+import SystemCore from "./react/SystemCore";
+---
+
+<div class="system-graphic" aria-hidden="true">
+  <span class="system-label system-label-top">OBSERVE</span>
+  <svg class="system-svg" viewBox="0 0 420 420" focusable="false">
+    <circle class="system-ring system-ring-outer" cx="210" cy="210" r="142"></circle>
+    <circle class="system-ring system-ring-inner" cx="210" cy="210" r="88"></circle>
+
+    <!-- Radio node (Meshtastic and Reticulum): outer orbit, clockwise. -->
+    <g class="sg-orbit">
+      <circle class="sg-pod sg-pod-lime" cx="210" cy="68" r="17"></circle>
+      <g transform="translate(210 68)">
+        <g class="sg-upright sg-upright-radio">
+          <circle class="sg-radio-core" cx="0" cy="0" r="2.6"></circle>
+          <path class="sg-radio-arc" d="M-6.5 -6.5 A9 9 0 0 0 -6.5 6.5 M6.5 -6.5 A9 9 0 0 1 6.5 6.5"></path>
+          <path class="sg-radio-arc" d="M-10.5 -10.5 A14.8 14.8 0 0 0 -10.5 10.5 M10.5 -10.5 A14.8 14.8 0 0 1 10.5 10.5"></path>
+        </g>
+      </g>
+    </g>
+
+    <!-- Metrics node (container CPU bars): outer orbit, counter-clockwise, slower. -->
+    <g class="sg-orbit sg-orbit-metrics">
+      <circle class="sg-pod sg-pod-paper" cx="210" cy="352" r="17"></circle>
+      <g transform="translate(210 352)">
+        <g class="sg-upright sg-upright-metrics">
+          <rect class="sg-bar" x="-8" y="-2" width="3" height="8"></rect>
+          <rect class="sg-bar" x="-2.5" y="-6" width="3" height="12"></rect>
+          <rect class="sg-bar" x="3" y="-4" width="3" height="10"></rect>
+        </g>
+      </g>
+    </g>
+
+    <!-- Home Assistant node (droplet): inner orbit, clockwise, fastest. -->
+    <g class="sg-orbit sg-orbit-droplet">
+      <circle class="sg-pod sg-pod-coral" cx="122" cy="210" r="13"></circle>
+      <g transform="translate(122 210)">
+        <g class="sg-upright sg-upright-droplet">
+          <path class="sg-drop" d="M0 -7 C3.5 -2.5 5.5 0.5 5.5 3 A5.5 5.5 0 0 1 -5.5 3 C-5.5 0.5 -3.5 -2.5 0 -7 Z"></path>
+        </g>
+      </g>
+    </g>
+
+    <!-- Event dots travel from the edge towards the core on three radial tracks. -->
+    <g transform="rotate(35 210 210)"><circle class="sg-event" cx="210" cy="8" r="3.2"></circle></g>
+    <g transform="rotate(200 210 210)"><circle class="sg-event sg-event-2" cx="210" cy="8" r="3.2"></circle></g>
+    <g transform="rotate(290 210 210)"><circle class="sg-event sg-event-3" cx="210" cy="8" r="3.2"></circle></g>
+  </svg>
+
+  <div class="system-core"><SystemCore client:visible /></div>
+
+  <div class="system-respond">
+    <span class="system-label">RESPOND</span>
+    <span class="system-log"><span class="log-alert">ALERT</span><span class="log-triage">TRIAGE</span><span class="log-resolved">RESOLVED</span></span>
+  </div>
+</div>
+
+<style>
+  .system-label { color: var(--paper); font-family: "SFMono-Regular", Consolas, monospace; font-size: .68rem; font-weight: 800; letter-spacing: .15em; }
+  .system-label-top { position: absolute; z-index: 2; top: 1.25rem; left: 1.25rem; }
+  .system-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .system-ring { fill: none; stroke-width: 1; }
+  .system-ring-outer { stroke: color-mix(in srgb, var(--paper) 36%, transparent); }
+  .system-ring-inner { stroke: var(--coral); }
+
+  .sg-pod { fill: var(--ink); stroke-width: 1.5; }
+  .sg-pod-lime { stroke: var(--lime); }
+  .sg-pod-paper { stroke: var(--paper); }
+  .sg-pod-coral { stroke: var(--coral); }
+  .sg-radio-core { fill: var(--lime); }
+  .sg-radio-arc { fill: none; stroke: var(--lime); stroke-linecap: round; stroke-width: 1.6; }
+  .sg-bar { fill: var(--paper); }
+  .sg-drop { fill: var(--coral); }
+
+  /* Orbits rotate about the centre; upright icons counter-rotate about their own centre so they stay readable. */
+  .sg-orbit { transform-box: view-box; transform-origin: 210px 210px; animation: sg-spin 30s linear infinite; }
+  .sg-orbit-metrics { animation: sg-spin 46s linear infinite reverse; }
+  .sg-orbit-droplet { animation: sg-spin 18s linear infinite; }
+  .sg-upright { transform-box: fill-box; transform-origin: center; }
+  .sg-upright-radio { animation: sg-spin 30s linear infinite reverse; }
+  .sg-upright-metrics { animation: sg-spin 46s linear infinite; }
+  .sg-upright-droplet { animation: sg-spin 18s linear infinite reverse; }
+
+  .sg-event { fill: var(--coral); opacity: 0; animation: sg-event 6s linear infinite; }
+  .sg-event-2 { animation-delay: -2s; }
+  .sg-event-3 { animation-delay: -4s; }
+
+  .system-respond { position: absolute; z-index: 2; right: 1.25rem; bottom: 1.25rem; display: grid; justify-items: end; gap: .35rem; }
+  .system-log { display: grid; justify-items: end; color: var(--paper); font-family: "SFMono-Regular", Consolas, monospace; font-size: .6rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+  .system-log > span { grid-area: 1 / 1; opacity: 0; }
+  .log-alert { color: var(--coral); animation: sg-log-alert 6s steps(1) infinite; }
+  .log-triage { color: var(--paper); animation: sg-log-triage 6s steps(1) infinite; }
+  .log-resolved { color: var(--lime); animation: sg-log-resolved 6s steps(1) infinite; }
+
+  .system-core { position: absolute; z-index: 1; top: 50%; left: 50%; width: 26.7cqi; aspect-ratio: 1; translate: -50% -50%; overflow: hidden; border: 5px solid var(--ink); border-radius: 50%; background: var(--lime); }
+
+  @keyframes sg-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  @keyframes sg-event {
+    0% { opacity: 0; transform: translateY(0); fill: var(--coral); animation-timing-function: cubic-bezier(.5, 0, 1, 1); }
+    6% { opacity: 1; }
+    40% { opacity: 1; transform: translateY(138px); fill: var(--coral); }
+    50% { opacity: 1; transform: translateY(138px); fill: var(--lime); }
+    58%, 100% { opacity: 0; transform: translateY(138px); fill: var(--lime); }
+  }
+  @keyframes sg-log-alert { 0%, 33% { opacity: 1; } 33.4%, 100% { opacity: 0; } }
+  @keyframes sg-log-triage { 0%, 33.4% { opacity: 0; } 33.5%, 66% { opacity: 1; } 66.1%, 100% { opacity: 0; } }
+  @keyframes sg-log-resolved { 0%, 66.1% { opacity: 0; } 66.2%, 100% { opacity: 1; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sg-orbit, .sg-upright, .sg-event, .log-alert, .log-triage, .log-resolved { animation: none; }
+    .sg-event { opacity: .9; transform: translateY(96px); }
+    .system-log .log-resolved { opacity: 1; }
+  }
+</style>

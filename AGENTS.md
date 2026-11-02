@@ -10,6 +10,7 @@ This repository is the source for `https://info.destaben.dev`. It is a static As
 - `src/config/site.ts` contains the site identity and global SEO metadata.
 - `src/data/portfolio.ts` contains structured portfolio data.
 - `src/components/` and `src/layouts/` contain shared Astro UI and browser-side integration code.
+- `src/components/react/` contains the only React islands (the hero ASCII core and the numbered section labels), hydrated through `@astrojs/react`; `ASCIIText.tsx` and `DecryptedText.tsx` are adapted from React Bits (MIT + Commons Clause, see `THIRD_PARTY_NOTICES.md`); `SystemCore.tsx` and `SectionLabel.tsx` are original wrappers. `react` and `react-dom` are exact-pinned in `package.json`.
 - `src/content/` contains type-checked future content collections.
 - `public/` contains static source assets; `public/CNAME` declares the production custom domain.
 - `services/signal-relay/` contains the separate FastAPI/LXMF bridge, its tests, Docker image, and Compose deployment manifest.
@@ -19,7 +20,7 @@ This repository is the source for `https://info.destaben.dev`. It is a static As
 
 ## Working Rules
 
-- Use Node 22 LTS and npm. Install CI dependencies with `npm ci`, validate with `npm run check`, build with `npm run build`, and preview with `npm run preview`.
+- Use Node 22 LTS (22.23.4 or newer) and npm. Install CI dependencies with `npm ci`, validate with `npm run check`, build with `npm run build`, and preview with `npm run preview`.
 - Do not commit generated `dist/`, `.astro/`, `node_modules/`, coverage, or local environment files.
 - Keep `site` set to `https://info.destaben.dev` in `astro.config.mjs`; this is the production canonical URL even though GitHub Pages hosts the site.
 - Keep the deployment least-privilege and artifact-based. Changes to deployment behavior must update both the workflow and `README.md`.

@@ -4,13 +4,14 @@ Source for [info.destaben.dev](https://info.destaben.dev), a bilingual static As
 
 ## Requirements
 
-- Node.js 22 LTS, as pinned in `.nvmrc`.
+- Node.js 22.23.4 or newer (`engines` in `package.json`; `.nvmrc` pins the 22 line).
 - npm 10 or newer.
 
 ## Project Structure
 
 - `src/pages/` contains routes; `/`, `/es/`, and `/en/` render the portfolio.
 - `src/components/`, `src/layouts/`, and `src/styles/` provide shared markup and presentation.
+- `src/components/react/` contains the React islands (the hero ASCII core and the section labels); `ASCIIText.tsx` and `DecryptedText.tsx` are adapted from React Bits and keep their attribution headers (`SystemCore.tsx` and `SectionLabel.tsx` are original wrappers), and `THIRD_PARTY_NOTICES.md` reproduces the upstream license. They are used on a non-profit personal website and are not redistributed as standalone components (React Bits is MIT + Commons Clause). The hero core shows a static "DE" without JavaScript, under reduced motion, on narrow screens, or without WebGL 2; the section labels keep their final text under reduced motion. The hero orbit and log animations are plain CSS.
 - `src/data/portfolio.ts` contains localized portfolio content.
 - `src/lib/github.ts` fetches every public repository from `destaben` during each build.
 - `src/content/blog/` contains localized Markdown or MDX technical notes published in the portfolio and RSS feed.
@@ -68,7 +69,7 @@ When refreshing Reticulum bootstrap transports or recovering a broken private co
 
 ## Deployment
 
-Every push to `main`, and every manual `workflow_dispatch`, runs [.github/workflows/deploy-pages.yml](.github/workflows/deploy-pages.yml). The workflow uses Node 22, runs `npm ci`, runs the Signal Relay `pytest` suite and `npm run verify` (Astro check, tests and build), and deploys the generated `dist/` artifact to GitHub Pages. GitHub Actions is the only publishing path; do not commit generated files or publish from a branch.
+Every push to `main`, and every manual `workflow_dispatch`, runs [.github/workflows/deploy-pages.yml](.github/workflows/deploy-pages.yml). The workflow uses Node 22.23.4 (the minimum Astro and `@astrojs/react` require), runs `npm ci`, runs the Signal Relay `pytest` suite and `npm run verify` (Astro check, tests and build), and deploys the generated `dist/` artifact to GitHub Pages. GitHub Actions is the only publishing path; do not commit generated files or publish from a branch.
 
 Every pull request to `main`, and every manual `workflow_dispatch`, runs [.github/workflows/ci.yml](.github/workflows/ci.yml) with read-only permissions: the Signal Relay `pytest` suite, `docker compose config` validation, and `npm run verify` (Astro check, tests and build). Its actions are pinned to commit SHAs. It deploys nothing, passes only the default read-only `GITHUB_TOKEN` to the build, and references no repository secrets (a collaborator with write access can still change the workflow in their own branch, so keep secrets out of reach with environment protection); make its jobs required status checks in branch protection if you want merges gated on them. The check names are `Signal Relay tests` and `Site check, tests and build`; use exactly those names. Each job has a 15-minute timeout. The site job passes `PUBLIC_TURNSTILE_SITE_KEY` from the repository variable `TURNSTILE_SITE_KEY` only; if the key is stored as a secret instead, PR builds omit it and differ slightly from the Pages build.
 
