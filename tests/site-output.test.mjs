@@ -258,9 +258,8 @@ test("renders the decorative hero graphic hidden from assistive technology, with
     assert.ok(graphic.includes(">RESPOND</span>"));
     for (const step of ["ALERT", "TRIAGE", "RESOLVED"]) assert.ok(graphic.includes(`>${step}</span>`));
     assert.match(graphic, /class="sg-event/);
-    // The core is a React island; without JavaScript, or under reduced motion, the server markup is the static "DE".
-    assert.match(graphic, /component-url="\/_astro\/SystemCore\.[^"]+"[^>]*client="visible"/);
-    assert.match(graphic, /<div style="[^"]*">DE<\/div>/);
+    // The core is a plain decorative disc: no island and no text.
+    assert.match(graphic, /<div class="system-core"[^>]*><\/div>/);
   }
 });
 
@@ -303,4 +302,26 @@ test("adds no third-party script and keeps every script on this origin", async (
     assert.doesNotMatch(page, /<script[^>]*\ssrc="https?:/);
     assert.doesNotMatch(page, /import\(\s*["']https?:/);
   }
+});
+test("keeps animated headings readable without JavaScript and under reduced motion", async () => {
+  const [spanish, english, css] = await Promise.all([
+    readPage("es/index.html"),
+    readPage("en/index.html"),
+    readFile(new URL("../src/styles/global.css", import.meta.url), "utf8"),
+  ]);
+
+  for (const page of [spanish, english]) {
+    // The animated pieces start hidden in the server HTML, so a noscript rule must show them.
+    assert.match(page, /<noscript><style>[^<]*\[data-blur-piece\][^<]*opacity:\s*1\s*!important/);
+    assert.match(page, /<noscript><style>[^<]*\[data-reveal\][^<]*opacity:\s*1\s*!important/);
+    // Screen readers get the heading once, as plain text, ahead of the aria-hidden animated pieces.
+    assert.match(page, /<h1 id="hero-title">[\s\S]*?<span[^>]*>[^<]+<\/span>[\s\S]*?data-blur-piece/);
+    // Case numbers are plain identifiers, not animated counters.
+    assert.match(page, /<p class="case-number">0[123]<\/p>/);
+    // The relay copy button keeps its script hooks inside the spark wrapper.
+    assert.match(page, /data-copy-address[^>]*disabled/);
+  }
+  const reduced = css.match(/@media \(prefers-reduced-motion: reduce\) \{ \[data-blur-piece\][^}]*\}/)?.[0] ?? "";
+  assert.match(reduced, /opacity:\s*1\s*!important/);
+  assert.match(reduced, /\[data-reveal\]/);
 });

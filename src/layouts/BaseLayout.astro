@@ -17,6 +17,7 @@ const ogLocale = locale === "en" ? "en_US" : "es_ES";
 <html lang={locale}>
   <head>
     <meta charset="utf-8" />
+    <noscript><style is:inline>[data-blur-piece], [data-reveal] { opacity: 1 !important; filter: none !important; transform: none !important; }</style></noscript>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
     <link rel="canonical" href={new URL(Astro.url.pathname, site.url)} />

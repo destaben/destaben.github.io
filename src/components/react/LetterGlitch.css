@@ -1,0 +1,19 @@
+/*
+ * Adapted from React Bits (https://github.com/DavidHDev/react-bits, Backgrounds/LetterGlitch).
+ * Copyright (c) David Haz. Licensed under MIT + Commons Clause; the full notice is in THIRD_PARTY_NOTICES.md at the repository root.
+ * Used in a non-profit personal website (not sold or redistributed as a component). No local changes: this file is byte-identical to the upstream registry copy (reactbits.dev/r, TS-CSS variant).
+ */
+.letter-glitch {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.letter-glitch-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}

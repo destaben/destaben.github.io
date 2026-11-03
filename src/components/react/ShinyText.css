@@ -1,0 +1,26 @@
+/*
+ * Adapted from React Bits (https://github.com/DavidHDev/react-bits, TextAnimations/ShinyText).
+ * Copyright (c) David Haz. Licensed under MIT + Commons Clause; the full notice is in THIRD_PARTY_NOTICES.md at the repository root.
+ * Used in a non-profit personal website (not sold or redistributed as a component). No local changes: this file is byte-identical to the upstream registry copy (reactbits.dev/r, TS-CSS variant).
+ */
+.shiny-text {
+  position: relative;
+  display: inline-block;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.shiny-text__glow {
+  position: absolute;
+  inset: 0;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  filter: blur(0.14em);
+  pointer-events: none;
+  user-select: none;
+}

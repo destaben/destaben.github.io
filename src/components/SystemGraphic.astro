@@ -1,7 +1,6 @@
 ---
 // Decorative hero graphic. The whole element is aria-hidden; OBSERVE and RESPOND stay as real text in the DOM.
-// Orbits, events and the log are CSS keyframes. Only the core is a React island, and it falls back to a static "DE".
-import SystemCore from "./react/SystemCore";
+// Orbits, events and the log are CSS keyframes; the core is a plain disc.
 ---
 
 <div class="system-graphic" aria-hidden="true">
@@ -50,7 +49,7 @@ import SystemCore from "./react/SystemCore";
     <g transform="rotate(290 210 210)"><circle class="sg-event sg-event-3" cx="210" cy="8" r="3.2"></circle></g>
   </svg>
 
-  <div class="system-core"><SystemCore client:visible /></div>
+  <div class="system-core"></div>
 
   <div class="system-respond">
     <span class="system-label">RESPOND</span>

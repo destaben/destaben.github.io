@@ -98,3 +98,18 @@ h3 { font-size: 1.5rem; }
 .meshtastic-status-panel :focus-visible { outline: 3px solid var(--coral); outline-offset: 4px; }
 @media (prefers-reduced-motion: reduce) { .meshtastic-status-panel, .meshtastic-status-panel * { transition: none; animation: none; } }
 .meshtastic-status-channels { margin-top: 1.25rem; }.meshtastic-status-channels[hidden] { display: none; }.meshtastic-status-channels-title, .meshtastic-status-channel-label, .meshtastic-status-message-label, .meshtastic-status-message-details dt { margin: 0; color: var(--muted); font-family: "SFMono-Regular", Consolas, monospace; font-size: .68rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }.meshtastic-status-channels-title { margin-bottom: .6rem; }.meshtastic-status-channel-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: .75rem; margin: 0; padding: 0; list-style: none; }.meshtastic-status-channel { min-width: 0; padding: .8rem; border: 1px solid var(--line); }.meshtastic-status-channel-name { overflow-wrap: anywhere; margin: .25rem 0 0; font-family: "Iowan Old Style", "Palatino Linotype", Palatino, serif; font-size: 1.15rem; font-weight: 700; line-height: 1.2; }.meshtastic-status-message { overflow-wrap: anywhere; margin: .45rem 0 0; color: var(--ink-soft); font-size: .9rem; }.meshtastic-status-message-label { margin-top: .75rem; }.meshtastic-status-message-empty { margin: .6rem 0 0; color: var(--muted); font-size: .86rem; }.meshtastic-status-message-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr)); gap: .5rem; margin: .6rem 0 0; }.meshtastic-status-message-details div { min-width: 0; }.meshtastic-status-message-details dd { overflow-wrap: anywhere; margin: .15rem 0 0; font-size: .86rem; }.meshtastic-status-channels-note { margin: .75rem 0 0; color: var(--muted); font-size: .86rem; }
+
+/* Motion layer: React Bits islands plus the card spotlight. All of it is decorative and respects reduced motion. */
+#work, #trabajo { position: relative; overflow: hidden; }
+.glitch-backdrop astro-island { display: block; width: 100%; height: 100%; }
+.glitch-backdrop { position: absolute; inset: 0; opacity: .32; pointer-events: none; }
+#work > .shell, #trabajo > .shell { position: relative; z-index: 1; }
+.case-study, .project, .note-card { --mx: -999px; --my: -999px; background-image: radial-gradient(circle 240px at var(--mx) var(--my), rgb(216 240 75 / .13), transparent 72%); }
+.writing-list .note-card, .section:not(.section-ink) .project { background-image: radial-gradient(circle 240px at var(--mx) var(--my), rgb(255 121 85 / .16), transparent 72%); }
+.case-number { font-variant-numeric: tabular-nums; }
+.section-heading > h2, .section-heading > div > h2, .lab-heading > div > h2 { min-width: 0; }
+.section-heading > div > h2, .lab-heading > div > h2 { margin-bottom: 1.4rem; }
+@media (prefers-reduced-motion: reduce) { .glitch-backdrop { display: none; } }
+
+/* Reduced motion: the animated islands show their final state at once (the wrappers start hidden in the server HTML). */
+@media (prefers-reduced-motion: reduce) { [data-blur-piece], [data-reveal] { opacity: 1 !important; filter: none !important; transform: none !important; } }
