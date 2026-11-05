@@ -229,6 +229,32 @@ def _channel_names(value: str | None, setting: str) -> frozenset[str]:
     return frozenset(names)
 
 
+_PRINTER_BASE_URL_MESSAGE = "SIGNAL_RELAY_PRINTER_BASE_URL must be a plain http origin such as http://nginx:8082"
+
+
+def _printer_base_url(value: str | None) -> str | None:
+    """The printer is read only through the edge's internal listener, so the origin must be a plain http origin."""
+    if not value:
+        return None
+    # Checked on the raw text, before urlsplit, so stray spaces, '?' or '#' cannot be trimmed or hidden.
+    if not _is_printable_ascii(value) or "?" in value or "#" in value:
+        raise ValueError(_PRINTER_BASE_URL_MESSAGE)
+    try:
+        parsed = urlsplit(value)
+        _ = parsed.port  # Raises ValueError for a malformed port.
+    except ValueError as error:
+        raise ValueError(_PRINTER_BASE_URL_MESSAGE) from error
+    if (
+        parsed.scheme != "http"
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in ("", "/")
+    ):
+        raise ValueError(_PRINTER_BASE_URL_MESSAGE)
+    return value.rstrip("/")
+
+
 def _channel_fields(value: str | None) -> dict[str, str] | None:
     if not value:
         return None
@@ -277,6 +303,11 @@ class Settings:
     meshtastic_status_cache_seconds: int = 900
     public_tcp_node_aliases: dict[str, str] | None = None
     public_tcp_node_urls: dict[str, str] | None = None
+    # The 3D printer laboratory is off by default. Its base URL is the edge's internal nginx listener, never Moonraker.
+    printer_enabled: bool = False
+    printer_base_url: str | None = None
+    # Filenames are withheld from the public projection unless the operator opts in.
+    printer_show_filename: bool = False
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -299,6 +330,10 @@ class Settings:
         )
         if set(public_tcp_node_urls) != set(public_tcp_node_aliases.values()):
             raise ValueError("SIGNAL_RELAY_PUBLIC_TCP_NODE_URLS must define one URL for every public alias")
+        printer_enabled = os.environ.get("SIGNAL_RELAY_PRINTER_ENABLED", "false").lower() == "true"
+        printer_base_url = _printer_base_url(os.environ.get("SIGNAL_RELAY_PRINTER_BASE_URL"))
+        if printer_enabled and not printer_base_url:
+            raise ValueError("SIGNAL_RELAY_PRINTER_BASE_URL is required when SIGNAL_RELAY_PRINTER_ENABLED is true")
         return cls(
             mode=os.environ.get("SIGNAL_RELAY_MODE", "demo"),
             allowed_origins={origin.strip() for origin in origins.split(",") if origin.strip()},
@@ -332,4 +367,7 @@ class Settings:
             meshtastic_status_cache_seconds=max(int(os.environ.get("SIGNAL_RELAY_MESHTASTIC_STATUS_CACHE_SECONDS", "900")), 900),
             public_tcp_node_aliases=public_tcp_node_aliases,
             public_tcp_node_urls=public_tcp_node_urls,
+            printer_enabled=printer_enabled,
+            printer_base_url=printer_base_url,
+            printer_show_filename=os.environ.get("SIGNAL_RELAY_PRINTER_SHOW_FILENAME", "false").lower() == "true",
         )
