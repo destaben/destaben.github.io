@@ -9,10 +9,11 @@ const assertLabOrder = (page) => {
   const metrics = page.indexOf('data-metrics-panel');
   const meshtastic = page.indexOf('data-meshtastic-panel');
   const meshtasticStatus = page.indexOf('data-meshtastic-status-panel');
+  const printer = page.indexOf('data-printer-panel');
   const relay = page.indexOf('data-relay-panel');
 
-  assert.ok(home !== -1 && metrics !== -1 && meshtastic !== -1 && meshtasticStatus !== -1 && relay !== -1);
-  assert.ok(home < metrics && metrics < meshtastic && meshtastic < meshtasticStatus && meshtasticStatus < relay);
+  assert.ok(home !== -1 && metrics !== -1 && meshtastic !== -1 && meshtasticStatus !== -1 && printer !== -1 && relay !== -1);
+  assert.ok(home < metrics && metrics < meshtastic && meshtastic < meshtasticStatus && meshtasticStatus < printer && printer < relay);
 };
 
 test("generates bilingual portfolio entries without a portrait", async () => {
@@ -162,6 +163,103 @@ test("renders Meshtastic channel data with DOM text APIs only", async () => {
   assert.doesNotMatch(meshtasticScript, /innerHTML|outerHTML|insertAdjacentHTML|document\.write/);
   assert.match(meshtasticScript, /createElement/);
   assert.match(meshtasticScript, /textContent/);
+});
+
+const printerSection = (page) => {
+  const start = page.indexOf("data-printer-panel");
+  assert.notEqual(start, -1, "the 3D printer lab panel is rendered");
+  return page.slice(start, page.indexOf("</article>", start));
+};
+
+const elementTag = (section, pattern, label) => {
+  const tag = section.match(pattern)?.[0];
+  assert.ok(tag, `${label} is rendered`);
+  return tag;
+};
+
+test("publishes the 3D printer lab in both locales with a text fallback and no filename", async () => {
+  const [spanish, english] = await Promise.all([readPage("es/index.html"), readPage("en/index.html")]);
+
+  const cases = [
+    {
+      page: spanish,
+      title: "Impresora 3D",
+      unavailable: "No disponible ahora",
+      thumbnailAlt: "Miniatura de la pieza que se está imprimiendo",
+      privacy: "Datos protegidos",
+    },
+    {
+      page: english,
+      title: "3D printer",
+      unavailable: "Unavailable right now",
+      thumbnailAlt: "Thumbnail of the part being printed",
+      privacy: "Protected data",
+    },
+  ];
+
+  for (const { page, title, unavailable, thumbnailAlt, privacy } of cases) {
+    const section = printerSection(page);
+    assert.match(section, new RegExp(`<h3[^>]*id="printer-title"[^>]*>${title}</h3>`), `${title} is the lab heading`);
+    assert.ok(section.includes(`>${unavailable}</span>`), "the state text is in the server HTML before any script runs");
+    assert.ok(section.includes(`data-unavailable-label="${unavailable}"`));
+    assert.ok(section.includes(privacy), "the privacy boundary is stated");
+    assert.match(section, /Klipper/);
+
+    // The canvas is a single image with a summary; the live region is the only polite announcement.
+    const canvas = elementTag(section, /<canvas[^>]*>/, "the printer canvas");
+    assert.match(canvas, /role="img"/);
+    assert.match(canvas, new RegExp(`aria-label="${unavailable}`));
+    assert.match(section, /<[a-z]+[^>]*aria-live="polite"[^>]*>/);
+
+    // The thumbnail slot starts hidden with its alt text; the image itself exists only once the script has a blob.
+    const thumbnailSlot = elementTag(section, /<[a-z]+[^>]*data-printer-thumbnail[^>]*>/, "the printer thumbnail slot");
+    assert.match(thumbnailSlot, /hidden/);
+    assert.ok(thumbnailSlot.includes(`data-thumbnail-alt="${thumbnailAlt}"`));
+    assert.doesNotMatch(section, /<img\b/, "no image without a src is rendered before the script runs");
+
+    // No filename value and no inline handlers reach the markup. The privacy copy may say that no filename is shown.
+    assert.doesNotMatch(section, /\.gcode|filename["']?\s*[:=]/i);
+    assert.doesNotMatch(section, /\son[a-z]+="/i);
+  }
+});
+
+// Astro inlines small component scripts and emits larger ones (those that import a module) as separate files under /_astro/,
+// so a script is found either inline or behind a /_astro/ source of the page.
+const pageScriptWith = async (page, marker) => {
+  const inline = [...page.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map((match) => match[1]);
+  const external = await Promise.all(
+    [...page.matchAll(/<script[^>]*\ssrc="(\/_astro\/[^"]+)"/g)].map((match) => readPage(match[1].slice(1))),
+  );
+  return [...inline, ...external].find((script) => script.includes(marker));
+};
+
+test("keeps the 3D printer lab on the configured relay base, with DOM text APIs only", async () => {
+  const page = await readPage("es/index.html");
+  const section = printerSection(page);
+  assert.match(section, /data-local-url="http:\/\/127\.0\.0\.1:8787"/);
+  assert.match(section, /data-production-url="https:\/\/lab\.destaben\.dev"/);
+
+  const printerScript = await pageScriptWith(page, "/v1/lab/printer");
+  assert.ok(printerScript, "the printer lab script is present in the page");
+
+  for (const endpoint of ["/v1/lab/printer", "/v1/lab/printer/thumbnail", "/v1/lab/printer/model/"]) {
+    assert.ok(printerScript.includes(endpoint), `${endpoint} is requested from the configured relay base`);
+  }
+  assert.doesNotMatch(printerScript, /https?:\/\//, "the script never hard-codes a host");
+  assert.doesNotMatch(printerScript, /innerHTML|outerHTML|insertAdjacentHTML|document\.write/);
+  assert.match(printerScript, /createElement|textContent/);
+  assert.match(printerScript, /AbortController/);
+  assert.match(printerScript, /IntersectionObserver/);
+  assert.match(printerScript, /visibilitychange/);
+  assert.match(printerScript, /matchMedia\(["'`]\(prefers-reduced-motion: reduce\)["'`]\)/);
+});
+
+test("stops the 3D printer lab's motion under reduced motion in its component styles", async () => {
+  const source = await readFile(new URL("../src/components/PrinterLab.astro", import.meta.url), "utf8");
+  const style = source.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? "";
+
+  assert.match(style, /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?transition:\s*none/);
+  assert.doesNotMatch(style, /@keyframes/, "the lab draws its motion on canvas, not with CSS keyframes");
 });
 
 test("declares locale alternates, og:locale, and RSS discovery in every page head", async () => {
@@ -324,4 +422,26 @@ test("keeps animated headings readable without JavaScript and under reduced moti
   const reduced = css.match(/@media \(prefers-reduced-motion: reduce\) \{ \[data-blur-piece\][^}]*\}/)?.[0] ?? "";
   assert.match(reduced, /opacity:\s*1\s*!important/);
   assert.match(reduced, /\[data-reveal\]/);
+});
+
+test("keeps the 3D printer lab canvas and live region honest without JavaScript and for screen readers", async () => {
+  const source = await readFile(new URL("../src/components/PrinterLab.astro", import.meta.url), "utf8");
+  const style = source.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? "";
+
+  assert.match(style, /\.printer-panel:not\(\[data-ready\]\)\s+\.printer-figure\s*\{\s*display:\s*none/, "no empty dark box before the script runs");
+  assert.match(source, /panel\.dataset\.ready\s*=/, "the script marks the panel ready");
+  assert.doesNotMatch(source, /same-origin/, "the lab calls the relay base cross-origin, like the other labs");
+  // The polite live region carries the state only, so a long print is not re-announced every poll.
+  assert.match(source, /setText\(liveEl, stateText\)/);
+  assert.doesNotMatch(source, /setText\(liveEl, summary\)/);
+});
+
+test("states in the 3D printer lab copy that the thumbnail and the outline of the part are shown", async () => {
+  for (const [path, words] of [["es/index.html", /miniatura[\s\S]*contorno|contorno[\s\S]*miniatura/i], ["en/index.html", /thumbnail[\s\S]*outline|outline[\s\S]*thumbnail/i]]) {
+    const section = printerSection(await readPage(path));
+    const privacy = section.match(/class="printer-boundary"[\s\S]*?<\/div>/)?.[0] ?? "";
+    assert.match(privacy, words, `${path} privacy copy names the thumbnail and the outline`);
+    const summary = section.match(/<p[^>]*>([^<]*Klipper[^<]*)<\/p>/)?.[1] ?? "";
+    assert.match(summary, words, `${path} summary names the thumbnail and the outline`);
+  }
 });

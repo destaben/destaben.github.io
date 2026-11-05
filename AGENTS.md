@@ -9,6 +9,7 @@ This repository is the source for `https://info.destaben.dev`. It is a static As
 - `astro.config.mjs` contains Astro site configuration.
 - `src/config/site.ts` contains the site identity and global SEO metadata.
 - `src/data/portfolio.ts` contains structured portfolio data.
+- `src/lib/` contains framework-free helpers that the Node tests import directly, such as the 3D printer laboratory rules in `printer-lab.mjs` (typed by `printer-lab.d.mts`).
 - `src/components/` and `src/layouts/` contain shared Astro UI and browser-side integration code.
 - `src/components/react/` contains the only React islands (section labels, animated headings and copy, magnetic buttons, click sparks, scroll reveals, and the decorative glitch backdrop), hydrated through `@astrojs/react`; `DecryptedText.tsx`, `BlurText.tsx`, `ShinyText.tsx`, `Magnet.tsx`, `ClickSpark.tsx`, and `LetterGlitch.tsx` are adapted from React Bits (MIT + Commons Clause, see `THIRD_PARTY_NOTICES.md`); `SectionLabel.tsx`, `Reveal.tsx`, `CopySpark.tsx`, and `GlitchBackdrop.tsx` are original wrappers. `react`, `react-dom`, and `motion` are exact-pinned in `package.json`.
 - `src/content/` contains type-checked future content collections.
