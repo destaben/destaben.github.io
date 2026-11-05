@@ -91,6 +91,7 @@ export declare function planFrame(
 export declare const fullSampling: SamplingPlan;
 export declare function thumbnailKey(status: PrinterStatus | null, epoch: number): string | null;
 export declare function jobChanged(previous: PrinterStatus | null, next: PrinterStatus | null): boolean;
+export declare function frameIntervalMs(drawingPart: boolean): number;
 export declare function strideFor(totalPoints: number, budget: number): number;
 export declare function formatLayer(layer: { current: number | null; total: number | null }): string | null;
 export declare function acceptsModel(status: { modelId: string | null } | null, id: string): boolean;

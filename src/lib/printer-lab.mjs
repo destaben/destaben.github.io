@@ -207,6 +207,10 @@ export const animationMode = ({ reducedMotion, visible }) => {
   return reducedMotion ? "static" : "animate";
 };
 
+// The real part redraws at 30 frames per second. The decorative animation is slow and carries no reading,
+// so it redraws at 12 and spares the battery of a visitor who left the panel on screen.
+export const frameIntervalMs = (drawingPart) => (drawingPart ? 1000 / 30 : 1000 / 12);
+
 // Doubles the poll interval after each failure, from 15 seconds up to 2 minutes.
 export const pollDelayMs = (failures) => Math.min(pollBaseMs * 2 ** Math.max(0, failures), pollMaxMs);
 

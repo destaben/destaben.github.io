@@ -45,6 +45,7 @@ const { lab } = Astro.props;
     formatLayer,
     formatMillimetres,
     formatPercent,
+    frameIntervalMs,
     fullSampling,
     isDrawableState,
     jobChanged,
@@ -72,7 +73,6 @@ const { lab } = Astro.props;
   const thumbnailTimeoutMs = 15000;
   // A model or thumbnail that is missing while the print is still preparing is tried again after this.
   const retryMs = 60000;
-  const frameIntervalMs = 1000 / 30;
   // Upper bound on the vertices drawn per frame, endpoints and the highlighted layer included; a larger
   // model is thinned, and when its outlines are very short whole outlines are skipped.
   const drawBudget = 60000;
@@ -423,7 +423,7 @@ const { lab } = Astro.props;
     const frame = (now: number) => {
       frameId = 0;
       if (animationMode({ reducedMotion, visible }) !== "animate") return;
-      if (now - lastDrawAt >= frameIntervalMs) {
+      if (now - lastDrawAt >= frameIntervalMs(currentModel() !== null)) {
         lastDrawAt = now;
         drawFrame(now - startedAt);
       }

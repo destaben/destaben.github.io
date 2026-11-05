@@ -11,6 +11,7 @@ import {
   formatLayer,
   formatMillimetres,
   formatPercent,
+  frameIntervalMs,
   isDrawableState,
   jobChanged,
   makeProjector,
@@ -432,4 +433,10 @@ test("draws nothing from a group whose share of the budget is below two vertices
   assert.ok(drawn <= 60000, `drew ${drawn} vertices against a budget of 60000`);
   assert.equal(countSampled(clip.ghost, planSampling(clip.ghost, 0)), 0);
   assert.equal(countSampled(clip.ghost, planSampling(clip.ghost, 1)), 0);
+});
+
+test("redraws the decorative animation less often than the real part", () => {
+  assert.equal(frameIntervalMs(true), 1000 / 30);
+  assert.ok(frameIntervalMs(false) >= 1000 / 15, "the idle animation runs at 15 frames per second or fewer");
+  assert.ok(frameIntervalMs(false) > frameIntervalMs(true));
 });

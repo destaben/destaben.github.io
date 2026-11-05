@@ -435,3 +435,13 @@ test("keeps the 3D printer lab canvas and live region honest without JavaScript 
   assert.match(source, /setText\(liveEl, stateText\)/);
   assert.doesNotMatch(source, /setText\(liveEl, summary\)/);
 });
+
+test("states in the 3D printer lab copy that the thumbnail and the outline of the part are shown", async () => {
+  for (const [path, words] of [["es/index.html", /miniatura[\s\S]*contorno|contorno[\s\S]*miniatura/i], ["en/index.html", /thumbnail[\s\S]*outline|outline[\s\S]*thumbnail/i]]) {
+    const section = printerSection(await readPage(path));
+    const privacy = section.match(/class="printer-boundary"[\s\S]*?<\/div>/)?.[0] ?? "";
+    assert.match(privacy, words, `${path} privacy copy names the thumbnail and the outline`);
+    const summary = section.match(/<p[^>]*>([^<]*Klipper[^<]*)<\/p>/)?.[1] ?? "";
+    assert.match(summary, words, `${path} summary names the thumbnail and the outline`);
+  }
+});
