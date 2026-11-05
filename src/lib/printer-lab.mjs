@@ -59,8 +59,28 @@ export const parseStatus = (payload) => {
   };
 };
 
-export const shouldShowThumbnail = (status) =>
-  Boolean(status && status.thumbnail && status.modelId && thumbnailStates.has(status.state));
+// The relay reports the thumbnail from the file metadata, so it can exist before a model is built, or
+// for a whole job whose model was rejected. It does not depend on a model id.
+export const shouldShowThumbnail = (status) => Boolean(status && status.thumbnail && thumbnailStates.has(status.state));
+
+// Identity of the thumbnail on screen: the model id when there is one, else the job epoch (bumped when a
+// new job is detected), so a thumbnail from a previous job without a model is never kept.
+export const thumbnailKey = (status, epoch) => (shouldShowThumbnail(status) ? status.modelId ?? `pending-${epoch}` : null);
+
+const runningStates = new Set(["printing", "paused"]);
+
+// Whether `next` starts a different job than `previous`, judged from the readings alone. It matters for
+// jobs without a model id, which carry no identity of their own.
+export const jobChanged = (previous, next) => {
+  if (!previous || !next) return false;
+  // A running job after anything that is not a running job (a finished print, a gap in the readings) is a
+  // new job as far as a thumbnail without a model id is concerned.
+  if (runningStates.has(next.state) && !runningStates.has(previous.state)) return true;
+  if (isFiniteNumber(previous.progress) && isFiniteNumber(next.progress) && next.progress < previous.progress) return true;
+  const before = previous.layer.current;
+  const after = next.layer.current;
+  return Number.isInteger(before) && Number.isInteger(after) && after < before;
+};
 
 const boundsOf = (layers) => {
   let bounds = null;
@@ -204,6 +224,82 @@ export const shouldRequest = ({ wanted, loaded, inFlight, failure, now, retryMs 
 
 // Caps the points drawn per frame by skipping vertices with a stride.
 export const strideFor = (totalPoints, budget) => Math.max(1, Math.ceil(totalPoints / budget));
+
+// Draw sampling. A plan keeps every `stride`-th vertex of an outline (always its first and last, so it
+// still closes) and every `pathStride`-th outline. The same walk draws and counts, so what the renderer
+// emits is exactly what the budget was checked against.
+export const sampleLayers = (layers, plan, onMove, onLine) => {
+  if (plan.none) return;
+  let pathIndex = 0;
+  for (const layer of layers) {
+    for (const path of layer.paths) {
+      const keep = pathIndex % plan.pathStride === 0;
+      pathIndex += 1;
+      const vertices = path.length / 2;
+      if (!keep || vertices < 1) continue;
+      onMove(path[0], path[1], layer.z);
+      for (let vertex = 1; vertex < vertices; vertex += 1) {
+        if (vertex % plan.stride !== 0 && vertex !== vertices - 1) continue;
+        onLine(path[vertex * 2], path[vertex * 2 + 1], layer.z);
+      }
+    }
+  }
+};
+
+export const countSampled = (layers, plan) => {
+  let count = 0;
+  const add = () => {
+    count += 1;
+  };
+  sampleLayers(layers, plan, add, add);
+  return count;
+};
+
+const fullPlan = Object.freeze({ stride: 1, pathStride: 1 });
+const noSampling = Object.freeze({ stride: 1, pathStride: 1, none: true });
+
+// A plan that keeps the emitted vertices within the budget. It thins vertices first and, when
+// the outlines are so short that their endpoints alone exceed the budget, skips whole outlines.
+export const planSampling = (layers, budget) => {
+  const limit = Math.floor(budget);
+  let total = 0;
+  let longest = 1;
+  for (const layer of layers) {
+    for (const path of layer.paths) {
+      total += path.length / 2;
+      longest = Math.max(longest, path.length / 2);
+    }
+  }
+  if (total === 0) return { stride: 1, pathStride: 1 };
+  // An outline needs two vertices, so a budget below that draws nothing at all.
+  if (limit < 2) return noSampling;
+  let plan = { stride: strideFor(total, limit), pathStride: 1 };
+  while (countSampled(layers, plan) > limit) {
+    plan = plan.stride < longest ? { ...plan, stride: plan.stride * 2 } : { ...plan, pathStride: plan.pathStride * 2 };
+  }
+  return plan;
+};
+
+const pointCount = (layers) => layers.reduce((sum, layer) => sum + layer.paths.reduce((inner, path) => inner + path.length / 2, 0), 0);
+
+// One frame draws the ghost layers, the solid layers and the highlighted layer, each with its own plan.
+// The highlight gets a quarter of the budget and the rest is shared by the other two in proportion to
+// their size, so the three together never add up to more than the whole (a share too small to draw an
+// outline draws nothing).
+export const planFrame = (clip, budget) => {
+  const highlightBudget = Math.floor(budget / 4);
+  const bodyBudget = budget - highlightBudget;
+  const ghostPoints = pointCount(clip.ghost);
+  const solidPoints = pointCount(clip.solid);
+  const ghostBudget = ghostPoints + solidPoints === 0 ? 0 : Math.floor((bodyBudget * ghostPoints) / (ghostPoints + solidPoints));
+  return {
+    ghost: planSampling(clip.ghost, ghostBudget),
+    solid: planSampling(clip.solid, bodyBudget - ghostBudget),
+    highlight: clip.highlight ? planSampling([clip.highlight], highlightBudget) : fullPlan,
+  };
+};
+
+export const fullSampling = fullPlan;
 
 // "12 / 85", or null when either number is missing or the total is not positive (a "12 / 0" would mislead).
 export const formatLayer = (layer) =>

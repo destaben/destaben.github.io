@@ -4,6 +4,7 @@ import {
   acceptsModel,
   animationMode,
   clipLayers,
+  countSampled,
   createDummyModel,
   decodeModel,
   dummyLayerCount,
@@ -11,15 +12,20 @@ import {
   formatMillimetres,
   formatPercent,
   isDrawableState,
+  jobChanged,
   makeProjector,
   normalizeState,
+  planFrame,
   parseStatus,
+  planSampling,
   pollDelayMs,
   resumeDelayMs,
   rotationAngle,
+  sampleLayers,
   shouldRequest,
   shouldShowThumbnail,
   strideFor,
+  thumbnailKey,
   viewportFor,
 } from "../src/lib/printer-lab.mjs";
 
@@ -226,7 +232,9 @@ test("shows a thumbnail only for a job that is printing, paused, or complete and
   assert.equal(shouldShowThumbnail({ ...validStatus, state: "idle" }), false);
   assert.equal(shouldShowThumbnail({ ...validStatus, state: "cancelled" }), false);
   assert.equal(shouldShowThumbnail({ ...validStatus, thumbnail: false }), false);
-  assert.equal(shouldShowThumbnail({ ...validStatus, modelId: null }), false);
+  // The relay reports the thumbnail from the file metadata, before (or without) a built model.
+  assert.equal(shouldShowThumbnail({ ...validStatus, modelId: null }), true);
+  assert.equal(shouldShowThumbnail(null), false);
 });
 
 test("backs off from the 15 second poll to a 2 minute ceiling after failures", () => {
@@ -313,4 +321,115 @@ test("accepts a downloaded model only while it still belongs to the job on scree
   assert.equal(acceptsModel({ modelId: other }, modelId), false, "a newer job replaced this one while it downloaded");
   assert.equal(acceptsModel({ modelId: null }, modelId), false);
   assert.equal(acceptsModel(null, modelId), false);
+});
+
+test("keys the thumbnail by model id, or by job epoch while the job has no model", () => {
+  assert.equal(thumbnailKey({ ...validStatus, state: "printing" }, 3), modelId);
+  assert.equal(thumbnailKey({ ...validStatus, state: "printing", modelId: null }, 3), "pending-3");
+  assert.equal(thumbnailKey({ ...validStatus, state: "printing", modelId: null }, 4), "pending-4");
+  assert.equal(thumbnailKey({ ...validStatus, state: "idle" }, 3), null);
+  assert.equal(thumbnailKey({ ...validStatus, state: "printing", thumbnail: false }, 3), null);
+  assert.equal(thumbnailKey(null, 3), null);
+});
+
+test("detects a new job even when both jobs lack a model id", () => {
+  const at = (state, progress, current) => ({ ...validStatus, modelId: null, state, progress, layer: { current, total: 85 } });
+  assert.equal(jobChanged(at("complete", 1, 85), at("printing", 0.01, 1)), true, "a print started after a finished one");
+  assert.equal(jobChanged(at("cancelled", 0.4, 30), at("printing", 0.01, 1)), true);
+  assert.equal(jobChanged(at("printing", 0.6, 50), at("printing", 0.02, 2)), true, "progress went backwards");
+  assert.equal(jobChanged(at("printing", 0.6, 50), at("printing", 0.5, 49)), true, "the layer went backwards");
+  assert.equal(jobChanged(at("printing", 0.5, 40), at("printing", 0.6, 50)), false, "the same job moving on");
+  assert.equal(jobChanged(at("printing", 0.5, 40), at("paused", 0.5, 40)), false);
+  assert.equal(jobChanged(at("printing", null, null), at("printing", null, null)), false);
+  assert.equal(jobChanged(null, at("printing", 0.1, 1)), false);
+});
+
+const makeLayers = (layerCount, pathsPerLayer, verticesPerPath) =>
+  Array.from({ length: layerCount }, (_, layer) => ({
+    z: layer * 0.2,
+    paths: Array.from({ length: pathsPerLayer }, () =>
+      Float64Array.from({ length: verticesPerPath * 2 }, (_, index) => index),
+    ),
+  }));
+const totalVertices = (layers) => layers.reduce((sum, layer) => sum + layer.paths.reduce((inner, path) => inner + path.length / 2, 0), 0);
+
+test("draws every vertex when the model fits the budget", () => {
+  const layers = makeLayers(10, 4, 50);
+  const plan = planSampling(layers, 60000);
+  assert.deepEqual(plan, { stride: 1, pathStride: 1 });
+  assert.equal(countSampled(layers, plan), totalVertices(layers));
+});
+
+test("keeps the emitted vertex count within the budget for long outlines", () => {
+  const layers = makeLayers(100, 5, 300); // 150,000 vertices
+  const plan = planSampling(layers, 60000);
+  assert.ok(countSampled(layers, plan) <= 60000);
+  assert.ok(countSampled(layers, plan) > 20000, "the sampling still draws most of the budget, not almost nothing");
+});
+
+test("keeps the emitted vertex count within the budget when every outline is tiny", () => {
+  // 75,000 two-vertex paths: the endpoints alone are 150,000 vertices, so thinning vertices cannot help.
+  const layers = makeLayers(75, 1000, 2);
+  const plan = planSampling(layers, 60000);
+  assert.ok(plan.pathStride > 1, "whole outlines are skipped when the endpoints alone exceed the budget");
+  assert.ok(countSampled(layers, plan) <= 60000);
+});
+
+test("keeps the first and last vertex of every outline it draws", () => {
+  const layers = makeLayers(2, 1, 1001);
+  const drawn = [];
+  sampleLayers(layers, { stride: 7, pathStride: 1 }, (x) => drawn.push(["move", x]), (x) => drawn.push(["line", x]));
+  const lines = drawn.filter(([kind]) => kind === "line").map(([, x]) => x);
+  assert.equal(drawn.filter(([kind]) => kind === "move").length, 2);
+  assert.ok(lines.includes(2000), "the last vertex of the outline is drawn, so it still closes");
+});
+
+test("always terminates on an empty or degenerate model and respects tiny budgets", () => {
+  assert.deepEqual(planSampling([], 60000), { stride: 1, pathStride: 1 });
+  const tiny = makeLayers(5, 5, 2);
+  assert.ok(countSampled(tiny, planSampling(tiny, 2)) <= 2);
+  assert.ok(countSampled(tiny, planSampling(tiny, 3)) <= 3);
+  assert.equal(countSampled(tiny, planSampling(tiny, 1)), 0);
+});
+
+test("shares one budget between the ghost, the solid and the highlighted layer of a frame", () => {
+  const model = { layers: makeLayers(100, 5, 300) };
+  model.layers[49] = { z: 10, paths: [Float64Array.from({ length: 2 * 120000 }, (_, index) => index)] }; // one huge layer
+  for (const current of [1, 20, 50, 99, 100]) {
+    const clip = clipLayers(model, current);
+    const plan = planFrame(clip, 60000);
+    const drawn =
+      countSampled(clip.ghost, plan.ghost) +
+      countSampled(clip.solid, plan.solid) +
+      (clip.highlight ? countSampled([clip.highlight], plan.highlight) : 0);
+    assert.ok(drawn <= 60000, `layer ${current} drew ${drawn} vertices against a budget of 60000`);
+    assert.ok(drawn > 0);
+  }
+  assert.deepEqual(planFrame({ solid: [], ghost: [], highlight: null }, 60000).highlight, { stride: 1, pathStride: 1 });
+});
+
+test("keeps a frame of tiny outlines within the budget, whichever group they fall in", () => {
+  const model = { layers: makeLayers(75, 1000, 2) };
+  const clip = clipLayers(model, 40);
+  const plan = planFrame(clip, 60000);
+  const drawn = countSampled(clip.ghost, plan.ghost) + countSampled(clip.solid, plan.solid) + countSampled([clip.highlight], plan.highlight);
+  assert.ok(drawn <= 60000, `drew ${drawn} vertices`);
+});
+
+test("detects a new job that follows an idle or unavailable reading", () => {
+  const at = (state, progress) => ({ ...validStatus, modelId: null, state, progress, layer: { current: null, total: null } });
+  assert.equal(jobChanged(at("idle", null), at("printing", 0.35)), true, "idle then a job whose progress is already high");
+  assert.equal(jobChanged(at("unavailable", null), at("printing", 0.35)), true, "a gap in the readings hides a job change");
+  assert.equal(jobChanged(at("printing", 0.3), at("printing", 0.35)), false);
+  assert.equal(jobChanged(at("paused", 0.3), at("printing", 0.35)), false, "resuming the same job");
+});
+
+test("draws nothing from a group whose share of the budget is below two vertices", () => {
+  // A ghost group of one tiny path next to a huge solid group gets a zero share and must not add its endpoints.
+  const clip = { ghost: makeLayers(1, 1, 2), solid: makeLayers(100, 5, 300), highlight: makeLayers(1, 1, 500)[0] };
+  const plan = planFrame(clip, 60000);
+  const drawn = countSampled(clip.ghost, plan.ghost) + countSampled(clip.solid, plan.solid) + countSampled([clip.highlight], plan.highlight);
+  assert.ok(drawn <= 60000, `drew ${drawn} vertices against a budget of 60000`);
+  assert.equal(countSampled(clip.ghost, planSampling(clip.ghost, 0)), 0);
+  assert.equal(countSampled(clip.ghost, planSampling(clip.ghost, 1)), 0);
 });

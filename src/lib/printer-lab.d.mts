@@ -75,6 +75,22 @@ export declare function shouldRequest(options: {
   now: number;
   retryMs: number;
 }): boolean;
+export interface SamplingPlan { stride: number; pathStride: number; none?: boolean }
+export declare function sampleLayers(
+  layers: PrinterLayer[],
+  plan: SamplingPlan,
+  onMove: (x: number, y: number, z: number) => void,
+  onLine: (x: number, y: number, z: number) => void,
+): void;
+export declare function countSampled(layers: PrinterLayer[], plan: SamplingPlan): number;
+export declare function planSampling(layers: PrinterLayer[], budget: number): SamplingPlan;
+export declare function planFrame(
+  clip: { solid: PrinterLayer[]; highlight: PrinterLayer | null; ghost: PrinterLayer[] },
+  budget: number,
+): { ghost: SamplingPlan; solid: SamplingPlan; highlight: SamplingPlan };
+export declare const fullSampling: SamplingPlan;
+export declare function thumbnailKey(status: PrinterStatus | null, epoch: number): string | null;
+export declare function jobChanged(previous: PrinterStatus | null, next: PrinterStatus | null): boolean;
 export declare function strideFor(totalPoints: number, budget: number): number;
 export declare function formatLayer(layer: { current: number | null; total: number | null }): string | null;
 export declare function acceptsModel(status: { modelId: string | null } | null, id: string): boolean;

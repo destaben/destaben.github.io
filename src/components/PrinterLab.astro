@@ -45,20 +45,24 @@ const { lab } = Astro.props;
     formatLayer,
     formatMillimetres,
     formatPercent,
+    fullSampling,
     isDrawableState,
+    jobChanged,
     makeProjector,
     parseStatus,
+    planFrame,
     pollDelayMs,
     resumeDelayMs,
     rotationAngle,
+    sampleLayers,
     shouldRequest,
-    shouldShowThumbnail,
-    strideFor,
+    thumbnailKey,
     viewportFor,
     type PrinterLayer,
     type PrinterModel,
     type PrinterProjector,
     type PrinterStatus,
+    type SamplingPlan,
   } from "../lib/printer-lab.mjs";
 
   // The relay's status route answers in about a second, but a poll that starts a read can take a 3 second
@@ -69,7 +73,8 @@ const { lab } = Astro.props;
   // A model or thumbnail that is missing while the print is still preparing is tried again after this.
   const retryMs = 60000;
   const frameIntervalMs = 1000 / 30;
-  // Upper bound on the vertices drawn per frame; a larger model is sampled with a stride.
+  // Upper bound on the vertices drawn per frame, endpoints and the highlighted layer included; a larger
+  // model is thinned, and when its outlines are very short whole outlines are skipped.
   const drawBudget = 60000;
   const padding = 24;
   const localHosts = new Set(["127.0.0.1", "localhost"]);
@@ -87,7 +92,8 @@ const { lab } = Astro.props;
     dummy: { color: "#d8f04b", alpha: 0.6, width: 1.6 },
   };
 
-  type LoadedModel = { id: string; model: PrinterModel; points: number };
+  type LoadedModel = { id: string; model: PrinterModel };
+  type FramePlan = { layers: PrinterLayer[]; layer: number; plan: { ghost: SamplingPlan; solid: SamplingPlan; highlight: SamplingPlan } };
 
   const initPrinterLab = (panel: HTMLElement) => {
     const canvas = panel.querySelector<HTMLCanvasElement>("[data-printer-canvas]");
@@ -117,6 +123,9 @@ const { lab } = Astro.props;
     const active = new Set<string>();
     // Bumped on hide. A response from an earlier generation is discarded and never counted as a failure.
     let generation = 0;
+    // Bumped when a new job is detected from the readings, so a thumbnail of a job without a model id is refetched.
+    let jobEpoch = 0;
+    let framePlan: FramePlan | null = null;
     const controllers = new Set<AbortController>();
     let pollRunning = false;
     let pollTimer = 0;
@@ -141,9 +150,6 @@ const { lab } = Astro.props;
 
     const formatTime = (value: string) =>
       new Intl.DateTimeFormat(lang, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
-
-    const countPoints = (decoded: PrinterModel) =>
-      decoded.layers.reduce((total, layer) => total + layer.paths.reduce((sum, path) => sum + path.length / 2, 0), 0);
 
     // The part is drawn only when the loaded model belongs to the current job and the job is printing.
     const currentModel = (): LoadedModel | null =>
@@ -223,7 +229,7 @@ const { lab } = Astro.props;
         // A newer job may have replaced this one while it downloaded; the stale model is dropped.
         if (!acceptsModel(status, id)) return;
         if (!decoded) throw new Error("Invalid model");
-        model = { id, model: decoded, points: countPoints(decoded) };
+        model = { id, model: decoded };
         modelFailure = null;
         syncCaption();
         redraw();
@@ -245,7 +251,7 @@ const { lab } = Astro.props;
         })) as Blob;
         if (current !== generation) return;
         // The job may have changed while the image was downloading; a stale image is dropped.
-        if (status?.modelId !== id || !shouldShowThumbnail(status)) return;
+        if (thumbnailKey(status, jobEpoch) !== id) return;
         clearThumbnail();
         thumbnail = { id, url: URL.createObjectURL(blob) };
         thumbnailFailure = null;
@@ -270,7 +276,7 @@ const { lab } = Astro.props;
     };
 
     const syncThumbnail = () => {
-      const wanted = shouldShowThumbnail(status) ? status?.modelId ?? null : null;
+      const wanted = thumbnailKey(status, jobEpoch);
       if (thumbnail && thumbnail.id !== wanted) clearThumbnail();
       if (wanted && shouldRequest({
         wanted,
@@ -283,6 +289,7 @@ const { lab } = Astro.props;
     };
 
     const apply = (next: PrinterStatus) => {
+      if (jobChanged(status, next)) jobEpoch += 1;
       status = next;
       renderText(next);
       syncModel();
@@ -338,25 +345,24 @@ const { lab } = Astro.props;
       return true;
     };
 
-    const strokeLayers = (layers: PrinterLayer[], project: PrinterProjector, stride: number, style: Style) => {
+    const strokeLayers = (layers: PrinterLayer[], project: PrinterProjector, plan: SamplingPlan, style: Style) => {
       if (!ctx || layers.length === 0) return;
       ctx.globalAlpha = style.alpha;
       ctx.strokeStyle = style.color;
       ctx.lineWidth = style.width * pixelRatio;
       ctx.beginPath();
-      for (const layer of layers) {
-        for (const path of layer.paths) {
-          const vertices = path.length / 2;
-          project(path[0], path[1], layer.z, point);
+      sampleLayers(
+        layers,
+        plan,
+        (x, y, z) => {
+          project(x, y, z, point);
           ctx.moveTo(point[0], point[1]);
-          for (let vertex = 1; vertex < vertices; vertex += 1) {
-            // Keeps every stride-th vertex and always the last one, so each outline still closes.
-            if (vertex % stride !== 0 && vertex !== vertices - 1) continue;
-            project(path[vertex * 2], path[vertex * 2 + 1], layer.z, point);
-            ctx.lineTo(point[0], point[1]);
-          }
-        }
-      }
+        },
+        (x, y, z) => {
+          project(x, y, z, point);
+          ctx.lineTo(point[0], point[1]);
+        },
+      );
       ctx.stroke();
     };
 
@@ -393,17 +399,21 @@ const { lab } = Astro.props;
       if (loaded && bounds) {
         const project = makeProjector(viewportFor(bounds, size), angle);
         const clip = clipLayers(loaded.model, status?.layer.current ?? 0);
-        const stride = strideFor(loaded.points, drawBudget);
-        strokeLayers(clip.ghost, project, stride, palette.ghost);
-        strokeLayers(clip.solid, project, stride, palette.solid);
-        if (clip.highlight) strokeLayers([clip.highlight], project, 1, palette.highlight);
+        // The sampling plan depends on the model and the current layer only, so it is computed once per change.
+        const layer = status?.layer.current ?? 0;
+        if (!framePlan || framePlan.layers !== loaded.model.layers || framePlan.layer !== layer) {
+          framePlan = { layers: loaded.model.layers, layer, plan: planFrame(clip, drawBudget) };
+        }
+        strokeLayers(clip.ghost, project, framePlan.plan.ghost, palette.ghost);
+        strokeLayers(clip.solid, project, framePlan.plan.solid, palette.solid);
+        if (clip.highlight) strokeLayers([clip.highlight], project, framePlan.plan.highlight, palette.highlight);
       } else {
         // The decorative bed and stack play while nothing is printing, and under reduced motion they show as one frame.
         const project = makeProjector(viewportFor(bedBounds, size), angle);
         strokeBed(project);
         const clip = clipLayers(dummyModel, dummyLayerCount(elapsed, reducedMotion));
-        strokeLayers(clip.solid, project, 1, palette.dummy);
-        if (clip.highlight) strokeLayers([clip.highlight], project, 1, palette.highlight);
+        strokeLayers(clip.solid, project, fullSampling, palette.dummy);
+        if (clip.highlight) strokeLayers([clip.highlight], project, fullSampling, palette.highlight);
       }
       ctx.globalAlpha = 1;
     };
@@ -435,6 +445,8 @@ const { lab } = Astro.props;
       if (next === visible) return;
       visible = next;
       if (visible) {
+        // Polls were paused, so a job change in between went unseen; a thumbnail without a model id is refetched.
+        jobEpoch += 1;
         // A quick return waits out the rest of the interval; a long absence refreshes at once.
         schedule(resumeDelayMs({ now: Date.now(), lastStartedAt: lastPollAt, delayMs: intervalMs }));
       } else {
