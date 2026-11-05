@@ -104,6 +104,65 @@ The relay uses the existing dedicated Home Assistant token and the private `SIGN
 
 The static portfolio loads Turnstile only when the public build variable `PUBLIC_TURNSTILE_SITE_KEY` is present. GitHub Pages builds read it from the repository Actions variable `TURNSTILE_SITE_KEY`, falling back to a secret of the same name; pull-request CI builds read only the variable. The value is public by design. Create a managed Turnstile widget for `info.destaben.dev` before setting that variable, then set the widget secret only as `SIGNAL_RELAY_MESHTASTIC_TURNSTILE_SECRET` in the private Signal Relay deployment `.env`. Never commit the secret or expose it to the browser.
 
+## 3D printer laboratory
+
+The printer laboratory shows the job that a Klipper/Moonraker printer is running. It is disabled by default. While `SIGNAL_RELAY_PRINTER_ENABLED` is not `true`, all three routes below return `404`, the same as an unknown path. Enabling it requires `SIGNAL_RELAY_PRINTER_BASE_URL`; the relay refuses to start when the lab is enabled without it. The value must be a plain `http` origin with no path, query, fragment, or credentials, and a malformed value stops startup even while the lab is disabled. The Compose file and `.env.example` set it to `http://nginx:8082`, the edge's internal `8082` listener in [`destaben/lab-inverse-proxy`](https://github.com/destaben/lab-inverse-proxy). That listener proxies only the four fixed Moonraker requests listed below. The relay never contacts Moonraker or the printer host directly, and it publishes no host port.
+
+Rollout order: (1) deploy the edge's `8082` listener and the public allowlist entries in `destaben/lab-inverse-proxy`; (2) publish the relay image from `main`; (3) deploy the relay with the lab disabled; (4) only while the printer is idle, set `SIGNAL_RELAY_PRINTER_ENABLED=true` and `SIGNAL_RELAY_PRINTER_BASE_URL` in the host's private `.env` and recreate `signal-relay`. Do not enable the lab before step 1 is live.
+
+`GET /v1/lab/printer` returns the current state. It is served with `Cache-Control: no-store`.
+
+```json
+{
+  "state": "printing",
+  "progress": 0.42,
+  "layer": {"current": 12, "total": 85},
+  "heightMm": 2.4,
+  "objectHeightMm": 40.0,
+  "modelId": "0123456789abcdef0123456789abcdef",
+  "thumbnail": true,
+  "updatedAt": "2026-11-04T09:00:00Z"
+}
+```
+
+`state` is `idle` (Moonraker standby), `printing`, `paused`, `complete`, `cancelled`, `error` (the print failed), or `unavailable`. `unavailable` covers an unreachable printer, a Moonraker error, a malformed or oversized response, and an unknown state. It is returned with `200`, never `5xx`, so the site can show its fallback animation. `progress` is a number from 0 to 1, or `null`. `layer.current` is the number of layer changes at or before the printed byte position when a model is cached and the position is known; otherwise it is Moonraker's `current_layer`. `layer.total` is the layer count of the cached model, or Moonraker's `total_layer` when there is none. `heightMm` is the height of the current layer from the cached model, and `objectHeightMm` is the object height from the file metadata. Each is `null` when unknown. `thumbnail` is `true` when the file's metadata lists a valid thumbnail path; the image itself can still be unavailable (see the thumbnail route). The response never contains the filename. Only when `SIGNAL_RELAY_PRINTER_SHOW_FILENAME=true` does it add a `filename` field.
+
+`GET /v1/lab/printer/thumbnail` returns the largest thumbnail of the current job as `image/png`. The relay checks the PNG signature and caps the body at 512 KiB, and it returns `404` when there is no valid thumbnail. Responses are `no-store`.
+
+`GET /v1/lab/printer/model/{modelId}` returns the drawable model of a job the relay has recently seen. The response is `Cache-Control: private, max-age=3600`.
+
+```json
+{
+  "layerHeight": 0.2,
+  "layerCount": 85,
+  "bbox": {"minX": 0.0, "minY": 0.0, "maxX": 60.0, "maxY": 40.0},
+  "layers": [{"z": 0.2, "paths": [[0, 0, 600, 0, 600, 400, 0, 400, 0, 0]]}]
+}
+```
+
+Each path is a flat `[x, y, x, y, ...]` polyline in integer units of 0.1 mm. There is one `layers` entry per layer in layer order, so `layers[i]` is layer `i + 1`, and each layer may have no paths. Any `modelId` that is not 32 lowercase hexadecimal characters returns `404`, and so does an unknown or evicted one.
+
+The `modelId` is the first 32 hexadecimal characters of HMAC-SHA256 over the filename, the byte size, and the modified time. The key is a random 32-byte salt that the relay creates once in its storage volume. The identifier is therefore stable across restarts, depends on that salt, and does not reveal the filename. The filename, G-code, and Moonraker responses are never returned or logged.
+
+The relay makes only these upstream requests, through the edge's `8082` listener. A filename must end in `.gcode`, use only ASCII letters, digits, `_`, `-`, `.`, and space, and contain no `..`. Any other name is never requested. `+` is excluded on purpose: the edge accepts only a literal `+` in the metadata query, which Moonraker would decode as a space (the wrong file), and it refuses `%2B`. Such a job still reports state and progress, but it has no model, no thumbnail, and no `objectHeightMm` or `heightMm` from the file. Moonraker's own layer counters still appear.
+
+- `GET /printer/objects/query?print_stats&virtual_sdcard`: at most one call per 5 seconds. Concurrent browser polls share a single call.
+- `GET /server/files/metadata?filename=<name>`: cached per filename for 5 minutes, failed reads included. A model needs both `size` and `modified` from the metadata.
+- `GET /server/files/gcodes/.thumbs/<name>-<W>x<H>.png`: the path that the metadata reports. It is requested only when it matches `.thumbs/<name>-<W>x<H>.png`, where `W` and `H` are 2 to 4 ASCII digits and the path contains no `..`.
+- `GET /server/files/gcodes/<name>.gcode`: at most one download at a time. It is read as a stream and is not retried in a loop.
+
+Models are built in a background task that runs the download and parse in a worker thread. It starts only while a job is `printing` or `paused` and no model is cached for it, and never while idle or complete. The download and parse never run inside a request, but requests can still wait: the status, thumbnail, and model routes take a lock that an in-flight status poll holds across its upstream reads, and thumbnail downloads run one at a time. The poll's reads have a 3-second connect and 10-second read timeout, and a poll that also reads metadata makes a second such call. These are per-socket-operation timeouts, not a total deadline, so a slow body can extend the wait.
+
+Layers come from `;LAYER_CHANGE` lines and the outer wall from `;TYPE:Outer wall` or `;TYPE:External perimeter`, as written by Orca-, Prusa-, and Bambu-style slicers. The Orca marker has been verified only on synthetic G-code, not on a real sliced file. Cura-style `;LAYER:n` and `;TYPE:WALL-OUTER` markers are not recognized: such a file yields an empty model (`layerCount` 0, no paths, `bbox` null), and `layer.total` is 0.
+
+The G-code is parsed as a stream, one line at a time, and only the extrusion of outer walls is drawn. Travel moves, other features, and arcs (drawn as chords) are left out. Coordinates are quantized to 0.1 mm, repeated points are dropped, and Douglas-Peucker simplification with a 0.2 mm tolerance follows. The file's byte offset of each `;LAYER_CHANGE` line is kept, so a Moonraker `file_position` maps to a layer.
+
+The caps are `150000` drawn points and `2 MiB` of JSON. When a model exceeds either, the tolerance doubles, up to 3.2 mm, before the model is refused. A file is refused whole, never published partially. It has no model, and the progress and layer numbers that Moonraker reports still appear. A file is also refused when it declares more than 150 MB, when a streamed body passes 150 MB, when a line is longer than 16 KiB, when it has more than 5000 layers, when a drawn coordinate is beyond 100 m (`out_of_range`), or when the parser fails on it (`unparseable`). A `404` on the download also rejects it. The refusal is logged with a reason code only. Parsed models are kept on disk for the eight newest jobs. A refused file is remembered in memory for at most 64 files, and it is not downloaded again until the relay restarts or the list evicts it.
+
+The 5-minute backoff is armed when a download starts and is cleared only when the model is stored or the file is finally rejected. A network fault, a non-200 response (including `429`), a truncated body (fewer bytes than its `Content-Length`), or a failed store backs off without rejecting the file, and a failed or truncated download is never cached. A failed thumbnail or metadata read is also not retried for 5 minutes. A download has a 3-second connect timeout and a 30-second idle timeout. A JSON read and a thumbnail read have a 10-second timeout. Thumbnails are capped at 512 KiB, and JSON responses at 256 KiB.
+
+Known limits: no real printer or Moonraker has been tested yet. Parse time and memory use for a 150 MB file on the printer host have not been measured.
+
 `WSS /v1/events` emits only these server events:
 
 - `relay.status`: `connecting`, `ready`, `maintenance`, or `unavailable`
@@ -154,12 +213,13 @@ These changes reach existing deployments when they run this relay version. This 
 - The browser waits up to 20 seconds for the status route, which covers a cold relay refresh. Before, it gave up after 8 seconds and showed the panel as unavailable.
 - Direct-message detection is a heuristic. A direct-message channel whose name has no listed token is published only if its name is allowlisted, so keep direct-message channels out of the allowlist and list them in `SIGNAL_RELAY_MESHTASTIC_CHANNEL_DENYLIST`.
 - The entity list read shares the 1 MiB response cap. On a very large Home Assistant installation the list can be too large, and channels are then omitted while the counts still show `available`. See [docs/MESHTASTIC-INVENTORY.md](MESHTASTIC-INVENTORY.md) step 8 for the workarounds.
+- The 3D printer laboratory adds `GET /v1/lab/printer`, `GET /v1/lab/printer/thumbnail`, and `GET /v1/lab/printer/model/{modelId}`. They are disabled by default (`SIGNAL_RELAY_PRINTER_ENABLED=false`), so an existing deployment is unchanged until it enables them with the edge's `8082` listener and allowlist entries in place. Filenames stay private unless `SIGNAL_RELAY_PRINTER_SHOW_FILENAME=true`.
 
 ## Deployment
 
 Run Reticulum and the bridge in the Signal Relay Compose project, and Nginx plus the outbound Cloudflare Tunnel in [`destaben/lab-inverse-proxy`](https://github.com/destaben/lab-inverse-proxy). The relay and Nginx join the external `destaben-edge` Docker network; Cloudflared does not. Cloudflared reaches Nginx only over the edge project's internal `172.30.250.0/29` Docker network and uses a separate egress network for its outbound tunnel. Nginx trusts `CF-Connecting-IP` only when the connection comes from Cloudflared's fixed private address, so another container cannot forge the client identity used for limits. The edge reads `CLOUDFLARE_TUNNEL_TOKEN` only from its ignored `.env` file; the relay reads `SIGNAL_RELAY_PUBLIC_TCP_NODE_ALIASES` and `SIGNAL_RELAY_PUBLIC_TCP_NODE_URLS` only from its own private `.env`, both defaulting to empty mappings. Create the remotely managed tunnel in Cloudflare Zero Trust and map `lab.destaben.dev` to `http://nginx:8080`.
 
-Nginx remains the sole public HTTP policy point. It allowlists the portfolio API routes, permits only their documented `GET`, `HEAD`, `POST`, and CORS `OPTIONS` methods, and returns `404` for any other path or `405` for an unsupported method. The allowlist entry for `GET /v1/lab/meshtastic-status` is part of [`destaben/lab-inverse-proxy` PR #7](https://github.com/destaben/lab-inverse-proxy/pull/7); the public Meshtastic status panel depends on that edge change, not on this repository alone. The browser-facing endpoints deliberately remain anonymous: embedding an API key in the static portfolio would disclose it to every visitor and provide no authentication guarantee. Its internal `8081` listener has no host port or Cloudflare ingress and proxies the relay's fixed Home Assistant reads, Meshtastic state inventory, and fixed Meshtastic broadcast event to `host.docker.internal:8123`; it is not a Home Assistant public proxy.
+Nginx remains the sole public HTTP policy point. It allowlists the portfolio API routes, permits only their documented `GET`, `HEAD`, `POST`, and CORS `OPTIONS` methods, and returns `404` for any other path or `405` for an unsupported method. The allowlist entry for `GET /v1/lab/meshtastic-status` is part of [`destaben/lab-inverse-proxy` PR #7](https://github.com/destaben/lab-inverse-proxy/pull/7); the public Meshtastic status panel depends on that edge change, not on this repository alone. The browser-facing endpoints deliberately remain anonymous: embedding an API key in the static portfolio would disclose it to every visitor and provide no authentication guarantee. Its internal `8081` listener has no host port or Cloudflare ingress and proxies the relay's fixed Home Assistant reads, Meshtastic state inventory, and fixed Meshtastic broadcast event to `host.docker.internal:8123`; it is not a Home Assistant public proxy. The printer laboratory also needs the edge's internal `8082` listener, reached as `http://nginx:8082`. It has no host port or Cloudflare ingress and proxies only the four fixed Moonraker requests in the printer section. The public `/v1/lab/printer`, `/v1/lab/printer/thumbnail`, and `/v1/lab/printer/model/*` paths need their allowlist entries in that repository before they are live.
 
 Before deploying the edge, verify that `172.30.250.0/29` does not overlap an existing Docker, LAN, or VPN subnet. If it does, update that subnet, both fixed container addresses, and Nginx's trusted Cloudflared address together. The deployment supports CGNAT through outbound Reticulum `TCPClientInterface` transports and the outbound Cloudflare HTTP tunnel. Cloudflare Tunnel cannot expose arbitrary Reticulum TCP clients; a standard public `TCPServerInterface` would require a reachable public port or a separately operated TCP relay on a VPS. Do not publish the relay HTTP API, Reticulum TCP, Home Assistant, or any other host port. Keep secrets, Home Assistant credentials and entity IDs, Telegram credentials, and Reticulum identities outside Git and rotate tunnel credentials.
 
@@ -179,3 +239,4 @@ Pull requests also run the relay `pytest` suite and the Compose `config` check t
 6. With Telegram credentials configured, an incoming message produces one private notification; a Telegram failure does not interrupt inbox persistence or LXMF delivery.
 7. The Home Assistant and Meshtastic laboratory routes return only their documented delayed aggregate projections; Home Assistant has no public route through `lab.destaben.dev`.
 8. The public edge returns `404` for unlisted paths, `405` for unsupported methods, and `429` for requests exceeding the documented per-client limits; the relay, Home Assistant, and Reticulum publish no host ports.
+9. With the printer laboratory disabled, its three routes return `404`. When it is enabled, `GET /v1/lab/printer` contains no `filename` unless `SIGNAL_RELAY_PRINTER_SHOW_FILENAME=true`, and the relay's logs contain no filenames or G-code content.

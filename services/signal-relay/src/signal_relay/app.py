@@ -17,6 +17,7 @@ from .bridge import RelayBridge
 from .config import Settings
 from .home_assistant import HomeAssistantLabClient, HomeAssistantMeshtasticClient, MeshtasticLabClient
 from .metrics import PrometheusLabClient
+from .printer import PrinterModelWorker, build_printer_client, is_model_id
 
 
 class SignalRequest(BaseModel):
@@ -84,11 +85,13 @@ def verify_turnstile(secret: str, token: str, remote_ip: str) -> bool:
 def create_app(settings: Settings | None = None) -> FastAPI:
     relay_settings = settings or Settings.from_environment()
     bridge = RelayBridge(relay_settings)
+    printer_worker = PrinterModelWorker()
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         bridge.start()
         yield
+        printer_worker.stop()
         bridge.stop()
 
     app = FastAPI(title="Reticulum Contact", version="0.1.0", lifespan=lifespan)
@@ -160,6 +163,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         else None
     )
     app.state.meshtastic_gate = MeshtasticMessageGate(relay_settings.meshtastic_message_cooldown_seconds)
+    # The printer lab is disabled unless configured; a None client makes its routes answer 404, like unknown paths.
+    app.state.printer = (
+        build_printer_client(
+            relay_settings.printer_base_url,
+            relay_settings.storage_dir,
+            show_filename=relay_settings.printer_show_filename,
+        )
+        if relay_settings.printer_enabled and relay_settings.printer_base_url
+        else None
+    )
+    app.state.printer_worker = printer_worker
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
@@ -227,6 +241,38 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return await asyncio.to_thread(meshtastic_status_client.status)
         except (OSError, RuntimeError, ValueError):
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="meshtastic_status_unavailable") from None
+
+    @app.get("/v1/lab/printer", include_in_schema=False)
+    async def printer_status(response: Response) -> dict[str, object]:
+        printer = app.state.printer
+        if printer is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        payload = await asyncio.to_thread(printer.status)
+        printer_worker.start(printer)
+        response.headers["Cache-Control"] = "no-store"
+        return payload
+
+    @app.get("/v1/lab/printer/thumbnail", include_in_schema=False)
+    async def printer_thumbnail() -> Response:
+        printer = app.state.printer
+        if printer is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        image = await asyncio.to_thread(printer.thumbnail)
+        printer_worker.start(printer)
+        if image is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        return Response(image, media_type="image/png", headers={"Cache-Control": "no-store"})
+
+    @app.get("/v1/lab/printer/model/{model_id}", include_in_schema=False)
+    async def printer_model(model_id: str, response: Response) -> dict[str, object]:
+        printer = app.state.printer
+        if printer is None or not is_model_id(model_id):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        model = await asyncio.to_thread(printer.model, model_id)
+        if model is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        response.headers["Cache-Control"] = "private, max-age=3600"
+        return model
 
     @app.post("/v1/lab/meshtastic/messages", status_code=status.HTTP_202_ACCEPTED, include_in_schema=False)
     async def send_meshtastic_message(payload: MeshtasticMessage, request: Request) -> dict[str, str]:
