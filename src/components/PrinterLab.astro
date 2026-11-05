@@ -1,0 +1,507 @@
+---
+import type { PrinterLab } from "../data/portfolio";
+
+interface Props { lab: PrinterLab; }
+const { lab } = Astro.props;
+---
+
+<article class="lab-card printer-panel" data-printer-panel data-local-url="http://127.0.0.1:8787" data-production-url="https://lab.destaben.dev" data-idle-label={lab.stateLabels.idle} data-printing-label={lab.stateLabels.printing} data-paused-label={lab.stateLabels.paused} data-complete-label={lab.stateLabels.complete} data-cancelled-label={lab.stateLabels.cancelled} data-error-label={lab.stateLabels.error} data-unavailable-label={lab.stateLabels.unavailable} data-progress-label={lab.progressLabel} data-layer-label={lab.layerLabel} data-updated-label={lab.updatedLabel} data-model-caption={lab.modelCaption} data-decorative-caption={lab.decorativeCaption} aria-labelledby={`${lab.id}-title`}>
+  <div class="lab-card-header"><p class="lab-status">{lab.statusLabel}</p><span class="printer-state" data-printer-state>{lab.stateLabels.unavailable}</span></div>
+  <h3 id={`${lab.id}-title`}>{lab.title}</h3>
+  <p>{lab.summary}</p>
+  <div class="printer-body">
+    <figure class="printer-figure">
+      <canvas class="printer-canvas" data-printer-canvas role="img" aria-label={lab.stateLabels.unavailable} width="480" height="360"></canvas>
+      <figcaption data-printer-caption>{lab.decorativeCaption}</figcaption>
+    </figure>
+    <div class="printer-readings">
+      <dl class="printer-metrics">
+        <div><dt>{lab.progressLabel}</dt><dd data-printer-progress>--</dd></div>
+        <div><dt>{lab.layerLabel}</dt><dd data-printer-layer>--</dd></div>
+        <div><dt>{lab.heightLabel}</dt><dd data-printer-height>--</dd></div>
+        <div><dt>{lab.objectHeightLabel}</dt><dd data-printer-object-height>--</dd></div>
+      </dl>
+      <div class="printer-thumbnail" data-printer-thumbnail data-thumbnail-alt={lab.thumbnailAlt} hidden></div>
+    </div>
+  </div>
+  <p class="printer-live" aria-live="polite" data-printer-live>{lab.stateLabels.unavailable}</p>
+  <p class="printer-updated" data-printer-updated></p>
+  <div class="printer-boundary"><p>{lab.privacyTitle}</p><span>{lab.privacyCopy}</span></div>
+  <div class="tag-list">{lab.technologies.map((technology) => <span class="tag">{technology}</span>)}</div>
+</article>
+
+<script>
+  // Polls the relay's printer status while the lab is on screen and the page is visible, and draws the
+  // part on a canvas. Every request is a plain GET to the configured relay base (cross-origin in
+  // production, so it relies on the edge's CORS header), and all text comes from the server HTML or
+  // textContent. The pure rules (state, backoff, projection, clipping) live in src/lib/printer-lab.mjs.
+  import {
+    animationMode,
+    clipLayers,
+    createDummyModel,
+    decodeModel,
+    dummyLayerCount,
+    acceptsModel,
+    formatLayer,
+    formatMillimetres,
+    formatPercent,
+    isDrawableState,
+    makeProjector,
+    parseStatus,
+    pollDelayMs,
+    resumeDelayMs,
+    rotationAngle,
+    shouldRequest,
+    shouldShowThumbnail,
+    strideFor,
+    viewportFor,
+    type PrinterLayer,
+    type PrinterModel,
+    type PrinterProjector,
+    type PrinterStatus,
+  } from "../lib/printer-lab.mjs";
+
+  // The relay's status route answers in about a second, but a poll that starts a read can take a 3 second
+  // connect and a 10 second read, twice when it also reads metadata. The timeout covers that worst case.
+  const statusTimeoutMs = 25000;
+  const modelTimeoutMs = 20000;
+  const thumbnailTimeoutMs = 15000;
+  // A model or thumbnail that is missing while the print is still preparing is tried again after this.
+  const retryMs = 60000;
+  const frameIntervalMs = 1000 / 30;
+  // Upper bound on the vertices drawn per frame; a larger model is sampled with a stride.
+  const drawBudget = 60000;
+  const padding = 24;
+  const localHosts = new Set(["127.0.0.1", "localhost"]);
+  const bedBounds = { minX: -30, minY: -30, maxX: 30, maxY: 30, minZ: 0, maxZ: 24 };
+  const bedStep = 10;
+  const dummyModel = createDummyModel();
+
+  type Style = { color: string; alpha: number; width: number };
+  // Canvas cannot read CSS variables, so these match the palette in DESIGN-GUIDELINES.md.
+  const palette: Record<"solid" | "highlight" | "ghost" | "bed" | "dummy", Style> = {
+    solid: { color: "#d8f04b", alpha: 1, width: 1.6 },
+    highlight: { color: "#ff7955", alpha: 1, width: 2.6 },
+    ghost: { color: "#a4bab9", alpha: 0.3, width: 1 },
+    bed: { color: "#a4bab9", alpha: 0.25, width: 1 },
+    dummy: { color: "#d8f04b", alpha: 0.6, width: 1.6 },
+  };
+
+  type LoadedModel = { id: string; model: PrinterModel; points: number };
+
+  const initPrinterLab = (panel: HTMLElement) => {
+    const canvas = panel.querySelector<HTMLCanvasElement>("[data-printer-canvas]");
+    const ctx = canvas?.getContext("2d") ?? null;
+    const stateEl = panel.querySelector<HTMLElement>("[data-printer-state]");
+    const progressEl = panel.querySelector<HTMLElement>("[data-printer-progress]");
+    const layerEl = panel.querySelector<HTMLElement>("[data-printer-layer]");
+    const heightEl = panel.querySelector<HTMLElement>("[data-printer-height]");
+    const objectHeightEl = panel.querySelector<HTMLElement>("[data-printer-object-height]");
+    const updatedEl = panel.querySelector<HTMLElement>("[data-printer-updated]");
+    const liveEl = panel.querySelector<HTMLElement>("[data-printer-live]");
+    const captionEl = panel.querySelector<HTMLElement>("[data-printer-caption]");
+    const thumbnailSlot = panel.querySelector<HTMLElement>("[data-printer-thumbnail]");
+    const lang = document.documentElement.lang;
+    const baseUrl = (localHosts.has(window.location.hostname) ? panel.dataset.localUrl : panel.dataset.productionUrl) ?? "";
+    // Without a relay base the lab keeps its server-rendered unavailable state and makes no requests.
+    if (!baseUrl) return;
+    // Until now the panel shows only its text; the empty canvas appears once the script is running.
+    panel.dataset.ready = "true";
+
+    let status: PrinterStatus | null = null;
+    let model: LoadedModel | null = null;
+    let thumbnail: { id: string; url: string } | null = null;
+    let modelFailure: { key: string; at: number } | null = null;
+    let thumbnailFailure: { key: string; at: number } | null = null;
+    // Keys of the model and thumbnail requests in flight. Cleared on hide, so a hidden request can be retried.
+    const active = new Set<string>();
+    // Bumped on hide. A response from an earlier generation is discarded and never counted as a failure.
+    let generation = 0;
+    const controllers = new Set<AbortController>();
+    let pollRunning = false;
+    let pollTimer = 0;
+    let failures = 0;
+    let intervalMs = pollDelayMs(0);
+    let lastPollAt: number | null = null;
+    let pageVisible = document.visibilityState === "visible";
+    let onScreen = !("IntersectionObserver" in window);
+    let visible = false;
+    const reducedQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let reducedMotion = reducedQuery.matches;
+    let pixelRatio = 1;
+    let frameId = 0;
+    let lastDrawAt = Number.NEGATIVE_INFINITY;
+    const startedAt = performance.now();
+    let renderedSummary = "";
+    const point: number[] = [0, 0];
+
+    const setText = (element: HTMLElement | null, text: string) => {
+      if (element && element.textContent !== text) element.textContent = text;
+    };
+
+    const formatTime = (value: string) =>
+      new Intl.DateTimeFormat(lang, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+
+    const countPoints = (decoded: PrinterModel) =>
+      decoded.layers.reduce((total, layer) => total + layer.paths.reduce((sum, path) => sum + path.length / 2, 0), 0);
+
+    // The part is drawn only when the loaded model belongs to the current job and the job is printing.
+    const currentModel = (): LoadedModel | null =>
+      status && model && model.id === status.modelId && model.model.bounds && isDrawableState(status.state) ? model : null;
+
+    const renderText = (next: PrinterStatus) => {
+      const stateText = panel.dataset[`${next.state}Label`] ?? "";
+      const percent = formatPercent(next.progress);
+      const layerText = formatLayer(next.layer);
+      const summary = `${[
+        stateText,
+        percent === null ? null : `${panel.dataset.progressLabel ?? ""}: ${percent}`,
+        layerText === null ? null : `${panel.dataset.layerLabel ?? ""}: ${layerText}`,
+      ]
+        .filter((part): part is string => Boolean(part))
+        .join(". ")}.`;
+
+      setText(stateEl, stateText);
+      setText(progressEl, percent ?? "--");
+      setText(layerEl, layerText ?? "--");
+      setText(heightEl, formatMillimetres(next.heightMm, lang) ?? "--");
+      setText(objectHeightEl, formatMillimetres(next.objectHeightMm, lang) ?? "--");
+      setText(updatedEl, next.updatedAt ? `${panel.dataset.updatedLabel ?? ""}: ${formatTime(next.updatedAt)}` : "");
+      // The canvas label carries the full summary. The polite live region announces the state alone, so a
+      // long print is not re-announced on every progress change.
+      if (summary !== renderedSummary) {
+        renderedSummary = summary;
+        canvas?.setAttribute("aria-label", summary);
+      }
+      setText(liveEl, stateText);
+    };
+
+    const syncCaption = () => {
+      setText(captionEl, currentModel() ? panel.dataset.modelCaption ?? "" : panel.dataset.decorativeCaption ?? "");
+    };
+
+    const clearThumbnail = () => {
+      if (thumbnail) URL.revokeObjectURL(thumbnail.url);
+      thumbnail = null;
+      if (thumbnailSlot) {
+        thumbnailSlot.replaceChildren();
+        thumbnailSlot.hidden = true;
+      }
+    };
+
+    const showThumbnail = (url: string) => {
+      if (!thumbnailSlot) return;
+      const image = document.createElement("img");
+      image.alt = thumbnailSlot.dataset.thumbnailAlt ?? "";
+      image.decoding = "async";
+      image.src = url;
+      thumbnailSlot.replaceChildren(image);
+      thumbnailSlot.hidden = false;
+    };
+
+    const send = async (path: string, timeoutMs: number, read: (response: Response) => Promise<unknown>): Promise<unknown> => {
+      const controller = new AbortController();
+      controllers.add(controller);
+      const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(`${baseUrl}${path}`, { signal: controller.signal });
+        if (!response.ok) throw new Error(`Unexpected status ${response.status}`);
+        return await read(response);
+      } finally {
+        window.clearTimeout(timer);
+        controllers.delete(controller);
+      }
+    };
+
+    const loadModel = async (id: string) => {
+      const current = generation;
+      const key = `model:${id}`;
+      active.add(key);
+      try {
+        const decoded = decodeModel(await send(`/v1/lab/printer/model/${id}`, modelTimeoutMs, (response) => response.json()));
+        if (current !== generation) return;
+        // A newer job may have replaced this one while it downloaded; the stale model is dropped.
+        if (!acceptsModel(status, id)) return;
+        if (!decoded) throw new Error("Invalid model");
+        model = { id, model: decoded, points: countPoints(decoded) };
+        modelFailure = null;
+        syncCaption();
+        redraw();
+      } catch {
+        if (current === generation) modelFailure = { key: id, at: Date.now() };
+      } finally {
+        if (current === generation) active.delete(key);
+      }
+    };
+
+    const loadThumbnail = async (id: string) => {
+      const current = generation;
+      const key = `thumbnail:${id}`;
+      active.add(key);
+      try {
+        const blob = (await send("/v1/lab/printer/thumbnail", thumbnailTimeoutMs, async (response) => {
+          if (!(response.headers.get("content-type") ?? "").startsWith("image/png")) throw new Error("Not a PNG");
+          return response.blob();
+        })) as Blob;
+        if (current !== generation) return;
+        // The job may have changed while the image was downloading; a stale image is dropped.
+        if (status?.modelId !== id || !shouldShowThumbnail(status)) return;
+        clearThumbnail();
+        thumbnail = { id, url: URL.createObjectURL(blob) };
+        thumbnailFailure = null;
+        showThumbnail(thumbnail.url);
+      } catch {
+        if (current === generation) thumbnailFailure = { key: id, at: Date.now() };
+      } finally {
+        if (current === generation) active.delete(key);
+      }
+    };
+
+    const syncModel = () => {
+      const wanted = status?.modelId ?? null;
+      if (wanted && shouldRequest({
+        wanted,
+        loaded: model?.id ?? null,
+        inFlight: active.has(`model:${wanted}`),
+        failure: modelFailure,
+        now: Date.now(),
+        retryMs,
+      })) void loadModel(wanted);
+    };
+
+    const syncThumbnail = () => {
+      const wanted = shouldShowThumbnail(status) ? status?.modelId ?? null : null;
+      if (thumbnail && thumbnail.id !== wanted) clearThumbnail();
+      if (wanted && shouldRequest({
+        wanted,
+        loaded: thumbnail?.id ?? null,
+        inFlight: active.has(`thumbnail:${wanted}`),
+        failure: thumbnailFailure,
+        now: Date.now(),
+        retryMs,
+      })) void loadThumbnail(wanted);
+    };
+
+    const apply = (next: PrinterStatus) => {
+      status = next;
+      renderText(next);
+      syncModel();
+      syncThumbnail();
+      syncCaption();
+      redraw();
+    };
+
+    const unavailable: PrinterStatus = {
+      state: "unavailable",
+      progress: null,
+      layer: { current: null, total: null },
+      heightMm: null,
+      objectHeightMm: null,
+      modelId: null,
+      thumbnail: false,
+      updatedAt: null,
+    };
+
+    const schedule = (delay: number) => {
+      window.clearTimeout(pollTimer);
+      pollTimer = window.setTimeout(() => void poll(), delay);
+    };
+
+    const poll = async () => {
+      if (!visible || pollRunning) return;
+      pollRunning = true;
+      const current = generation;
+      lastPollAt = Date.now();
+      let next: PrinterStatus | null = null;
+      try {
+        next = parseStatus(await send("/v1/lab/printer", statusTimeoutMs, (response) => response.json()));
+      } catch {
+        next = null;
+      }
+      if (current !== generation) return;
+      pollRunning = false;
+      // A 404 (feature disabled), a network error, a timeout, or a malformed payload all count as a failure.
+      failures = next ? 0 : failures + 1;
+      apply(next ?? unavailable);
+      intervalMs = pollDelayMs(failures);
+      schedule(intervalMs);
+    };
+
+    const resizeCanvas = () => {
+      if (!canvas) return false;
+      pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+      const nextWidth = Math.round(canvas.clientWidth * pixelRatio);
+      const nextHeight = Math.round(canvas.clientHeight * pixelRatio);
+      if (!nextWidth || !nextHeight || (canvas.width === nextWidth && canvas.height === nextHeight)) return false;
+      canvas.width = nextWidth;
+      canvas.height = nextHeight;
+      return true;
+    };
+
+    const strokeLayers = (layers: PrinterLayer[], project: PrinterProjector, stride: number, style: Style) => {
+      if (!ctx || layers.length === 0) return;
+      ctx.globalAlpha = style.alpha;
+      ctx.strokeStyle = style.color;
+      ctx.lineWidth = style.width * pixelRatio;
+      ctx.beginPath();
+      for (const layer of layers) {
+        for (const path of layer.paths) {
+          const vertices = path.length / 2;
+          project(path[0], path[1], layer.z, point);
+          ctx.moveTo(point[0], point[1]);
+          for (let vertex = 1; vertex < vertices; vertex += 1) {
+            // Keeps every stride-th vertex and always the last one, so each outline still closes.
+            if (vertex % stride !== 0 && vertex !== vertices - 1) continue;
+            project(path[vertex * 2], path[vertex * 2 + 1], layer.z, point);
+            ctx.lineTo(point[0], point[1]);
+          }
+        }
+      }
+      ctx.stroke();
+    };
+
+    const strokeBed = (project: PrinterProjector) => {
+      if (!ctx) return;
+      ctx.globalAlpha = palette.bed.alpha;
+      ctx.strokeStyle = palette.bed.color;
+      ctx.lineWidth = palette.bed.width * pixelRatio;
+      ctx.beginPath();
+      for (let offset = bedBounds.minX; offset <= bedBounds.maxX; offset += bedStep) {
+        project(offset, bedBounds.minY, 0, point);
+        ctx.moveTo(point[0], point[1]);
+        project(offset, bedBounds.maxY, 0, point);
+        ctx.lineTo(point[0], point[1]);
+        project(bedBounds.minX, offset, 0, point);
+        ctx.moveTo(point[0], point[1]);
+        project(bedBounds.maxX, offset, 0, point);
+        ctx.lineTo(point[0], point[1]);
+      }
+      ctx.stroke();
+    };
+
+    const drawFrame = (elapsed: number) => {
+      if (!canvas || !ctx || !canvas.width || !canvas.height) return;
+      const { width, height } = canvas;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, width, height);
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      const angle = rotationAngle(elapsed, reducedMotion);
+      const size = { width, height, padding: padding * pixelRatio };
+      const loaded = currentModel();
+      const bounds = loaded?.model.bounds ?? null;
+      if (loaded && bounds) {
+        const project = makeProjector(viewportFor(bounds, size), angle);
+        const clip = clipLayers(loaded.model, status?.layer.current ?? 0);
+        const stride = strideFor(loaded.points, drawBudget);
+        strokeLayers(clip.ghost, project, stride, palette.ghost);
+        strokeLayers(clip.solid, project, stride, palette.solid);
+        if (clip.highlight) strokeLayers([clip.highlight], project, 1, palette.highlight);
+      } else {
+        // The decorative bed and stack play while nothing is printing, and under reduced motion they show as one frame.
+        const project = makeProjector(viewportFor(bedBounds, size), angle);
+        strokeBed(project);
+        const clip = clipLayers(dummyModel, dummyLayerCount(elapsed, reducedMotion));
+        strokeLayers(clip.solid, project, 1, palette.dummy);
+        if (clip.highlight) strokeLayers([clip.highlight], project, 1, palette.highlight);
+      }
+      ctx.globalAlpha = 1;
+    };
+
+    const redraw = () => drawFrame(performance.now() - startedAt);
+
+    const frame = (now: number) => {
+      frameId = 0;
+      if (animationMode({ reducedMotion, visible }) !== "animate") return;
+      if (now - lastDrawAt >= frameIntervalMs) {
+        lastDrawAt = now;
+        drawFrame(now - startedAt);
+      }
+      frameId = requestAnimationFrame(frame);
+    };
+
+    const syncLoop = () => {
+      if (animationMode({ reducedMotion, visible }) === "animate") {
+        if (!frameId) frameId = requestAnimationFrame(frame);
+        return;
+      }
+      if (frameId) cancelAnimationFrame(frameId);
+      frameId = 0;
+    };
+
+    // Shows the lab only while it is on screen and the page is visible. Hiding aborts every request.
+    const setVisible = () => {
+      const next = pageVisible && onScreen;
+      if (next === visible) return;
+      visible = next;
+      if (visible) {
+        // A quick return waits out the rest of the interval; a long absence refreshes at once.
+        schedule(resumeDelayMs({ now: Date.now(), lastStartedAt: lastPollAt, delayMs: intervalMs }));
+      } else {
+        generation += 1;
+        window.clearTimeout(pollTimer);
+        controllers.forEach((controller) => controller.abort());
+        controllers.clear();
+        active.clear();
+        pollRunning = false;
+      }
+      syncLoop();
+    };
+
+    if ("IntersectionObserver" in window) {
+      new IntersectionObserver((entries) => {
+        const latest = entries[entries.length - 1];
+        if (latest) onScreen = latest.isIntersecting;
+        setVisible();
+      }).observe(panel);
+    }
+    document.addEventListener("visibilitychange", () => {
+      pageVisible = document.visibilityState === "visible";
+      setVisible();
+    });
+    reducedQuery.addEventListener("change", (event) => {
+      reducedMotion = event.matches;
+      syncLoop();
+      redraw();
+    });
+    if (canvas && "ResizeObserver" in window) {
+      new ResizeObserver(() => {
+        if (resizeCanvas()) redraw();
+      }).observe(canvas);
+    }
+
+    resizeCanvas();
+    redraw();
+    setVisible();
+  };
+
+  document.querySelectorAll<HTMLElement>("[data-printer-panel]").forEach(initPrinterLab);
+</script>
+
+<style>
+  .printer-panel { grid-column: span 2; min-height: 0; border: 1px solid var(--ink); background: #e3e2d5; box-shadow: .55rem .55rem 0 var(--lime); }
+  .printer-panel > p { color: var(--ink-soft); }
+  .printer-state, .printer-updated, .printer-metrics dt, .printer-boundary p { margin: 0; color: var(--ink-soft); font-family: "SFMono-Regular", Consolas, monospace; font-size: .68rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+  .printer-state { text-align: right; }
+  .printer-body { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: start; gap: 1.2rem; margin-top: 1.25rem; }
+  .printer-figure { min-width: 0; margin: 0; }
+  .printer-panel:not([data-ready]) .printer-figure { display: none; }
+  .printer-canvas { display: block; width: 100%; aspect-ratio: 4 / 3; background: var(--ink); }
+  .printer-figure figcaption { margin-top: .5rem; color: var(--ink-soft); font-size: .86rem; }
+  .printer-readings { display: grid; gap: .75rem; min-width: 0; }
+  .printer-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; margin: 0; }
+  .printer-metrics div { min-width: 0; padding: .7rem; border: 1px solid var(--line); background: var(--paper); }
+  .printer-metrics dd { overflow-wrap: anywhere; margin: .25rem 0 0; font-family: "Iowan Old Style", "Palatino Linotype", Palatino, serif; font-size: 1.35rem; font-weight: 700; line-height: 1.1; }
+  .printer-thumbnail { margin: 0; }
+  .printer-thumbnail[hidden] { display: none; }
+  /* The image is created by the script, so it carries no scope attribute and needs :global. */
+  .printer-thumbnail :global(img) { display: block; width: 100%; max-width: 220px; height: auto; border: 1px solid var(--ink); background: var(--paper); }
+  .printer-live { margin: 1rem 0 0; color: var(--ink); font-weight: 700; }
+  .printer-updated { margin-top: .5rem; text-transform: none; }
+  .printer-boundary { margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+  .printer-boundary p { margin-bottom: .35rem; }
+  .printer-boundary span { color: var(--ink-soft); font-size: .86rem; }
+  .printer-panel .tag-list { margin-top: auto; }
+  @media (max-width: 820px) { .printer-panel { grid-column: auto; } .printer-body { grid-template-columns: 1fr; } }
+  @media (prefers-reduced-motion: reduce) { .printer-panel, .printer-panel * { transition: none; animation: none; } }
+</style>

@@ -14,6 +14,7 @@ Source for [info.destaben.dev](https://info.destaben.dev), a bilingual static As
 - `src/components/react/` contains the React islands (section labels, animated headings and copy, magnetic buttons, click sparks, scroll reveals, and the decorative glitch backdrop); `DecryptedText.tsx`, `BlurText.tsx`, `ShinyText.tsx`, `Magnet.tsx`, `ClickSpark.tsx`, and `LetterGlitch.tsx` are adapted from React Bits and keep their attribution headers (`SectionLabel.tsx`, `Reveal.tsx`, `CopySpark.tsx`, and `GlitchBackdrop.tsx` are original wrappers), and `THIRD_PARTY_NOTICES.md` reproduces the upstream license. They are used on a non-profit personal website and are not redistributed as standalone components (React Bits is MIT + Commons Clause). The glitch backdrop renders nothing without JavaScript, under reduced motion, or on narrow screens; headings, copy, and grids show their final state at once under reduced motion and without JavaScript (a `noscript` rule and a reduced-motion rule override the hidden starting state). The hero orbit and log animations and the card spotlight are plain CSS and a small script.
 - `src/data/portfolio.ts` contains localized portfolio content.
 - `src/lib/github.ts` fetches every public repository from `destaben` during each build.
+- `src/lib/printer-lab.mjs` holds the framework-free rules of the 3D printer laboratory (state mapping, path decoding, projection, backoff). The Node test suite imports it directly, and `printer-lab.d.mts` types it for Astro.
 - `src/content/blog/` contains localized Markdown or MDX technical notes published in the portfolio and RSS feed.
 - `public/` contains assets served unchanged, including `CNAME`, brand assets, and future downloadable files.
 - `docs/DESIGN-GUIDELINES.md` defines public content, branding, accessibility, and live-service rules.
@@ -82,6 +83,10 @@ The Meshtastic status panel depends on two other deployments, so roll it out in 
 1. **Relay image and host.** Merge the relay change to `main`. `.github/workflows/publish-signal-relay.yml` publishes the image from `main`. On the relay host, deploy it with `services/signal-relay/scripts/deploy.sh`, after confirming the private `.env` contains the Meshtastic entity map. Before enabling the channel projection, set `SIGNAL_RELAY_MESHTASTIC_CHANNEL_ALLOWLIST` to the public channels only (empty publishes none) and check every direct-message entity against `docs/MESHTASTIC-INVENTORY.md` step 5b, denylisting any it finds. The relay refuses to start on a malformed entity ID or invalid channel setting, so confirm it is running after recreation. Channel settings are described in [services/signal-relay/README.md](services/signal-relay/README.md).
 2. **Edge allowlist.** Add the `GET /v1/lab/meshtastic-status` entry in [`destaben/lab-inverse-proxy`](https://github.com/destaben/lab-inverse-proxy) (PR #7) and deploy the edge. Until this exists, the public route is not reachable through `lab.destaben.dev`.
 3. **Site.** Merge the portfolio change to `main`. GitHub Pages publishes the panel from that merge.
+
+## 3D Printer Rollout
+
+The 3D printer panel shows its unavailable state until the relay's printer routes and the edge's `8082` listener and allowlist entries are live. Follow the rollout order in [docs/SIGNAL-RELAY.md](docs/SIGNAL-RELAY.md#3d-printer-laboratory). The site needs no extra step.
 
 ## Custom Domain
 
