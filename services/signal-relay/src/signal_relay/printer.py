@@ -34,6 +34,9 @@ STATUS_TARGET = "/printer/objects/query?print_stats&virtual_sdcard"
 _METADATA_PATH = "/server/files/metadata"
 _GCODES_PATH = "/server/files/gcodes/"
 # One poll serves every browser request for this long, so concurrent polls share a single upstream call.
+# A request that finds another request already polling or downloading waits only this long for it, then answers from
+# what it already knows. A printer that accepts the connection and never answers therefore cannot pin worker threads.
+_FOLLOWER_WAIT_SECONDS = 1.0
 _STATUS_CACHE_SECONDS = 5.0
 _METADATA_CACHE_SECONDS = 300.0
 # A failed download, thumbnail, or metadata read is not attempted again for this long.
@@ -222,6 +225,14 @@ class _Snapshot:
     updated_at: str = ""
 
 
+class _Flight:
+    """One in-progress status poll that concurrent requests can wait on briefly instead of starting their own."""
+
+    def __init__(self) -> None:
+        self.done = threading.Event()
+        self.snapshot: _Snapshot | None = None
+
+
 def _model_key(filename: str | None, metadata: dict | None) -> ModelKey | None:
     """A model is identified by name, size, and modified time. Without the size and time there is no model."""
     if metadata is None or not is_gcode_name(filename):
@@ -271,12 +282,14 @@ class PrinterLabClient:
         self._show_filename = show_filename
         self._clock = clock
         self._max_gcode_bytes = max_gcode_bytes
-        # Guards the caches below. It is held across the status poll, so concurrent callers wait for one upstream call.
+        # Guards the caches below, for short in-memory sections only. No upstream call runs under it: the status poll is
+        # single-flight through _flight, and followers wait on that for at most _FOLLOWER_WAIT_SECONDS.
         self._lock = threading.Lock()
         # Held only by the one download that may run at a time; it is never waited on, only tried.
         self._download_lock = threading.Lock()
         self._thumbnail_lock = threading.Lock()
         self._snapshot: tuple[float, _Snapshot] | None = None
+        self._flight: _Flight | None = None
         self._metadata: OrderedDict[str, tuple[float, dict | None]] = OrderedDict()
         self._records: OrderedDict[str, _Record] = OrderedDict()
         self._thumbnails: OrderedDict[tuple[ModelKey, str], bytes] = OrderedDict()
@@ -325,8 +338,17 @@ class PrinterLabClient:
         if snapshot.key is None or snapshot.thumbnail_path is None:
             return None
         cache_key = (snapshot.key, snapshot.thumbnail_path)
-        # One thumbnail read at a time, so a burst of requests for the same job shares the first read.
-        with self._thumbnail_lock:
+        # A finished download is served without waiting for anyone else's read.
+        with self._lock:
+            cached = self._thumbnails.get(cache_key)
+            if cached is not None:
+                self._thumbnails.move_to_end(cache_key)
+                return cached
+        # One thumbnail read at a time, so a burst of requests for the same job shares the first read. A request that
+        # finds a read in flight waits briefly, then answers 404 and leaves no retry state, so a later request succeeds.
+        if not self._thumbnail_lock.acquire(timeout=_FOLLOWER_WAIT_SECONDS):
+            return None
+        try:
             with self._lock:
                 cached = self._thumbnails.get(cache_key)
                 if cached is not None:
@@ -345,6 +367,8 @@ class PrinterLabClient:
                 self._thumbnails.move_to_end(cache_key)
                 _bounded(self._thumbnails, _RETAINED_THUMBNAILS)
                 return body
+        finally:
+            self._thumbnail_lock.release()
 
     # Worker
 
@@ -380,13 +404,34 @@ class PrinterLabClient:
     # Status
 
     def _current_snapshot(self) -> _Snapshot:
+        """The cached status, polled by one caller at a time. The upstream call never runs under the shared lock."""
         with self._lock:
             now = self._clock()
             if self._snapshot is not None and now < self._snapshot[0]:
                 return self._snapshot[1]
+            stale = self._snapshot[1] if self._snapshot is not None else None
+            flight = self._flight
+            leader = flight is None
+            if leader:
+                flight = self._flight = _Flight()
+        if not leader:
+            flight.done.wait(_FOLLOWER_WAIT_SECONDS)
+            if flight.snapshot is not None:
+                return flight.snapshot
+            return stale or _Snapshot(state="unavailable", updated_at=_now())
+        try:
             snapshot = self._poll(now)
+        except BaseException:
+            with self._lock:
+                self._flight = None
+            flight.done.set()
+            raise
+        with self._lock:
             self._snapshot = (now + _STATUS_CACHE_SECONDS, snapshot)
-            return snapshot
+            self._flight = None
+        flight.snapshot = snapshot
+        flight.done.set()
+        return snapshot
 
     def _poll(self, now: float) -> _Snapshot:
         try:
@@ -416,10 +461,13 @@ class PrinterLabClient:
         record: _Record | None = None
         if key is not None:
             try:
-                model_id, record = self._record_for(key)
+                with self._lock:
+                    model_id, record = self._record_for(key)
             except OSError:
                 logger.warning("printer model cache is unavailable")
-            if record is None and state in _ACTIVE_STATES and key not in self._rejected and now >= self._download_retry_at:
+            with self._lock:
+                wanted = key not in self._rejected and now >= self._download_retry_at
+            if record is None and state in _ACTIVE_STATES and wanted:
                 self._pending = key
 
         layer_current = info_current or None
@@ -441,7 +489,9 @@ class PrinterLabClient:
             height_mm=height_mm,
             object_height_mm=object_height if object_height is not None and object_height >= 0 else None,
             model_id=model_id if record is not None else None,
-            thumbnail_path=_thumbnail_path(metadata),
+            # Without a model key (no size or modified time) the thumbnail route has nothing to cache the image under.
+            # The flag means "the metadata lists a thumbnail this relay may fetch", not "the image is available now".
+            thumbnail_path=_thumbnail_path(metadata) if key is not None else None,
             key=key,
             updated_at=_now(),
         )

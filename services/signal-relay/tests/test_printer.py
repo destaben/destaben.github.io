@@ -4,11 +4,13 @@ import hashlib
 import json
 import re
 import threading
+import time
 from urllib.parse import unquote
 
 import pytest
 from fastapi.testclient import TestClient
 
+from signal_relay import printer as printer_module
 from signal_relay.app import create_app
 from signal_relay.config import Settings
 from signal_relay.printer import NginxTransport, PrinterLabClient, PrinterModelWorker
@@ -1061,3 +1063,104 @@ def test_a_deeply_nested_status_response_is_contained_and_shares_the_single_flig
     for _ in range(3):
         assert client.status()["state"] == "unavailable"
     assert fake.targets.count(STATUS_TARGET) == 1
+
+
+# A Moonraker that accepts the connection but never answers must not tie up the shared worker pool: followers wait
+# briefly for the in-flight call and then answer from what they already know.
+
+def _in_background(function):
+    thread = threading.Thread(target=function, daemon=True)
+    thread.start()
+    return thread
+
+
+def test_a_hung_status_poll_does_not_hold_other_requests_and_they_get_the_last_known_state(tmp_path, monkeypatch):
+    monkeypatch.setattr(printer_module, "_FOLLOWER_WAIT_SECONDS", 0.05)
+    fake = printing_fake()
+    clock = FakeClock()
+    client = make_client(tmp_path, fake, clock)
+    assert client.status()["state"] == "printing"
+
+    clock.advance(10)
+    gate = threading.Event()
+    fake.status_gate = gate
+    fake.entered.clear()
+    leader = _in_background(client.status)
+    assert fake.entered.wait(5)
+
+    started = time.monotonic()
+    follower = client.status()
+    elapsed = time.monotonic() - started
+    gate.set()
+    leader.join(5)
+
+    assert elapsed < 1.0, "a follower must not wait for the whole upstream timeout"
+    assert follower["state"] == "printing", "a follower answers from the last known snapshot"
+    assert fake.targets.count(STATUS_TARGET) == 2, "followers never start a second upstream call"
+
+
+def test_a_hung_first_poll_answers_unavailable_to_followers_instead_of_blocking_them(tmp_path, monkeypatch):
+    monkeypatch.setattr(printer_module, "_FOLLOWER_WAIT_SECONDS", 0.05)
+    fake = printing_fake()
+    gate = threading.Event()
+    fake.status_gate = gate
+    client = make_client(tmp_path, fake)
+    leader = _in_background(client.status)
+    assert fake.entered.wait(5)
+
+    started = time.monotonic()
+    follower = client.status()
+    elapsed = time.monotonic() - started
+    gate.set()
+    leader.join(5)
+
+    assert elapsed < 1.0
+    assert follower["state"] == "unavailable"
+    assert fake.targets.count(STATUS_TARGET) == 1
+
+
+def test_a_hung_thumbnail_download_does_not_hold_other_thumbnail_requests(tmp_path, monkeypatch):
+    monkeypatch.setattr(printer_module, "_FOLLOWER_WAIT_SECONDS", 0.05)
+    fake = printing_fake()
+    gate = threading.Event()
+    fake.thumbnail_gate = gate
+    client = make_client(tmp_path, fake)
+    client.status()
+    leader = _in_background(client.thumbnail)
+    assert fake.thumbnail_entered.wait(5)
+
+    started = time.monotonic()
+    follower = client.thumbnail()
+    elapsed = time.monotonic() - started
+    gate.set()
+    leader.join(5)
+
+    assert elapsed < 1.0
+    assert follower is None
+    assert fake.count("/server/files/gcodes/.thumbs/") == 1
+    assert client.thumbnail() == PNG, "the next request is served from the finished download"
+
+
+def test_a_snapshot_never_advertises_a_thumbnail_the_thumbnail_route_cannot_serve(tmp_path):
+    fake = printing_fake()
+    del fake.metadata["benchy.gcode"]["modified"]
+    client = make_client(tmp_path, fake)
+
+    status = client.status()
+
+    assert status["thumbnail"] is False
+    assert client.thumbnail() is None
+
+
+def test_a_cached_thumbnail_is_served_even_while_another_thumbnail_download_is_in_flight(tmp_path, monkeypatch):
+    monkeypatch.setattr(printer_module, "_FOLLOWER_WAIT_SECONDS", 0.05)
+    fake = printing_fake()
+    client = make_client(tmp_path, fake)
+    client.status()
+    assert client.thumbnail() == PNG
+
+    assert client._thumbnail_lock.acquire(timeout=1)  # another request is downloading a thumbnail right now
+    try:
+        assert client.thumbnail() == PNG
+    finally:
+        client._thumbnail_lock.release()
