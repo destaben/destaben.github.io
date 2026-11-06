@@ -93,6 +93,46 @@ const writingPrefix = locale === "es" ? "/es/bitacora/" : "/en/notes/";
         });
       });
     }
+    // Permalink buttons: every section and lab card already has an id; this copies its full URL.
+    const spanish = document.documentElement.lang.startsWith("es");
+    const copyLabel = spanish ? "Copiar enlace" : "Copy link";
+    const status = document.createElement("p");
+    status.className = "anchor-copy-label";
+    status.setAttribute("role", "status");
+    document.body.append(status);
+    let statusTimer: number | undefined;
+    document.querySelectorAll<HTMLElement>("section.section[id], .lab-card[id], .meshtastic-status-panel[id]").forEach((target) => {
+      const heading = target.matches(".meshtastic-status-panel") ? target.querySelector("h4") : target.matches(".lab-card") ? target.querySelector("h3") : target.querySelector("h2");
+      if (!heading) return;
+      // Animated headings render their text twice (one screen-reader copy, one decorative); collapse that before naming anything.
+      const raw = (heading.textContent ?? "").replace(/\u00A0/g, " ").trim();
+      const half = raw.length / 2;
+      const title = raw.length % 2 === 0 && raw.slice(0, half) === raw.slice(half) ? raw.slice(0, half) : raw;
+      heading.setAttribute("aria-label", title);
+      heading.classList.add("has-anchor");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "anchor-copy";
+      const glyph = document.createElement("span");
+      glyph.setAttribute("aria-hidden", "true");
+      glyph.textContent = "#";
+      const label = document.createElement("span");
+      label.className = "anchor-copy-label";
+      label.textContent = `${copyLabel}: ${title}`;
+      button.append(glyph, label);
+      button.addEventListener("click", async () => {
+        const url = `${location.origin}${location.pathname}#${target.id}`;
+        let copied = true;
+        try { await navigator.clipboard.writeText(url); } catch { copied = false; history.replaceState(null, "", `#${target.id}`); }
+        const message = copied ? (spanish ? "Enlace copiado" : "Link copied") : (spanish ? "No se pudo copiar; el enlace está en la barra de direcciones" : "Could not copy; the link is in the address bar");
+        button.dataset.state = copied ? "copied" : "failed";
+        button.title = message;
+        status.textContent = message;
+        clearTimeout(statusTimer);
+        statusTimer = window.setTimeout(() => { document.querySelectorAll<HTMLElement>(".anchor-copy[data-state]").forEach((other) => { delete other.dataset.state; other.removeAttribute("title"); }); status.textContent = ""; }, 2400);
+      });
+      heading.append(button);
+    });
     const filters = document.querySelectorAll<HTMLButtonElement>("[data-filter]");
     const projects = document.querySelectorAll<HTMLElement>("[data-type]");
     const empty = document.querySelector<HTMLElement>(".archive-empty");

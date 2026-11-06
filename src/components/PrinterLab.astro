@@ -5,7 +5,7 @@ interface Props { lab: PrinterLab; }
 const { lab } = Astro.props;
 ---
 
-<article class="lab-card printer-panel" data-printer-panel data-local-url="http://127.0.0.1:8787" data-production-url="https://lab.destaben.dev" data-idle-label={lab.stateLabels.idle} data-printing-label={lab.stateLabels.printing} data-paused-label={lab.stateLabels.paused} data-complete-label={lab.stateLabels.complete} data-cancelled-label={lab.stateLabels.cancelled} data-error-label={lab.stateLabels.error} data-unavailable-label={lab.stateLabels.unavailable} data-progress-label={lab.progressLabel} data-layer-label={lab.layerLabel} data-updated-label={lab.updatedLabel} data-model-caption={lab.modelCaption} data-decorative-caption={lab.decorativeCaption} aria-labelledby={`${lab.id}-title`}>
+<article id={lab.id} class="lab-card printer-panel" data-printer-panel data-local-url="http://127.0.0.1:8787" data-production-url="https://lab.destaben.dev" data-idle-label={lab.stateLabels.idle} data-printing-label={lab.stateLabels.printing} data-paused-label={lab.stateLabels.paused} data-complete-label={lab.stateLabels.complete} data-cancelled-label={lab.stateLabels.cancelled} data-error-label={lab.stateLabels.error} data-unavailable-label={lab.stateLabels.unavailable} data-progress-label={lab.progressLabel} data-layer-label={lab.layerLabel} data-updated-label={lab.updatedLabel} data-model-caption={lab.modelCaption} data-decorative-caption={lab.decorativeCaption} aria-labelledby={`${lab.id}-title`}>
   <div class="lab-card-header"><p class="lab-status">{lab.statusLabel}</p><span class="printer-state" data-printer-state>{lab.stateLabels.unavailable}</span></div>
   <h3 id={`${lab.id}-title`}>{lab.title}</h3>
   <p>{lab.summary}</p>

@@ -6,7 +6,7 @@ interface Props { lab: MetricsLab; }
 const { lab } = Astro.props;
 ---
 
-<article class="lab-card metrics-panel" data-metrics-panel data-local-url="http://127.0.0.1:8787" data-production-url="https://lab.destaben.dev" data-loading-label={lab.loadingLabel} data-unavailable-label={lab.unavailableLabel} data-no-data-label={lab.noDataLabel} aria-labelledby={`${lab.id}-title`}>
+<article id={lab.id} class="lab-card metrics-panel" data-metrics-panel data-local-url="http://127.0.0.1:8787" data-production-url="https://lab.destaben.dev" data-loading-label={lab.loadingLabel} data-unavailable-label={lab.unavailableLabel} data-no-data-label={lab.noDataLabel} aria-labelledby={`${lab.id}-title`}>
   <div class="lab-card-header"><p class="lab-status">{lab.statusLabel}</p><span class="metrics-window" data-metrics-window></span></div>
   <h3 id={`${lab.id}-title`}>{lab.title}</h3>
   <p>{lab.summary}</p>
