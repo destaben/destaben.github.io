@@ -16,7 +16,10 @@ const fixedCode = "ci-test";
 const execFileAsync = promisify(execFile);
 
 const goatcounterScript = /<script\b[^>]*\ssrc="https:\/\/gc\.zgo\.at\/count\.js"[^>]*><\/script>/g;
-const goatcounterAnyReference = /goatcounter|gc\.zgo\.at/i;
+// Anything that would load or report to GoatCounter. Prose that merely names the
+// product or its GOATCOUNTER_CODE variable (for example on the static architecture
+// pages) is documentation, not a script, so it is allowed.
+const goatcounterAnyReference = /data-goatcounter|gc\.zgo\.at|\b[a-z0-9-]+\.goatcounter\.com/i;
 
 const htmlPagesIn = async (outDir) => {
   const files = await readdir(outDir, { recursive: true });

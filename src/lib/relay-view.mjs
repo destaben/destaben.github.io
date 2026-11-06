@@ -6,9 +6,10 @@ const maxInboxMessages = 5;
 const sessionLabelKeys = { queued: "queuedLabel", delivered: "deliveredLabel", failed: "failedLabel", unconfirmed: "unconfirmedLabel" };
 
 // A relay answer with an empty message list clears earlier messages; a payload without a message list leaves the list as it was.
+// Entries that are not objects (such as null) cannot be shown, so they are skipped rather than failing the whole list.
 export function renderInbox(doc, list, data, labels = {}) {
   if (!list || !Array.isArray(data?.messages)) return;
-  const messages = data.messages;
+  const messages = data.messages.filter((message) => message !== null && typeof message === "object");
   if (!messages.length) {
     const empty = doc.createElement("li");
     empty.textContent = labels.inboxEmptyLabel || "No messages have been recorded yet.";
