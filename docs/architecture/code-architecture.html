@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Arquitectura del código | info.destaben.dev</title>
-<meta name="description" content="Mapa del código de info.destaben.dev: sitio Astro, islas React, librerías, Signal Relay, tests y pipelines.">
+<title>Code architecture | info.destaben.dev</title>
+<meta name="description" content="Code map of info.destaben.dev: Astro site, React islands, libraries, Signal Relay, tests and pipelines.">
 <style>
 :root{--bg:#f6f5f1;--panel:#fff;--ink:#1b1d1f;--muted:#5d6368;--line:#d9d6cd;--accent:#2b6cb0;--accent2:#b7791f;--ok:#2f855a;--warn:#c05621;--chip:#eceae3}
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0f1214;--panel:#171b1e;--ink:#e8eaec;--muted:#9aa3a9;--line:#2b3238;--accent:#63b3ed;--accent2:#ecc94b;--ok:#68d391;--warn:#f6ad55;--chip:#222a2f}}
@@ -54,34 +54,34 @@ a{color:var(--accent)}
 <body>
 <div class="wrap">
 <header>
-  <h1>Arquitectura del código</h1>
-  <p class="lead">Mapa del repositorio <code>destaben/destaben.github.io</code>: un sitio estático Astro bilingüe publicado en GitHub Pages, más un servicio independiente (<em>Signal Relay</em>) que vive en otro host. Complementa el <a href="system-services.html">mapa de sistema y servicios</a>.</p>
-  <nav class="toc" aria-label="Secciones">
-    <a href="#build">Build</a><a href="#front">Frontend</a><a href="#islas">Islas React</a><a href="#labs">Laboratorios</a><a href="#relay">Signal Relay</a><a href="#qa">Tests y CI/CD</a><a href="#ia">Contexto IA</a>
+  <h1>Code architecture</h1>
+  <p class="lead">Map of the <code>destaben/destaben.github.io</code> repository: a bilingual static Astro site published on GitHub Pages, plus a separate service (<em>Signal Relay</em>) that runs on another host. It complements the <a href="system-services.html">system and services map</a>.</p>
+  <nav class="toc" aria-label="Sections">
+    <a href="#build">Build</a><a href="#front">Frontend</a><a href="#islands">React islands</a><a href="#labs">Laboratories</a><a href="#relay">Signal Relay</a><a href="#qa">Tests and CI/CD</a><a href="#ai">AI context</a>
   </nav>
   <div class="stats">
-    <div class="stat"><b>Astro 7</b><span>generador estático, <code>format: directory</code></span></div>
-    <div class="stat"><b>React 19</b><span>solo islas puntuales, versiones fijadas</span></div>
-    <div class="stat"><b>FastAPI</b><span>relay Python 3.12, imagen amd64 + arm64</span></div>
-    <div class="stat"><b>~260 tests</b><span>node:test (~61) y pytest (~200)</span></div>
+    <div class="stat"><b>Astro 7</b><span>static generator, <code>format: directory</code></span></div>
+    <div class="stat"><b>React 19</b><span>targeted islands only, pinned versions</span></div>
+    <div class="stat"><b>FastAPI</b><span>Python 3.12 relay, amd64 + arm64 image</span></div>
+    <div class="stat"><b>~260 tests</b><span>node:test (~61) and pytest (~200)</span></div>
   </div>
 </header>
 
-<h2 id="build">1. Del código al sitio publicado</h2>
-<p>Todo el contenido se resuelve en tiempo de build. Las únicas lecturas de red durante la compilación son la API pública de GitHub. Los datos en vivo se piden después, desde el navegador.</p>
+<h2 id="build">1. From code to published site</h2>
+<p>All content is resolved at build time. The only network read during compilation is the public GitHub API. Live data is requested later, from the browser.</p>
 <figure>
-<svg viewBox="0 0 1060 330" role="img" aria-label="Pipeline de build: fuentes de contenido, astro build, dist y GitHub Pages">
+<svg viewBox="0 0 1060 330" role="img" aria-label="Build pipeline: content sources, astro build, dist and GitHub Pages">
   <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--muted)"/></marker></defs>
-  <rect class="zone" x="8" y="8" width="300" height="314" rx="12"/><text x="22" y="30" class="t2">FUENTES</text>
-  <rect class="box" x="24" y="44" width="268" height="52" rx="8"/><text x="36" y="66">src/data/portfolio.ts</text><text x="36" y="84" class="t2">contenido ES/EN, labs, experiencia</text>
-  <rect class="box" x="24" y="108" width="268" height="52" rx="8"/><text x="36" y="130">src/content/blog/{es,en}/*.md</text><text x="36" y="148" class="t2">colección tipada (content.config.ts)</text>
+  <rect class="zone" x="8" y="8" width="300" height="314" rx="12"/><text x="22" y="30" class="t2">SOURCES</text>
+  <rect class="box" x="24" y="44" width="268" height="52" rx="8"/><text x="36" y="66">src/data/portfolio.ts</text><text x="36" y="84" class="t2">ES/EN content, labs, experience</text>
+  <rect class="box" x="24" y="108" width="268" height="52" rx="8"/><text x="36" y="130">src/content/blog/{es,en}/*.md</text><text x="36" y="148" class="t2">typed collection (content.config.ts)</text>
   <rect class="box" x="24" y="172" width="268" height="52" rx="8"/><text x="36" y="194">src/lib/github.ts</text><text x="36" y="212" class="t2">api.github.com/users/destaben/repos</text>
-  <rect class="box" x="24" y="236" width="268" height="52" rx="8"/><text x="36" y="258">src/config/site.ts + public/</text><text x="36" y="276" class="t2">SEO, CNAME, robots.txt, redirecciones .html</text>
+  <rect class="box" x="24" y="236" width="268" height="52" rx="8"/><text x="36" y="258">src/config/site.ts + public/</text><text x="36" y="276" class="t2">SEO, CNAME, robots.txt, .html redirects</text>
   <rect class="hi" x="380" y="110" width="210" height="110" rx="10"/><text x="396" y="138" style="font-weight:600">astro build</text>
-  <text x="396" y="160" class="t2">@astrojs/react (islas)</text><text x="396" y="178" class="t2">@astrojs/sitemap · @astrojs/rss</text><text x="396" y="196" class="t2">PUBLIC_TURNSTILE_SITE_KEY</text>
-  <rect class="hi2" x="660" y="70" width="170" height="70" rx="10"/><text x="676" y="98" style="font-weight:600">dist/</text><text x="676" y="118" class="t2">HTML + CSS + JS estático</text>
-  <rect class="box" x="660" y="170" width="170" height="110" rx="10"/><text x="676" y="194">Rutas generadas</text><text x="676" y="214" class="t2">/ · /es/ · /en/</text><text x="676" y="230" class="t2">/en/notes/&lt;slug&gt;/</text><text x="676" y="246" class="t2">/es/bitacora/&lt;slug&gt;/</text><text x="676" y="262" class="t2">/rss.xml · /sitemap · /404</text>
-  <rect class="hi3" x="890" y="110" width="154" height="110" rx="10"/><text x="906" y="138" style="font-weight:600">GitHub Pages</text><text x="906" y="160" class="t2">info.destaben.dev</text><text x="906" y="178" class="t2">deploy-pages.yml</text><text x="906" y="196" class="t2">desde main</text>
+  <text x="396" y="160" class="t2">@astrojs/react (islands)</text><text x="396" y="178" class="t2">@astrojs/sitemap · @astrojs/rss</text><text x="396" y="196" class="t2">PUBLIC_TURNSTILE_SITE_KEY</text>
+  <rect class="hi2" x="660" y="70" width="170" height="70" rx="10"/><text x="676" y="98" style="font-weight:600">dist/</text><text x="676" y="118" class="t2">static HTML + CSS + JS</text>
+  <rect class="box" x="660" y="170" width="170" height="110" rx="10"/><text x="676" y="194">Generated routes</text><text x="676" y="214" class="t2">/ · /es/ · /en/</text><text x="676" y="230" class="t2">/en/notes/&lt;slug&gt;/</text><text x="676" y="246" class="t2">/es/bitacora/&lt;slug&gt;/</text><text x="676" y="262" class="t2">/rss.xml · /sitemap · /404</text>
+  <rect class="hi3" x="890" y="110" width="154" height="110" rx="10"/><text x="906" y="138" style="font-weight:600">GitHub Pages</text><text x="906" y="160" class="t2">info.destaben.dev</text><text x="906" y="178" class="t2">deploy-pages.yml</text><text x="906" y="196" class="t2">from main</text>
   <path class="ln" marker-end="url(#ar)" d="M292 70 C340 70 340 140 380 150"/>
   <path class="ln" marker-end="url(#ar)" d="M292 134 L380 160"/>
   <path class="ln" marker-end="url(#ar)" d="M292 198 L380 172"/>
@@ -90,66 +90,66 @@ a{color:var(--accent)}
   <path class="ln" marker-end="url(#ar)" d="M590 185 L660 215"/>
   <path class="ln" marker-end="url(#ar)" d="M830 105 C860 105 860 140 890 150"/>
 </svg>
-<figcaption>Un build fallido (por ejemplo, la API de GitHub devuelve error) aborta el despliegue: el sitio nunca se publica con datos parciales.</figcaption>
+<figcaption>A failed build (for example, the GitHub API returns an error) aborts the deployment: the site is never published with partial data.</figcaption>
 </figure>
 
-<h2 id="front">2. Estructura del frontend</h2>
+<h2 id="front">2. Frontend structure</h2>
 <div class="grid">
-  <div class="card"><h3><code>src/pages/</code></h3><p>Rutas. <code>index.astro</code> y <code>es/index.astro</code> renderizan en español, <code>en/index.astro</code> en inglés; ambas usan <code>PortfolioPage</code>. También las notas (<code>[slug].astro</code>), <code>404.astro</code> y <code>rss.xml.ts</code>.</p><span class="tag a">routing</span></div>
-  <div class="card"><h3><code>src/layouts/BaseLayout.astro</code></h3><p>Documento HTML, metadatos SEO, canonical, <code>hreflang</code>, JSON-LD y script de integración del navegador.</p><span class="tag a">layout</span></div>
-  <div class="card"><h3><code>src/components/PortfolioPage.astro</code></h3><p>Orquesta las seis secciones: trabajo, laboratorio, GitHub, notas, trayectoria y contacto. Carga repos y posts al renderizar y monta las tarjetas de laboratorio. Añade botones de enlace permanente por sección.</p><span class="tag a">página</span></div>
-  <div class="card"><h3><code>src/data/portfolio.ts</code></h3><p>Todo el texto estructurado en <code>es</code> y <code>en</code> (se editan a la vez), tipos de laboratorio (<code>relay</code>, <code>metrics</code>, <code>home-status</code>, <code>meshtastic</code>, <code>meshtastic-status</code>, <code>printer</code>) y <code>profile</code>.</p><span class="tag b">datos</span></div>
-  <div class="card"><h3><code>src/config/site.ts</code></h3><p>Identidad del sitio, URL canónica <code>https://info.destaben.dev</code> y alternates por idioma.</p><span class="tag b">config</span></div>
-  <div class="card"><h3><code>src/lib/</code></h3><p>Código sin framework que los tests importan directamente: <code>github.ts</code> (cliente de repos con paginación y <code>GITHUB_TOKEN</code> opcional) y <code>printer-lab.mjs</code> (+ <code>.d.mts</code>): estados, decodificación del modelo, proyección 3D, sondeo con backoff.</p><span class="tag c">puro</span></div>
-  <div class="card"><h3><code>src/styles/global.css</code></h3><p>Sistema visual único, claro/oscuro, movimiento reducido y estados sin JavaScript.</p><span class="tag a">estilos</span></div>
-  <div class="card"><h3><code>public/</code></h3><p>Se sirve tal cual: <code>CNAME</code>, <code>robots.txt</code> y páginas <code>*.html</code> que redirigen enlaces antiguos a anclas (<code>/about.html → /#about</code>).</p><span class="tag d">estático</span></div>
+  <div class="card"><h3><code>src/pages/</code></h3><p>Routes. <code>index.astro</code> and <code>es/index.astro</code> render in Spanish, <code>en/index.astro</code> in English; both use <code>PortfolioPage</code>. Also the notes (<code>[slug].astro</code>), <code>404.astro</code> and <code>rss.xml.ts</code>.</p><span class="tag a">routing</span></div>
+  <div class="card"><h3><code>src/layouts/BaseLayout.astro</code></h3><p>HTML document, SEO metadata, canonical, <code>hreflang</code>, JSON-LD and the browser integration script.</p><span class="tag a">layout</span></div>
+  <div class="card"><h3><code>src/components/PortfolioPage.astro</code></h3><p>Orchestrates the six sections: work, laboratory, GitHub, notes, experience and contact. Loads repositories and posts while rendering and mounts the laboratory cards. Adds a permalink button per section.</p><span class="tag a">page</span></div>
+  <div class="card"><h3><code>src/data/portfolio.ts</code></h3><p>All structured text in <code>es</code> and <code>en</code> (edited together), laboratory types (<code>relay</code>, <code>metrics</code>, <code>home-status</code>, <code>meshtastic</code>, <code>meshtastic-status</code>, <code>printer</code>) y <code>profile</code>.</p><span class="tag b">data</span></div>
+  <div class="card"><h3><code>src/config/site.ts</code></h3><p>Site identity, canonical URL <code>https://info.destaben.dev</code> and per-language alternates.</p><span class="tag b">config</span></div>
+  <div class="card"><h3><code>src/lib/</code></h3><p>Framework-free code that the tests import directly: <code>github.ts</code> (paginated repository client with optional <code>GITHUB_TOKEN</code>) and <code>printer-lab.mjs</code> (+ <code>.d.mts</code>): states, model decoding, 3D projection, polling with backoff.</p><span class="tag c">pure</span></div>
+  <div class="card"><h3><code>src/styles/global.css</code></h3><p>Single visual system, light/dark, reduced motion and no-JavaScript states.</p><span class="tag a">styles</span></div>
+  <div class="card"><h3><code>public/</code></h3><p>Served unchanged: <code>CNAME</code>, <code>robots.txt</code> and <code>*.html</code> pages that redirect old links to anchors (<code>/about.html → /#about</code>).</p><span class="tag d">static</span></div>
 </div>
 
-<h2 id="islas">3. Islas React</h2>
-<p>Astro entrega HTML; React se hidrata solo donde hay interacción o animación. Con movimiento reducido o sin JavaScript, el contenido aparece en su estado final.</p>
+<h2 id="islands">3. React islands</h2>
+<p>Astro ships HTML; React hydrates only where there is interaction or animation. With reduced motion or without JavaScript, content appears in its final state.</p>
 <div class="table-scroll"><table>
-<thead><tr><th>Isla</th><th>Origen</th><th>Función</th></tr></thead>
+<thead><tr><th>Island</th><th>Origin</th><th>Purpose</th></tr></thead>
 <tbody>
-<tr><td><code>SectionLabel</code> + <code>DecryptedText</code></td><td>wrapper propio + React Bits</td><td>Etiquetas de sección que se «descifran» al entrar en pantalla</td></tr>
-<tr><td><code>BlurText</code></td><td>React Bits</td><td>Títulos y párrafos que se revelan palabra a palabra</td></tr>
-<tr><td><code>ShinyText</code></td><td>React Bits</td><td>Brillo animado en textos destacados</td></tr>
-<tr><td><code>Magnet</code></td><td>React Bits</td><td>Botones con atracción magnética</td></tr>
-<tr><td><code>ClickSpark</code> + <code>CopySpark</code></td><td>React Bits + wrapper</td><td>Chispas al hacer clic y al copiar direcciones</td></tr>
-<tr><td><code>Reveal</code></td><td>propio</td><td>Revelado al hacer scroll de rejillas (casos, repos, notas)</td></tr>
-<tr><td><code>LetterGlitch</code> + <code>GlitchBackdrop</code></td><td>React Bits + wrapper</td><td>Fondo decorativo; no se renderiza sin JS, con movimiento reducido ni en pantallas estrechas</td></tr>
+<tr><td><code>SectionLabel</code> + <code>DecryptedText</code></td><td>own wrapper + React Bits</td><td>Section labels that “decrypt” as they enter the viewport</td></tr>
+<tr><td><code>BlurText</code></td><td>React Bits</td><td>Headings and paragraphs revealed word by word</td></tr>
+<tr><td><code>ShinyText</code></td><td>React Bits</td><td>Animated shine on highlighted text</td></tr>
+<tr><td><code>Magnet</code></td><td>React Bits</td><td>Buttons with magnetic attraction</td></tr>
+<tr><td><code>ClickSpark</code> + <code>CopySpark</code></td><td>React Bits + wrapper</td><td>Sparks on click and when copying addresses</td></tr>
+<tr><td><code>Reveal</code></td><td>own</td><td>Scroll reveal of grids (cases, repositories, notes)</td></tr>
+<tr><td><code>LetterGlitch</code> + <code>GlitchBackdrop</code></td><td>React Bits + wrapper</td><td>Decorative backdrop; not rendered without JS, under reduced motion or on narrow screens</td></tr>
 </tbody></table></div>
-<p><small>Licencias de lo adaptado de React Bits (MIT + Commons Clause): <code>THIRD_PARTY_NOTICES.md</code>. El gráfico del héroe (<code>SystemGraphic.astro</code>) es CSS puro, sin React.</small></p>
+<p><small>Licenses for the code adapted from React Bits (MIT + Commons Clause): <code>THIRD_PARTY_NOTICES.md</code>. The hero graphic (<code>SystemGraphic.astro</code>) is plain CSS, without React.</small></p>
 
-<h2 id="labs">4. Laboratorios: componente → endpoint</h2>
-<p>Cada tarjeta es un componente Astro con un <code>&lt;script&gt;</code> de navegador. Todas leen de <code>https://lab.destaben.dev</code> en producción o de <code>http://127.0.0.1:8787</code> en local (atributos <code>data-production-url</code> / <code>data-local-url</code>) y degradan a un estado «no disponible» si falla la respuesta.</p>
+<h2 id="labs">4. Laboratories: component → endpoint</h2>
+<p>Each card is an Astro component with a browser <code>&lt;script&gt;</code>. All of them read from <code>https://lab.destaben.dev</code> in production or <code>http://127.0.0.1:8787</code> locally (<code>data-production-url</code> / <code>data-local-url</code> attributes) and fall back to an “unavailable” state if the response fails.</p>
 <div class="table-scroll"><table>
-<thead><tr><th>Componente</th><th>Endpoints del relay</th><th>Particularidad</th></tr></thead>
+<thead><tr><th>Component</th><th>Relay endpoints</th><th>Notes</th></tr></thead>
 <tbody>
-<tr><td><code>SignalRelayLab.astro</code></td><td><code>/healthz</code>, <code>/v1/contact</code>, <code>/v1/inbox</code>, <code>/v1/lab/capabilities</code>, <code>/v1/lab/reticulum-nodes</code>, <code>/v1/lab/sessions</code> (POST/GET), <code>/v1/lab/sessions/{id}/messages</code></td><td>Recorrido educativo con identidad temporal; el navegador copia la dirección LXMF pública</td></tr>
-<tr><td><code>ContainerMetricsLab.astro</code></td><td><code>/v1/lab/metrics</code></td><td>Selector CPU/memoria y rango temporal</td></tr>
-<tr><td><code>HomeAssistantLab.astro</code></td><td><code>/v1/lab/home-status</code></td><td>Temperatura, humedad y calidad del aire (bueno/regular/malo)</td></tr>
-<tr><td><code>MeshtasticLab.astro</code></td><td><code>/v1/lab/meshtastic</code>, POST <code>/v1/lab/meshtastic/messages</code></td><td>Widget Cloudflare Turnstile cargado solo si existe <code>PUBLIC_TURNSTILE_SITE_KEY</code></td></tr>
-<tr><td><code>MeshtasticStatusLab.astro</code></td><td><code>/v1/lab/meshtastic-status</code></td><td>Se pinta dentro de la sección Meshtastic; valida todo el payload antes de tocar el DOM; espera hasta 20 s</td></tr>
-<tr><td><code>PrinterLab.astro</code></td><td><code>/v1/lab/printer</code>, <code>/thumbnail</code>, <code>/model/{modelId}</code></td><td>Canvas 3D con <code>printer-lab.mjs</code>; sondeo 15 s con backoff hasta 120 s; animación de reserva si no hay impresión</td></tr>
+<tr><td><code>SignalRelayLab.astro</code></td><td><code>/healthz</code>, <code>/v1/contact</code>, <code>/v1/inbox</code>, <code>/v1/lab/capabilities</code>, <code>/v1/lab/reticulum-nodes</code>, <code>/v1/lab/sessions</code> (POST/GET), <code>/v1/lab/sessions/{id}/messages</code></td><td>Educational walkthrough with a temporary identity; the browser copies the public LXMF address</td></tr>
+<tr><td><code>ContainerMetricsLab.astro</code></td><td><code>/v1/lab/metrics</code></td><td>CPU/memory selector and time range</td></tr>
+<tr><td><code>HomeAssistantLab.astro</code></td><td><code>/v1/lab/home-status</code></td><td>Temperature, humidity and air quality (good/regular/bad)</td></tr>
+<tr><td><code>MeshtasticLab.astro</code></td><td><code>/v1/lab/meshtastic</code>, POST <code>/v1/lab/meshtastic/messages</code></td><td>Cloudflare Turnstile widget loaded only when <code>PUBLIC_TURNSTILE_SITE_KEY</code> exists</td></tr>
+<tr><td><code>MeshtasticStatusLab.astro</code></td><td><code>/v1/lab/meshtastic-status</code></td><td>Rendered inside the Meshtastic section; validates the whole payload before touching the DOM; waits up to 20 s</td></tr>
+<tr><td><code>PrinterLab.astro</code></td><td><code>/v1/lab/printer</code>, <code>/thumbnail</code>, <code>/model/{modelId}</code></td><td>3D canvas using <code>printer-lab.mjs</code>; 15 s polling with backoff up to 120 s; fallback animation when nothing is printing</td></tr>
 </tbody></table></div>
 
 <h2 id="relay">5. Signal Relay (<code>services/signal-relay/</code>)</h2>
-<p>Servicio FastAPI independiente, no incluido en Pages. Un único puente que habla web (HTTP/WSS) y Reticulum; ningún secreto vive en el repositorio.</p>
+<p>Standalone FastAPI service, not part of Pages. A single bridge that speaks web (HTTP/WSS) and Reticulum; no secret lives in the repository.</p>
 <figure>
-<svg viewBox="0 0 1060 360" role="img" aria-label="Módulos del paquete signal_relay y sus dependencias externas">
+<svg viewBox="0 0 1060 360" role="img" aria-label="Modules of the signal_relay package and their external dependencies">
   <defs><marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--muted)"/></marker></defs>
-  <rect class="hi" x="20" y="130" width="190" height="100" rx="10"/><text x="36" y="158" style="font-weight:600">app.py</text><text x="36" y="178" class="t2">FastAPI · rutas · CORS</text><text x="36" y="194" class="t2">origen permitido · lifespan</text><text x="36" y="210" class="t2">WebSocket /v1/events</text>
-  <rect class="box" x="280" y="20" width="200" height="56" rx="8"/><text x="294" y="44">config.py</text><text x="294" y="62" class="t2">Settings + validación al arrancar</text>
-  <rect class="box" x="280" y="96" width="200" height="56" rx="8"/><text x="294" y="120">bridge.py</text><text x="294" y="138" class="t2">LXMF, bandeja, sesiones lab, eventos</text>
-  <rect class="box" x="280" y="172" width="200" height="56" rx="8"/><text x="294" y="196">home_assistant.py</text><text x="294" y="214" class="t2">clientes HA / Meshtastic, caché</text>
-  <rect class="box" x="280" y="248" width="200" height="56" rx="8"/><text x="294" y="272">printer.py + gcode_model.py</text><text x="294" y="290" class="t2">Moonraker, hilo de modelo, parser G-code</text>
+  <rect class="hi" x="20" y="130" width="190" height="100" rx="10"/><text x="36" y="158" style="font-weight:600">app.py</text><text x="36" y="178" class="t2">FastAPI · routes · CORS</text><text x="36" y="194" class="t2">allowed origin · lifespan</text><text x="36" y="210" class="t2">WebSocket /v1/events</text>
+  <rect class="box" x="280" y="20" width="200" height="56" rx="8"/><text x="294" y="44">config.py</text><text x="294" y="62" class="t2">Settings + startup validation</text>
+  <rect class="box" x="280" y="96" width="200" height="56" rx="8"/><text x="294" y="120">bridge.py</text><text x="294" y="138" class="t2">LXMF, inbox, lab sessions, events</text>
+  <rect class="box" x="280" y="172" width="200" height="56" rx="8"/><text x="294" y="196">home_assistant.py</text><text x="294" y="214" class="t2">HA / Meshtastic clients, cache</text>
+  <rect class="box" x="280" y="248" width="200" height="56" rx="8"/><text x="294" y="272">printer.py + gcode_model.py</text><text x="294" y="290" class="t2">Moonraker, model thread, G-code parser</text>
   <rect class="box" x="280" y="318" width="200" height="34" rx="8"/><text x="294" y="340">metrics · telegram · lab_sender</text>
-  <rect class="hi3" x="580" y="20" width="220" height="46" rx="8"/><text x="594" y="48">Variables SIGNAL_RELAY_*</text>
-  <rect class="hi3" x="580" y="96" width="220" height="56" rx="8"/><text x="594" y="120">Reticulum / LXMF</text><text x="594" y="138" class="t2">volumen /reticulum + /data</text>
-  <rect class="hi3" x="580" y="172" width="220" height="56" rx="8"/><text x="594" y="196">Home Assistant (vía nginx)</text><text x="594" y="214" class="t2">token propio, solo lectura + 1 evento</text>
-  <rect class="hi3" x="580" y="248" width="220" height="56" rx="8"/><text x="594" y="272">Moonraker (vía nginx)</text><text x="594" y="290" class="t2">4 peticiones fijas, solo GET</text>
+  <rect class="hi3" x="580" y="20" width="220" height="46" rx="8"/><text x="594" y="48">SIGNAL_RELAY_* variables</text>
+  <rect class="hi3" x="580" y="96" width="220" height="56" rx="8"/><text x="594" y="120">Reticulum / LXMF</text><text x="594" y="138" class="t2">/reticulum + /data volumes</text>
+  <rect class="hi3" x="580" y="172" width="220" height="56" rx="8"/><text x="594" y="196">Home Assistant (via nginx)</text><text x="594" y="214" class="t2">own token, read-only + 1 event</text>
+  <rect class="hi3" x="580" y="248" width="220" height="56" rx="8"/><text x="594" y="272">Moonraker (via nginx)</text><text x="594" y="290" class="t2">4 fixed requests, GET only</text>
   <rect class="hi3" x="580" y="318" width="220" height="34" rx="8"/><text x="594" y="340">Prometheus · Telegram · Turnstile</text>
-  <rect class="hi2" x="860" y="96" width="180" height="108" rx="10"/><text x="876" y="124" style="font-weight:600">Contenedor</text><text x="876" y="144" class="t2">read_only · cap_drop ALL</text><text x="876" y="160" class="t2">sin puerto en el host</text><text x="876" y="176" class="t2">red externa destaben-edge</text><text x="876" y="192" class="t2">healthcheck /healthz</text>
+  <rect class="hi2" x="860" y="96" width="180" height="108" rx="10"/><text x="876" y="124" style="font-weight:600">Container</text><text x="876" y="144" class="t2">read_only · cap_drop ALL</text><text x="876" y="160" class="t2">no host port</text><text x="876" y="176" class="t2">external destaben-edge network</text><text x="876" y="192" class="t2">healthcheck /healthz</text>
   <path class="ln" marker-end="url(#ar2)" d="M210 160 C245 130 245 60 280 48"/>
   <path class="ln" marker-end="url(#ar2)" d="M210 175 L280 124"/>
   <path class="ln" marker-end="url(#ar2)" d="M210 190 L280 200"/>
@@ -161,43 +161,43 @@ a{color:var(--accent)}
   <path class="ln" marker-end="url(#ar2)" d="M480 276 L580 276"/>
   <path class="ln" marker-end="url(#ar2)" d="M480 335 L580 335"/>
 </svg>
-<figcaption>Flecha continua: llamada en tiempo de ejecución. Discontinua: configuración leída al arrancar. El recuadro «Contenedor» resume cómo se empaqueta todo el servicio.</figcaption>
+<figcaption>Solid arrow: runtime call. Dashed: configuration read at startup. The “Container” box summarizes how the whole service is packaged.</figcaption>
 </figure>
 <div class="grid">
-  <div class="card"><h3><code>app.py</code> <small>362 líneas</small></h3><p>Define las rutas públicas, el middleware CORS y el WebSocket. Las rutas de laboratorio aparecen con <code>include_in_schema=False</code>. Las del taller de impresión devuelven 404 mientras <code>SIGNAL_RELAY_PRINTER_ENABLED</code> no sea <code>true</code>.</p></div>
-  <div class="card"><h3><code>config.py</code> <small>373 líneas</small></h3><p>Lee el entorno en <code>Settings</code> y rechaza al arrancar IDs de entidad mal formados, alias o URLs de nodos TCP no públicos y filtros de canal inválidos, sin repetir el valor en el error.</p></div>
-  <div class="card"><h3><code>bridge.py</code> <small>458 líneas</small></h3><p>Identidad y destino LXMF persistentes, bandeja acotada, limitación de tasa, sesiones educativas (<code>LabSession</code>), métricas Prometheus y avisos a Telegram tras guardar el mensaje.</p></div>
-  <div class="card"><h3><code>home_assistant.py</code> <small>624 líneas</small></h3><p>Tres clientes sobre una base común: sin redirecciones, respuestas ≤ 1 MiB, presupuesto de 5 s, caché mínima de 15 min y fallo recordado 30 s. Genera las proyecciones públicas y publica el evento fijo de difusión.</p></div>
-  <div class="card"><h3><code>printer.py</code> <small>724 líneas</small></h3><p>Cliente Moonraker de un solo vuelo, caché de metadatos/miniaturas, <code>modelId</code> con HMAC y worker de fondo que descarga y analiza el G-code.</p></div>
-  <div class="card"><h3><code>gcode_model.py</code> <small>398 líneas</small></h3><p>Parser en streaming: capas por <code>;LAYER_CHANGE</code>, solo pared exterior, cuantización a 0,1 mm y simplificación Douglas-Peucker con límites de tamaño.</p></div>
-  <div class="card"><h3><code>metrics.py</code>, <code>telegram.py</code>, <code>lab_sender.py</code></h3><p>Consultas fijas de cAdvisor a Prometheus, notificador de Telegram y proceso aislado que envía una vez con identidad temporal.</p></div>
-  <div class="card"><h3><code>scripts/</code> y contenedor</h3><p><code>preflight.sh</code>, <code>deploy.sh</code>, <code>verify.sh</code> y <code>rollback.sh</code> operan el despliegue; <code>Dockerfile</code> + <code>compose.yaml</code> definen la imagen y la red.</p></div>
+  <div class="card"><h3><code>app.py</code> <small>362 lines</small></h3><p>Defines the public routes, the CORS middleware and the WebSocket. Laboratory routes use <code>include_in_schema=False</code>. The printer routes return 404 until <code>SIGNAL_RELAY_PRINTER_ENABLED</code> is <code>true</code>.</p></div>
+  <div class="card"><h3><code>config.py</code> <small>373 lines</small></h3><p>Reads the environment into <code>Settings</code> and, at startup, rejects malformed entity IDs, non-public TCP node aliases or URLs and invalid channel filters, never echoing the value in the error.</p></div>
+  <div class="card"><h3><code>bridge.py</code> <small>458 lines</small></h3><p>Persistent LXMF identity and destination, bounded inbox, rate limiting, educational sessions (<code>LabSession</code>), Prometheus metrics and Telegram notices after the message is stored.</p></div>
+  <div class="card"><h3><code>home_assistant.py</code> <small>624 lines</small></h3><p>Three clients on a common base: no redirects, responses ≤ 1 MiB, a 5 s budget, a 15 min minimum cache and failures remembered for 30 s. Builds the public projections and fires the fixed broadcast event.</p></div>
+  <div class="card"><h3><code>printer.py</code> <small>724 lines</small></h3><p>Single-flight Moonraker client, metadata/thumbnail cache, HMAC-based <code>modelId</code> and a background worker that downloads and parses the G-code.</p></div>
+  <div class="card"><h3><code>gcode_model.py</code> <small>398 lines</small></h3><p>Streaming parser: layers from <code>;LAYER_CHANGE</code>, outer wall only, 0.1 mm quantization and Douglas-Peucker simplification with size caps.</p></div>
+  <div class="card"><h3><code>metrics.py</code>, <code>telegram.py</code>, <code>lab_sender.py</code></h3><p>Fixed cAdvisor queries to Prometheus, the Telegram notifier and an isolated process that sends once with a temporary identity.</p></div>
+  <div class="card"><h3><code>scripts/</code> and container</h3><p><code>preflight.sh</code>, <code>deploy.sh</code>, <code>verify.sh</code> and <code>rollback.sh</code> run the deployment; <code>Dockerfile</code> + <code>compose.yaml</code> define the image and the network.</p></div>
 </div>
 
-<h2 id="qa">6. Tests y CI/CD</h2>
+<h2 id="qa">6. Tests and CI/CD</h2>
 <div class="grid">
-  <div class="card"><h3>Node <small>tests/*.test.mjs</small></h3><p><code>site-output</code> inspecciona el HTML generado, <code>printer-lab</code> prueba las reglas puras, <code>relay-deployment</code> comprueba el manifiesto Compose. Se ejecutan con <code>npm test</code> tras el build.</p></div>
-  <div class="card"><h3>Python <small>services/signal-relay/tests</small></h3><p>pytest para app, Home Assistant/Meshtastic, impresora, parser G-code y Telegram.</p></div>
-  <div class="card"><h3><code>npm run verify</code></h3><p><code>astro check</code> + build + tests de Node. Es el comando que usan CI y despliegue.</p></div>
+  <div class="card"><h3>Node <small>tests/*.test.mjs</small></h3><p><code>site-output</code> inspects the generated HTML, <code>printer-lab</code> tests the pure rules, <code>relay-deployment</code> checks the Compose manifest. They run with <code>npm test</code> after the build.</p></div>
+  <div class="card"><h3>Python <small>services/signal-relay/tests</small></h3><p>pytest for the app, Home Assistant/Meshtastic, printer, G-code parser and Telegram.</p></div>
+  <div class="card"><h3><code>npm run verify</code></h3><p><code>astro check</code> + build + Node tests. This is the command CI and deployment use.</p></div>
 </div>
 <div class="table-scroll"><table>
-<thead><tr><th>Workflow</th><th>Disparador</th><th>Qué hace</th></tr></thead>
+<thead><tr><th>Workflow</th><th>Trigger</th><th>What it does</th></tr></thead>
 <tbody>
-<tr><td><code>ci.yml</code></td><td>PR a <code>main</code>, manual</td><td>Solo lectura: pytest del relay, <code>docker compose config</code>, <code>npm run verify</code>. No despliega. Jobs «Signal Relay tests» y «Site check, tests and build».</td></tr>
-<tr><td><code>deploy-pages.yml</code></td><td>push a <code>main</code>, manual</td><td>pytest + <code>npm run verify</code> y publica <code>dist/</code> como artefacto en GitHub Pages con permisos mínimos.</td></tr>
-<tr><td><code>publish-signal-relay.yml</code></td><td>push a <code>main</code> que toque <code>services/signal-relay/**</code>, manual</td><td>Construye y publica <code>ghcr.io/destaben/signal-relay</code> para amd64 y arm64.</td></tr>
-<tr><td><code>claude-pr-review.yml</code></td><td>PR</td><td>Revisión automática con los agentes <code>bug-hunter</code> y <code>documenter</code>.</td></tr>
+<tr><td><code>ci.yml</code></td><td>PR to <code>main</code>, manual</td><td>Read-only: relay pytest, <code>docker compose config</code>, <code>npm run verify</code>. Deploys nothing. Jobs “Signal Relay tests” and “Site check, tests and build”.</td></tr>
+<tr><td><code>deploy-pages.yml</code></td><td>push to <code>main</code>, manual</td><td>pytest + <code>npm run verify</code>, then publishes <code>dist/</code> as an artifact to GitHub Pages with least-privilege permissions.</td></tr>
+<tr><td><code>publish-signal-relay.yml</code></td><td>push to <code>main</code> touching <code>services/signal-relay/**</code>, manual</td><td>Builds and publishes <code>ghcr.io/destaben/signal-relay</code> for amd64 and arm64.</td></tr>
+<tr><td><code>claude-pr-review.yml</code></td><td>PR events, issue comments, manual</td><td>Automatic review with the <code>bug-hunter</code> and <code>documenter</code> agents.</td></tr>
 </tbody></table></div>
 
-<h2 id="ia">7. Contexto para asistentes de IA</h2>
+<h2 id="ai">7. Context for AI assistants</h2>
 <div class="grid">
-  <div class="card"><h3><code>AGENTS.md</code></h3><p>Reglas de trabajo del repositorio: estructura, validación, límites de seguridad y despliegue.</p></div>
-  <div class="card"><h3><code>.github/instructions/</code></h3><p>Instrucciones con alcance para portfolio, relay y despliegue.</p></div>
-  <div class="card"><h3><code>.github/agents</code> y <code>skills</code></h3><p>Revisores (<code>portfolio-reviewer</code>, <code>relay-boundary-reviewer</code>), <code>documentation-curator</code>, <code>change-verifier</code> y skills <code>portfolio-content</code> y <code>release-validation</code>.</p></div>
-  <div class="card"><h3><code>.github/scripts/</code> y hooks</h3><p><code>ai-change-guard.mjs</code> bloquea el cierre con cambios sensibles sin evidencia de validación; <code>validate-ai-context.mjs</code> comprueba la coherencia del contexto.</p></div>
+  <div class="card"><h3><code>AGENTS.md</code></h3><p>Repository working rules: structure, validation, security limits and deployment.</p></div>
+  <div class="card"><h3><code>.github/instructions/</code></h3><p>Scoped instructions for portfolio, relay and deployment work.</p></div>
+  <div class="card"><h3><code>.github/agents</code> and <code>skills</code></h3><p>Reviewers (<code>portfolio-reviewer</code>, <code>relay-boundary-reviewer</code>), <code>documentation-curator</code>, <code>change-verifier</code> and the <code>portfolio-content</code> and <code>release-validation</code> skills.</p></div>
+  <div class="card"><h3><code>.github/scripts/</code> and hooks</h3><p><code>ai-change-guard.mjs</code> blocks completion of sensitive changes without validation evidence; <code>validate-ai-context.mjs</code> checks context consistency.</p></div>
 </div>
 
-<footer>Generado a partir del estado del repositorio en noviembre de 2026. Si cambia la estructura, actualiza este archivo junto con <code>README.md</code> y <code>AGENTS.md</code>.</footer>
+<footer>Generated from the repository state in November 2026. If the structure changes, update this file together with <code>README.md</code> and <code>AGENTS.md</code>.</footer>
 </div>
 </body>
 </html>
