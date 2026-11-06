@@ -14,7 +14,7 @@ Source for [info.destaben.dev](https://info.destaben.dev), a bilingual static As
 - `src/components/react/` contains the React islands (section labels, animated headings and copy, magnetic buttons, click sparks, scroll reveals, and the decorative glitch backdrop); `DecryptedText.tsx`, `BlurText.tsx`, `ShinyText.tsx`, `Magnet.tsx`, `ClickSpark.tsx`, and `LetterGlitch.tsx` are adapted from React Bits and keep their attribution headers (`SectionLabel.tsx`, `Reveal.tsx`, `CopySpark.tsx`, and `GlitchBackdrop.tsx` are original wrappers), and `THIRD_PARTY_NOTICES.md` reproduces the upstream license. They are used on a non-profit personal website and are not redistributed as standalone components (React Bits is MIT + Commons Clause). The glitch backdrop renders nothing without JavaScript, under reduced motion, or on narrow screens; headings, copy, and grids show their final state at once under reduced motion and without JavaScript (a `noscript` rule and a reduced-motion rule override the hidden starting state). The hero orbit and log animations and the card spotlight are plain CSS and a small script.
 - `src/data/portfolio.ts` contains localized portfolio content.
 - `src/lib/github.ts` fetches every public repository from `destaben` during each build.
-- `src/lib/printer-lab.mjs` holds the framework-free rules of the 3D printer laboratory (state mapping, path decoding, projection, backoff). The Node test suite imports it directly, and `printer-lab.d.mts` types it for Astro. `src/lib/relay-live.mjs` holds the Signal Relay panel's polling, back-forward-cache resume, abort, and unconfirmed-send cooldown rules, and `relay-view.mjs` holds its render helpers; both are typed by `.d.mts` files of the same name.
+- `src/lib/printer-lab.mjs` holds the framework-free rules of the 3D printer laboratory (state mapping, path decoding, projection, backoff). The Node test suite imports it directly, and `printer-lab.d.mts` types it for Astro. `src/lib/relay-live.mjs` holds the Signal Relay panel's polling, read timeouts, back-forward-cache resume, abort, and send cooldown rules, and `relay-view.mjs` holds its render helpers; both are typed by `.d.mts` files of the same name.
 - `src/content/blog/` contains localized Markdown or MDX technical notes published in the portfolio and RSS feed.
 - `public/` contains assets served unchanged, including `CNAME`, brand assets, the architecture pages in `public/architecture/`, and future downloadable files.
 - `docs/DESIGN-GUIDELINES.md` defines public content, branding, accessibility, and live-service rules.
@@ -68,7 +68,7 @@ Check Astro and TypeScript diagnostics:
 npm run check
 ```
 
-Build, then run the Node test suite (generated-site output, contrast, printer, and relay helper tests):
+Build, then run the Node test suite (generated-site output, the GoatCounter build, contrast, printer, and relay helper tests):
 
 ```sh
 npm test
@@ -111,7 +111,7 @@ The site can load [GoatCounter](https://www.goatcounter.com/) for aggregate page
 2. In the repository settings, add the code as an **Actions variable** named `GOATCOUNTER_CODE` (Variables, not Secrets).
 3. Run the Pages deployment by pushing to `main` or through `workflow_dispatch`.
 
-The site code is a public identifier: it appears in the HTML of every page that loads the script, so it is a variable and not a secret. The script is rendered only by production builds (`import.meta.env.PROD`) that receive a `PUBLIC_GOATCOUNTER_CODE` made of letters, digits, and hyphens. Local `npm run dev` and builds without the variable render no third-party script. GoatCounter is cookieless, so the site shows no consent banner for it ([GoatCounter's GDPR notes](https://www.goatcounter.com/help/gdpr)). The script is a third-party file loaded from `https://gc.zgo.at/count.js`, and it reports page views to `https://<code>.goatcounter.com`. The site stays hosted on GitHub Pages and is not proxied through GoatCounter.
+The site code is a public identifier: it appears in the HTML of every page that loads the script, so it is a variable and not a secret. The script is rendered only by production builds (`import.meta.env.PROD`) that receive a `PUBLIC_GOATCOUNTER_CODE` made of letters, digits, and hyphens. Local `npm run dev` and builds without the variable render no third-party script. The test suite builds a copy of the site with a fixed test code into a temporary directory and checks that each rendered page carries exactly one script, so the enabled path is covered even though CI never passes the code. GoatCounter is cookieless, so the site shows no consent banner for it ([GoatCounter's GDPR notes](https://www.goatcounter.com/help/gdpr)). The script is a third-party file loaded from `https://gc.zgo.at/count.js`, and it reports page views to `https://<code>.goatcounter.com`. The site stays hosted on GitHub Pages and is not proxied through GoatCounter.
 
 ## Meshtastic Status Rollout
 

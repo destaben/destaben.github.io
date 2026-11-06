@@ -38,6 +38,7 @@ export declare const inboxIntervalMs: number;
 export declare const nodesIntervalMs: number;
 export declare const failedGiveUpMs: number;
 export declare const sendCooldownMs: number;
+export declare const readTimeoutMs: number;
 
 export declare function createRelayLive(options: RelayLiveOptions): {
   send(readContent: () => string): Promise<void>;

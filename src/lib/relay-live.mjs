@@ -7,6 +7,10 @@ export const inboxIntervalMs = 10_000;
 export const nodesIntervalMs = 20_000;
 export const failedGiveUpMs = 15_000;
 export const sendCooldownMs = 10_000;
+export const readTimeoutMs = 10_000;
+// Session polls are ticked every pollIntervalMs. Two may be pending at once, so one honest slow answer does not block the next poll,
+// while a relay that never answers cannot stack more than two requests.
+const maxPendingSessionPolls = 2;
 
 export function createRelayLive({ relayUrl, fetch, view, documentTarget, windowTarget }) {
   let controller = new AbortController();
@@ -18,6 +22,7 @@ export function createRelayLive({ relayUrl, fetch, view, documentTarget, windowT
   let cooling = false;
   let pollSequence = 0;
   let appliedPollSequence = 0;
+  let pendingSessionPolls = 0;
   let inboxTimer;
   let nodesTimer;
   let sessionTimer;
@@ -27,15 +32,43 @@ export function createRelayLive({ relayUrl, fetch, view, documentTarget, windowT
     view.setSessionState(state, errorCode);
   };
 
+  // Every relay GET runs under its own read timeout, and the run's signal still aborts it. A read that times out rejects
+  // with a TimeoutError. Sends are POSTs and never go through here, so the timeout cannot abort a message.
+  const withReadTimeout = async (runSignal, read) => {
+    const readController = new AbortController();
+    let timedOut = false;
+    const abortRead = () => readController.abort();
+    const timer = setTimeout(() => {
+      timedOut = true;
+      readController.abort();
+    }, readTimeoutMs);
+    runSignal.addEventListener("abort", abortRead, { once: true });
+    if (runSignal.aborted) readController.abort();
+    try {
+      return await read(readController.signal);
+    } catch (error) {
+      if (timedOut) throw new DOMException("The relay read timed out.", "TimeoutError");
+      throw error;
+    } finally {
+      clearTimeout(timer);
+      runSignal.removeEventListener("abort", abortRead);
+    }
+  };
+
+  // Reads one JSON document. A non-2xx answer or an unreadable body rejects, and the caller decides how much that matters.
+  const readJson = (path, signal) =>
+    withReadTimeout(signal, async (readSignal) => {
+      const response = await fetch(`${relayUrl}${path}`, { signal: readSignal });
+      if (!response.ok) throw new Error(`${path} answered ${response.status}`);
+      return response.json();
+    });
+
   const refreshInbox = async () => {
     if (!relayUrl) return;
     const { signal } = controller;
     try {
-      const response = await fetch(`${relayUrl}/v1/inbox`, { signal });
-      if (response.ok) {
-        const data = await response.json();
-        if (!signal.aborted) view.setInbox(data);
-      }
+      const data = await readJson("/v1/inbox", signal);
+      if (!signal.aborted) view.setInbox(data);
     } catch {
       // The availability request remains the source of the relay health state.
     }
@@ -45,19 +78,11 @@ export function createRelayLive({ relayUrl, fetch, view, documentTarget, windowT
     if (!relayUrl) return;
     const { signal } = controller;
     try {
-      const response = await fetch(`${relayUrl}/v1/lab/reticulum-nodes`, { signal });
-      const data = response.ok ? await response.json() : {};
+      const data = await readJson("/v1/lab/reticulum-nodes", signal);
       if (!signal.aborted) view.setNodes(data);
     } catch {
       if (!signal.aborted) view.setNodes({});
     }
-  };
-
-  // Reads one JSON document. A non-2xx answer or an unreadable body rejects, and the caller decides how much that matters.
-  const readJson = async (path, signal) => {
-    const response = await fetch(`${relayUrl}${path}`, { signal });
-    if (!response.ok) throw new Error(`${path} answered ${response.status}`);
-    return response.json();
   };
 
   // Health, contact, and inbox decide availability. Capabilities and nodes are optional: when they fail, only their own panel falls back.
@@ -90,17 +115,20 @@ export function createRelayLive({ relayUrl, fetch, view, documentTarget, windowT
     let failedAt;
     clearInterval(sessionTimer);
     sessionTimer = setInterval(async () => {
+      // A tick that finds the pending cap reached skips its poll, so a relay that never answers cannot stack requests.
+      if (pendingSessionPolls >= maxPendingSessionPolls) return;
       const { signal } = controller;
       // Each tick numbers its request. An answer may write state only if no answer from a later tick has written state yet,
       // so a slow answer still lands while an out-of-order answer that arrives after a newer one cannot undo it.
       const sequence = ++pollSequence;
       const mayApply = () => !signal.aborted && sequence > appliedPollSequence;
+      pendingSessionPolls += 1;
       try {
-        const response = await fetch(`${relayUrl}/v1/lab/sessions/${sessionId}`, { signal });
-        // A rate-limited poll is transient: it keeps the last shown state and the next tick polls again.
-        if (response.status === 429) return;
-        if (!response.ok) throw new Error("session unavailable");
-        const session = await response.json();
+        const session = await withReadTimeout(signal, async (readSignal) => {
+          const response = await fetch(`${relayUrl}/v1/lab/sessions/${sessionId}`, { signal: readSignal });
+          if (!response.ok) throw Object.assign(new Error("session unavailable"), { status: response.status });
+          return response.json();
+        });
         // A poll that resolves after hiding or leaving the page must not write state or touch the timer of the next run.
         if (!mayApply()) return;
         appliedPollSequence = sequence;
@@ -116,25 +144,31 @@ export function createRelayLive({ relayUrl, fetch, view, documentTarget, windowT
         } else {
           failedAt = undefined;
         }
-      } catch {
+      } catch (error) {
         // A poll aborted by hiding or leaving the page is not a relay failure; start() resumes polling with the page.
         // A superseded poll's error is ignored too, because an answer from a later tick already decided the state.
         if (!mayApply()) return;
+        // A rate-limited or timed-out poll is transient: it keeps the last shown state and the next tick polls again.
+        if (error.status === 429 || error.name === "TimeoutError") return;
         appliedPollSequence = sequence;
         clearInterval(sessionTimer);
-        applySessionState("failed", "outbound_error");
+        // A 404 means the relay no longer knows the session: it expired, or the relay restarted.
+        applySessionState("failed", error.status === 404 ? "session_not_found" : "outbound_error");
+      } finally {
+        pendingSessionPolls -= 1;
       }
     }, pollIntervalMs);
   };
 
-  // Resolves to "ready", "unavailable" (the relay refused or sent an unreadable answer), or "unconfirmed" (the request failed at the network layer).
+  // Resolves to "ready", "unavailable" (the relay refused or sent an unreadable answer), or "unreachable" (the request failed at the
+  // network layer). Creating a session sends no message, so "unreachable" is a plain failure, never an unconfirmed delivery.
   const createSession = async () => {
     view.setSessionNotice("preparing");
     let response;
     try {
       response = await fetch(`${relayUrl}/v1/lab/sessions`, { method: "POST" });
     } catch {
-      return "unconfirmed";
+      return "unreachable";
     }
     let session;
     try {
@@ -174,7 +208,11 @@ export function createRelayLive({ relayUrl, fetch, view, documentTarget, windowT
     try {
       if (!sessionId) {
         const outcome = await createSession();
-        if (outcome === "unconfirmed") return markUnconfirmed();
+        // No session was created and no message was sent, so the delivery failed. The cooldown keeps retries off the edge rate limiter.
+        if (outcome === "unreachable") {
+          applySessionState("failed");
+          return startCooldown();
+        }
         // A refused session gets the same cooldown as a refused message, so repeated submits do not hit the edge rate limiter.
         if (outcome === "unavailable") return startCooldown();
       }
@@ -196,6 +234,9 @@ export function createRelayLive({ relayUrl, fetch, view, documentTarget, windowT
       }
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
+        // session_not_found means the relay forgot the session (it expired after 15 minutes, or the relay restarted) before it accepted
+        // anything. The session is dropped, so the next send creates a fresh one instead of retrying the dead session.
+        if (error.detail === "session_not_found") sessionId = undefined;
         applySessionState("failed", error.detail || "outbound_error");
         return;
       }

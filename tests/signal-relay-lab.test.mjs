@@ -7,6 +7,7 @@ import {
   inboxIntervalMs,
   nodesIntervalMs,
   pollIntervalMs,
+  readTimeoutMs,
   sendCooldownMs,
 } from "../src/lib/relay-live.mjs";
 
@@ -445,7 +446,7 @@ test("a network error on send shows the unconfirmed state, and sending stays loc
   assert.deepEqual(shown.session, { state: "queued", errorCode: "" });
 });
 
-test("a network error creating the session shows the unconfirmed state and sends no message", async (t) => {
+test("a network error creating the session shows a failed state, never an unconfirmed one, and sends no message", async (t) => {
   const { network, shown, relay } = setup(t);
   await settle();
   network.answer = (request) => {
@@ -454,9 +455,14 @@ test("a network error creating the session shows the unconfirmed state and sends
   };
 
   await relay.send(() => "hello");
-  assert.deepEqual(shown.session, { state: "unconfirmed", errorCode: "" });
+  assert.deepEqual(shown.session, { state: "failed", errorCode: "" }, "no message was sent, so the delivery failed rather than being unconfirmed");
   assert.equal(shown.composer, "cooldown");
   assert.equal(requestCount(network, messagesPath, "POST"), 0, "no message is sent without a session");
+
+  t.mock.timers.tick(sendCooldownMs);
+  network.answer = healthyAnswer;
+  await relay.send(() => "again");
+  assert.deepEqual(shown.session, { state: "queued", errorCode: "" }, "the next send asks the relay for a session again");
 });
 
 test("an HTTP error on send keeps the failed state and leaves sending open", async (t) => {
@@ -656,4 +662,112 @@ test("the lab page delegates its relay and rendering rules to the tested helpers
   const source = await readFile(new URL("../src/components/SignalRelayLab.astro", import.meta.url), "utf8");
   assert.match(source, /import \{ createRelayLive \} from "\.\.\/lib\/relay-live\.mjs";/);
   assert.match(source, /from "\.\.\/lib\/relay-view\.mjs";/);
+});
+
+test("a session poll with no answer within the read timeout is abandoned as transient, and polling continues", async (t) => {
+  const { network, shown, relay } = setup(t);
+  await settle();
+  await relay.send(() => "hello");
+  let stall = true;
+  network.answer = (request) => {
+    if (!isSessionPoll(request)) return healthyAnswer(request);
+    return stall ? new Promise(() => {}) : json({ sessionId: "s1", state: "delivered", nodeAlias: "node-a" });
+  };
+
+  await advance(t, pollIntervalMs);
+  const stalled = network.requests.find(isSessionPoll);
+  await advance(t, readTimeoutMs);
+  assert.equal(stalled.signal.aborted, true, "the stalled poll is abandoned at the read timeout");
+  assert.deepEqual(shown.session, { state: "queued", errorCode: "" }, "a timed-out poll is transient: it keeps the last shown state and is not a failure");
+
+  stall = false;
+  await advance(t, pollIntervalMs * 3);
+  assert.deepEqual(shown.session, { state: "delivered", errorCode: "" }, "polling continues after the timeout");
+});
+
+test("stalled session polls never stack: at most two are pending at once", async (t) => {
+  const { network, relay } = setup(t);
+  await settle();
+  await relay.send(() => "hello");
+  network.answer = (request) => (isSessionPoll(request) ? new Promise(() => {}) : healthyAnswer(request));
+
+  for (let elapsed = 0; elapsed < readTimeoutMs * 3; elapsed += 500) {
+    t.mock.timers.tick(500);
+    await settle();
+    const pending = network.requests.filter((request) => isSessionPoll(request) && !request.signal.aborted).length;
+    assert.ok(pending <= 2, `at most two session polls are pending, got ${pending} after ${elapsed + 500} ms`);
+  }
+  assert.ok(network.requests.filter(isSessionPoll).length > 2, "polling still runs while the relay stalls");
+});
+
+test("a status read with no answer within the read timeout marks the relay offline", async (t) => {
+  const { shown } = setup(t, {
+    answer: (request) => (request.url === `${relayUrl}/healthz` ? new Promise(() => {}) : healthyAnswer(request)),
+  });
+  await settle();
+  await advance(t, readTimeoutMs - 500);
+  assert.equal(shown.available, undefined, "the status check is still waiting before the timeout");
+
+  await advance(t, 1000);
+  assert.equal(shown.available, false, "a status check that never answers counts as offline once the timeout passes");
+});
+
+test("a message POST is never aborted by the read timeout", async (t) => {
+  const { network, shown, relay } = setup(t);
+  await settle();
+  const answer = deferred();
+  network.answer = (request) => (isMessagePost(request) ? answer.promise : healthyAnswer(request));
+
+  const sending = relay.send(() => "hello");
+  await settle();
+  await advance(t, readTimeoutMs * 2);
+  const post = network.requests.find(isMessagePost);
+  assert.notEqual(post.signal?.aborted, true, "the message is not aborted, however long the relay takes to answer");
+  assert.deepEqual(shown.session, { state: "identity_ready", errorCode: "" }, "the read timeout writes no state for a message");
+
+  answer.resolve(json({ sessionId: "s1", state: "queued", nodeAlias: "node-a" }));
+  await sending;
+  assert.deepEqual(shown.session, { state: "queued", errorCode: "" });
+});
+
+test("a message to a session the relay no longer knows fails, and the next send creates a fresh session", async (t) => {
+  const { network, shown, relay } = setup(t);
+  await settle();
+  let created = 0;
+  network.answer = (request) => {
+    if (isSessionPost(request)) {
+      created += 1;
+      return json({ sessionId: `s${created}`, state: "identity_ready", nodeAlias: "node-a" }, 201);
+    }
+    if (isMessagePost(request)) return json({ detail: "session_not_found" }, 404);
+    if (request.method === "POST" && request.url === `${relayUrl}/v1/lab/sessions/s2/messages`) {
+      return json({ sessionId: "s2", state: "queued", nodeAlias: "node-a" });
+    }
+    return healthyAnswer(request);
+  };
+
+  await relay.send(() => "hello");
+  assert.deepEqual(shown.session, { state: "failed", errorCode: "session_not_found" }, "the expired session is reported as a failure");
+  assert.equal(shown.composer, "open", "an expired session does not lock sending");
+
+  await relay.send(() => "again");
+  assert.equal(created, 2, "the next send creates a fresh session instead of reusing the expired one");
+  assert.equal(requestCount(network, "/v1/lab/sessions/s2/messages", "POST"), 1, "the message goes to the fresh session");
+  assert.deepEqual(shown.session, { state: "queued", errorCode: "" });
+});
+
+test("a session poll answered 404 is a failure that says the session is gone, and polling stops", async (t) => {
+  const { network, shown, relay } = setup(t);
+  await settle();
+  await relay.send(() => "hello");
+  network.answer = (request) => (isSessionPoll(request) ? json({ detail: "session_not_found" }, 404) : healthyAnswer(request));
+
+  t.mock.timers.tick(pollIntervalMs);
+  await settle();
+  assert.deepEqual(shown.session, { state: "failed", errorCode: "session_not_found" });
+
+  const polls = requestCount(network, sessionPath);
+  t.mock.timers.tick(pollIntervalMs * 5);
+  await settle();
+  assert.equal(requestCount(network, sessionPath), polls, "polling stops once the relay has forgotten the session");
 });

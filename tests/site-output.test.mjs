@@ -31,6 +31,11 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /data-route-unconfirmed-label="Confirmación desconocida"/);
   assert.match(english, /data-unconfirmed-label="Delivery unconfirmed: the relay may already have accepted this message\. Check the received messages before sending it again\."/);
   assert.match(english, /data-route-unconfirmed-label="Confirmation unknown"/);
+  // A session that cannot be requested sends no message, so it renders the plain failure copy, never the unconfirmed copy.
+  assert.match(spanish, /data-failed-label="No se pudo entregar"/);
+  assert.match(english, /data-failed-label="Delivery failed"/);
+  assert.match(spanish, /data-route-unknown-failed-label="La entrega terminó con un error"/);
+  assert.match(english, /data-route-unknown-failed-label="Delivery ended with an error"/);
   assert.match(spanish, /data-inbox-empty-label="Todavía no hay mensajes registrados\."/);
   assert.match(english, /data-inbox-empty-label="No messages have been recorded yet\."/);
   assert.match(spanish, /<h3 id="signal-relay-title"><a href="https:\/\/reticulum\.network"/);
