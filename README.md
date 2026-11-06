@@ -32,6 +32,12 @@ GitHub does not render HTML inside a README, so the diagrams below are SVG expor
 
 ![System topology: browser, GitHub Pages, Cloudflare, cloudflared, nginx, Signal Relay and upstream services](docs/architecture/system-topology.svg)
 
+Repositories and packages behind the diagram:
+
+- [`destaben/destaben.github.io`](https://github.com/destaben/destaben.github.io): this repository, with the static site (GitHub Pages) and the Signal Relay source in `services/signal-relay/`.
+- [`destaben/lab-inverse-proxy`](https://github.com/destaben/lab-inverse-proxy): the Nginx and Cloudflare Tunnel edge that exposes `lab.destaben.dev`.
+- [`ghcr.io/destaben/signal-relay`](https://github.com/destaben/destaben.github.io/pkgs/container/signal-relay): the relay container image, published by `.github/workflows/publish-signal-relay.yml`.
+
 ### Build pipeline
 
 ![Build pipeline from content sources to GitHub Pages](docs/architecture/build-pipeline.svg)
