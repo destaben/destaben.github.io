@@ -5,9 +5,16 @@
 const maxInboxMessages = 5;
 const sessionLabelKeys = { queued: "queuedLabel", delivered: "deliveredLabel", failed: "failedLabel", unconfirmed: "unconfirmedLabel" };
 
-export function renderInbox(doc, list, data) {
-  const messages = Array.isArray(data?.messages) ? data.messages : [];
-  if (!list || !messages.length) return;
+// A relay answer with an empty message list clears earlier messages; a payload without a message list leaves the list as it was.
+export function renderInbox(doc, list, data, labels = {}) {
+  if (!list || !Array.isArray(data?.messages)) return;
+  const messages = data.messages;
+  if (!messages.length) {
+    const empty = doc.createElement("li");
+    empty.textContent = labels.inboxEmptyLabel || "No messages have been recorded yet.";
+    list.replaceChildren(empty);
+    return;
+  }
   list.replaceChildren(...messages.slice(0, maxInboxMessages).map((message) => {
     const item = doc.createElement("li");
     const body = doc.createElement("span");

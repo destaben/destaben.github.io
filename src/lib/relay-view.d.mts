@@ -21,6 +21,7 @@ export declare function renderInbox(
   doc: Pick<Document, "createElement">,
   list: Pick<HTMLElement, "replaceChildren"> | null | undefined,
   data: RelayInboxPayload | null | undefined,
+  labels?: RelayLabels,
 ): void;
 
 export declare function renderNodes(

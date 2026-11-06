@@ -101,7 +101,7 @@ a{color:var(--accent)}
   <div class="card"><h3><code>src/components/PortfolioPage.astro</code></h3><p>Orchestrates the six sections: work, laboratory, GitHub, notes, experience and contact. Loads repositories and posts while rendering and mounts the laboratory cards. Adds a permalink button per section.</p><span class="tag a">page</span></div>
   <div class="card"><h3><code>src/data/portfolio.ts</code></h3><p>All structured text in <code>es</code> and <code>en</code> (edited together), laboratory types (<code>relay</code>, <code>metrics</code>, <code>home-status</code>, <code>meshtastic</code>, <code>meshtastic-status</code>, <code>printer</code>) y <code>profile</code>.</p><span class="tag b">data</span></div>
   <div class="card"><h3><code>src/config/site.ts</code></h3><p>Site identity, canonical URL <code>https://info.destaben.dev</code> and per-language alternates.</p><span class="tag b">config</span></div>
-  <div class="card"><h3><code>src/lib/</code></h3><p>Framework-free code that the tests import directly: <code>github.ts</code> (paginated repository client with optional <code>GITHUB_TOKEN</code>) and <code>printer-lab.mjs</code> (+ <code>.d.mts</code>): states, model decoding, 3D projection, polling with backoff.</p><span class="tag c">pure</span></div>
+  <div class="card"><h3><code>src/lib/</code></h3><p>Framework-free code that the tests import directly: <code>github.ts</code> (paginated repository client with optional <code>GITHUB_TOKEN</code>), <code>printer-lab.mjs</code> (+ <code>.d.mts</code>): states, model decoding, 3D projection, polling with backoff, and the Signal Relay panel's <code>relay-live.mjs</code> (+ <code>.d.mts</code>): status and inbox reads, session polling, send outcomes and cooldown, and <code>relay-view.mjs</code> (+ <code>.d.mts</code>): inbox, node, route and composer rendering.</p><span class="tag c">pure</span></div>
   <div class="card"><h3><code>src/styles/global.css</code></h3><p>Single visual system, light/dark, reduced motion and no-JavaScript states.</p><span class="tag a">styles</span></div>
   <div class="card"><h3><code>public/</code></h3><p>Served unchanged: <code>CNAME</code>, <code>robots.txt</code> and <code>*.html</code> pages that redirect old links to anchors (<code>/about.html → /#about</code>).</p><span class="tag d">static</span></div>
 </div>
@@ -127,7 +127,7 @@ a{color:var(--accent)}
 <div class="table-scroll"><table>
 <thead><tr><th>Component</th><th>Relay endpoints</th><th>Notes</th></tr></thead>
 <tbody>
-<tr><td><code>SignalRelayLab.astro</code></td><td><code>/healthz</code>, <code>/v1/contact</code>, <code>/v1/inbox</code>, <code>/v1/lab/capabilities</code>, <code>/v1/lab/reticulum-nodes</code>, <code>/v1/lab/sessions</code> (POST/GET), <code>/v1/lab/sessions/{id}/messages</code></td><td>Educational walkthrough with a temporary identity; the browser copies the public LXMF address</td></tr>
+<tr><td><code>SignalRelayLab.astro</code></td><td><code>/healthz</code>, <code>/v1/contact</code>, <code>/v1/inbox</code>, <code>/v1/lab/capabilities</code>, <code>/v1/lab/reticulum-nodes</code>, <code>/v1/lab/sessions</code> (POST/GET), <code>/v1/lab/sessions/{id}/messages</code></td><td>Educational walkthrough with a temporary identity; the browser copies the public LXMF address. Polling and rendering rules live in <code>relay-live.mjs</code> and <code>relay-view.mjs</code></td></tr>
 <tr><td><code>ContainerMetricsLab.astro</code></td><td><code>/v1/lab/metrics</code></td><td>CPU/memory selector and time range</td></tr>
 <tr><td><code>HomeAssistantLab.astro</code></td><td><code>/v1/lab/home-status</code></td><td>Temperature, humidity and air quality (good/regular/bad)</td></tr>
 <tr><td><code>MeshtasticLab.astro</code></td><td><code>/v1/lab/meshtastic</code>, POST <code>/v1/lab/meshtastic/messages</code></td><td>Cloudflare Turnstile widget loaded only when <code>PUBLIC_TURNSTILE_SITE_KEY</code> exists</td></tr>
@@ -178,7 +178,7 @@ a{color:var(--accent)}
 
 <h2 id="qa">6. Tests and CI/CD</h2>
 <div class="grid">
-  <div class="card"><h3>Node <small>tests/*.test.mjs</small></h3><p><code>site-output</code> inspects the generated HTML, <code>printer-lab</code> tests the pure rules, <code>relay-deployment</code> checks the Compose manifest. They run with <code>npm test</code> after the build.</p></div>
+  <div class="card"><h3>Node <small>tests/*.test.mjs</small></h3><p><code>site-output</code> inspects the generated HTML, <code>printer-lab</code>, <code>signal-relay-lab</code> and <code>relay-view</code> test the pure rules, <code>relay-deployment</code> checks the Compose manifest. They run with <code>npm test</code> after the build.</p></div>
   <div class="card"><h3>Python <small>services/signal-relay/tests</small></h3><p>pytest for the app, Home Assistant/Meshtastic, printer, G-code parser and Telegram.</p></div>
   <div class="card"><h3><code>npm run verify</code></h3><p><code>astro check</code> + build + Node tests. This is the command CI and deployment use.</p></div>
 </div>

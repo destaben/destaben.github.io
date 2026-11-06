@@ -62,15 +62,29 @@ test("shows at most the five most recent inbox messages, in the order the relay 
   assert.deepEqual(list.children.map((item) => item.children[0].textContent), ["message 1", "message 2", "message 3", "message 4", "message 5"]);
 });
 
-test("keeps the server-rendered empty line when the inbox has no messages or no usable list", () => {
+const inboxLabels = { inboxEmptyLabel: "No messages have been recorded yet." };
+
+test("an empty inbox clears earlier messages and shows the empty line", () => {
+  const doc = createDocument();
+  const list = doc.createElement("ul");
+  renderInbox(doc, list, { messages: [messageAt("stale")] });
+
+  renderInbox(doc, list, { messages: [] }, inboxLabels);
+
+  assert.equal(list.children.length, 1, "only the empty line remains");
+  assert.equal(list.children[0].textContent, "No messages have been recorded yet.");
+  assert.deepEqual(list.children[0].children, [], "the stale message is gone");
+});
+
+test("a payload without a usable message list leaves the list as it was", () => {
   const doc = createDocument();
   const placeholder = doc.createElement("li");
   const list = doc.createElement("ul");
   list.replaceChildren(placeholder);
 
-  for (const data of [{ messages: [] }, {}, { messages: "not a list" }, undefined]) {
-    renderInbox(doc, list, data);
-    assert.deepEqual(list.children, [placeholder], `${JSON.stringify(data)} leaves the empty line in place`);
+  for (const data of [{}, { messages: "not a list" }, undefined]) {
+    renderInbox(doc, list, data, inboxLabels);
+    assert.deepEqual(list.children, [placeholder], `${JSON.stringify(data)} does not replace the list`);
   }
   assert.doesNotThrow(() => renderInbox(doc, null, { messages: [messageAt("x")] }), "a page without an inbox list is a no-op");
 });

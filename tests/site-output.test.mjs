@@ -27,10 +27,12 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /Reticulum/);
   assert.match(spanish, /El recorrido guiado permite entender cómo se prepara, cifra y confirma una prueba antes de enviarla\./);
   assert.match(spanish, /Explorar recorrido Reticulum/);
-  assert.match(spanish, /data-unconfirmed-label="Entrega sin confirmar: es posible que el relay ya haya aceptado esta solicitud\. Espera unos segundos antes de volver a enviarla\."/);
+  assert.match(spanish, /data-unconfirmed-label="Entrega sin confirmar: es posible que el relay ya haya aceptado este mensaje\. Revisa los mensajes recibidos antes de volver a enviarlo\."/);
   assert.match(spanish, /data-route-unconfirmed-label="Confirmación desconocida"/);
-  assert.match(english, /data-unconfirmed-label="Delivery unconfirmed: the relay may already have accepted this request\. Wait a few seconds before sending again\."/);
+  assert.match(english, /data-unconfirmed-label="Delivery unconfirmed: the relay may already have accepted this message\. Check the received messages before sending it again\."/);
   assert.match(english, /data-route-unconfirmed-label="Confirmation unknown"/);
+  assert.match(spanish, /data-inbox-empty-label="Todavía no hay mensajes registrados\."/);
+  assert.match(english, /data-inbox-empty-label="No messages have been recorded yet\."/);
   assert.match(spanish, /<h3 id="signal-relay-title"><a href="https:\/\/reticulum\.network"/);
   assert.match(spanish, /Origen temporal/);
   assert.match(spanish, /Aviso Telegram/);

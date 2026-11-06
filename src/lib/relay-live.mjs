@@ -17,6 +17,7 @@ export function createRelayLive({ relayUrl, fetch, view, documentTarget, windowT
   let sending = false;
   let cooling = false;
   let pollSequence = 0;
+  let appliedPollSequence = 0;
   let inboxTimer;
   let nodesTimer;
   let sessionTimer;
@@ -52,31 +53,32 @@ export function createRelayLive({ relayUrl, fetch, view, documentTarget, windowT
     }
   };
 
+  // Reads one JSON document. A non-2xx answer or an unreadable body rejects, and the caller decides how much that matters.
+  const readJson = async (path, signal) => {
+    const response = await fetch(`${relayUrl}${path}`, { signal });
+    if (!response.ok) throw new Error(`${path} answered ${response.status}`);
+    return response.json();
+  };
+
+  // Health, contact, and inbox decide availability. Capabilities and nodes are optional: when they fail, only their own panel falls back.
   const refreshStatus = async () => {
     if (!relayUrl) return;
     const { signal } = controller;
     try {
-      const [healthResponse, contactResponse, inboxResponse, capabilitiesResponse, nodesResponse] = await Promise.all([
-        fetch(`${relayUrl}/healthz`, { signal }),
-        fetch(`${relayUrl}/v1/contact`, { signal }),
-        fetch(`${relayUrl}/v1/inbox`, { signal }),
-        fetch(`${relayUrl}/v1/lab/capabilities`, { signal }),
-        fetch(`${relayUrl}/v1/lab/reticulum-nodes`, { signal }),
-      ]);
-      if (!(healthResponse.ok && contactResponse.ok && inboxResponse.ok)) throw new Error("relay unavailable");
-      const [health, contact, inboxData, capabilities, nodeData] = await Promise.all([
-        healthResponse.json(),
-        contactResponse.json(),
-        inboxResponse.json(),
-        capabilitiesResponse.ok ? capabilitiesResponse.json() : { telegramNotifications: false },
-        nodesResponse.ok ? nodesResponse.json() : {},
+      const [health, contact, inbox, capabilities, nodes] = await Promise.allSettled([
+        readJson("/healthz", signal),
+        readJson("/v1/contact", signal),
+        readJson("/v1/inbox", signal),
+        readJson("/v1/lab/capabilities", signal),
+        readJson("/v1/lab/reticulum-nodes", signal),
       ]);
       if (signal.aborted) return;
-      view.setAvailability(health.status === "ready");
-      if (contact.address) view.setAddress(contact.address);
-      view.setInbox(inboxData);
-      view.setNodes(nodeData);
-      view.setTelegram(Boolean(capabilities.telegramNotifications));
+      if (![health, contact, inbox].every((result) => result.status === "fulfilled")) throw new Error("relay unavailable");
+      view.setAvailability(health.value.status === "ready");
+      if (contact.value.address) view.setAddress(contact.value.address);
+      view.setInbox(inbox.value);
+      view.setNodes(nodes.status === "fulfilled" ? nodes.value : {});
+      view.setTelegram(capabilities.status === "fulfilled" && Boolean(capabilities.value?.telegramNotifications));
     } catch {
       if (!signal.aborted) view.setAvailability(false);
     }
@@ -89,9 +91,10 @@ export function createRelayLive({ relayUrl, fetch, view, documentTarget, windowT
     clearInterval(sessionTimer);
     sessionTimer = setInterval(async () => {
       const { signal } = controller;
-      // Each tick numbers its request. Only the newest request may write state, so an answer that arrives late cannot undo a newer one.
+      // Each tick numbers its request. An answer may write state only if no answer from a later tick has written state yet,
+      // so a slow answer still lands while an out-of-order answer that arrives after a newer one cannot undo it.
       const sequence = ++pollSequence;
-      const isLatest = () => !signal.aborted && sequence === pollSequence;
+      const mayApply = () => !signal.aborted && sequence > appliedPollSequence;
       try {
         const response = await fetch(`${relayUrl}/v1/lab/sessions/${sessionId}`, { signal });
         // A rate-limited poll is transient: it keeps the last shown state and the next tick polls again.
@@ -99,7 +102,8 @@ export function createRelayLive({ relayUrl, fetch, view, documentTarget, windowT
         if (!response.ok) throw new Error("session unavailable");
         const session = await response.json();
         // A poll that resolves after hiding or leaving the page must not write state or touch the timer of the next run.
-        if (!isLatest()) return;
+        if (!mayApply()) return;
+        appliedPollSequence = sequence;
         view.setSessionNode(session.nodeAlias);
         applySessionState(session.state, session.errorCode);
         if (session.state === "delivered") {
@@ -114,8 +118,9 @@ export function createRelayLive({ relayUrl, fetch, view, documentTarget, windowT
         }
       } catch {
         // A poll aborted by hiding or leaving the page is not a relay failure; start() resumes polling with the page.
-        // A superseded poll's error is ignored too, because a newer answer already decided the state.
-        if (!isLatest()) return;
+        // A superseded poll's error is ignored too, because an answer from a later tick already decided the state.
+        if (!mayApply()) return;
+        appliedPollSequence = sequence;
         clearInterval(sessionTimer);
         applySessionState("failed", "outbound_error");
       }
@@ -170,7 +175,8 @@ export function createRelayLive({ relayUrl, fetch, view, documentTarget, windowT
       if (!sessionId) {
         const outcome = await createSession();
         if (outcome === "unconfirmed") return markUnconfirmed();
-        if (outcome !== "ready") return;
+        // A refused session gets the same cooldown as a refused message, so repeated submits do not hit the edge rate limiter.
+        if (outcome === "unavailable") return startCooldown();
       }
       let response;
       try {

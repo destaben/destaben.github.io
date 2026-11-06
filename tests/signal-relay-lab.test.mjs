@@ -27,6 +27,9 @@ const deferred = () => {
 
 const json = (body, status = 200) => Response.json(body, { status });
 
+// Answers after `ms` of fake time, the way a slow relay does. The response is built when the timer fires.
+const delayed = (ms, respond) => new Promise((resolve) => setTimeout(() => resolve(respond()), ms));
+
 // Advances the fake clock in small steps and lets each step's promise work finish, as a responsive relay would.
 // A single large tick would fire every overlapping poll before any answer arrived.
 const advance = async (t, ms, step = 500) => {
@@ -261,6 +264,36 @@ test("reports the relay offline when its health check fails", async (t) => {
   assert.equal(shown.available, false);
 });
 
+test("a relay whose optional capabilities read fails stays online, and telegram stays off", async (t) => {
+  const { shown } = setup(t, {
+    answer: (request) => {
+      if (request.url === `${relayUrl}/v1/lab/capabilities`) throw new TypeError("fetch failed");
+      return healthyAnswer(request);
+    },
+  });
+  await settle();
+  assert.equal(shown.available, true, "an optional read that fails does not mark the relay offline");
+  assert.equal(shown.telegram, false);
+  assert.deepEqual(shown.inbox, { messages: [] }, "the required reads still render");
+});
+
+test("a relay whose optional node read returns an unreadable body stays online with no nodes", async (t) => {
+  const { shown } = setup(t, {
+    answer: (request) => (request.url === `${relayUrl}/v1/lab/reticulum-nodes` ? new Response("<html>gateway</html>", { status: 200 }) : healthyAnswer(request)),
+  });
+  await settle();
+  assert.equal(shown.available, true, "an unreadable optional body does not mark the relay offline");
+  assert.deepEqual(shown.nodes, {}, "the node line falls back to unavailable");
+});
+
+test("a failed required inbox read marks the relay offline", async (t) => {
+  const { shown } = setup(t, {
+    answer: (request) => (request.url === `${relayUrl}/v1/inbox` ? json({}, 502) : healthyAnswer(request)),
+  });
+  await settle();
+  assert.equal(shown.available, false);
+});
+
 test("an aborted session poll does not mark the session failed", async (t) => {
   const { network, page, shown, relay } = setup(t);
   await settle();
@@ -440,17 +473,28 @@ test("an HTTP error on send keeps the failed state and leaves sending open", asy
   assert.deepEqual(shown.session, { state: "failed", errorCode: "outbound_error" }, "an error body without a detail falls back to outbound_error");
 });
 
-test("a session the relay refuses shows the unavailable notice and leaves sending open", async (t) => {
+// A relay that refuses session creation with `status` shows the unavailable notice and starts the same cooldown as a refused message.
+const refusesSession = async (t, status) => {
   const { network, shown, relay } = setup(t);
   await settle();
-  network.answer = (request) => (isSessionPost(request) ? json({ detail: "disabled" }, 503) : healthyAnswer(request));
+  network.answer = (request) => (isSessionPost(request) ? json({ detail: "refused" }, status) : healthyAnswer(request));
 
   await relay.send(() => "hello");
   assert.equal(shown.notice, "unavailable");
   assert.equal(shown.session, undefined, "the route state is not touched");
-  assert.equal(shown.composer, "open");
+  assert.equal(shown.composer, "cooldown", "the refusal locks sending for the cooldown");
   assert.equal(requestCount(network, messagesPath, "POST"), 0);
-});
+
+  await relay.send(() => "again");
+  assert.equal(requestCount(network, "/v1/lab/sessions", "POST"), 1, "a submit during the cooldown does not ask the relay for a session again");
+
+  t.mock.timers.tick(sendCooldownMs);
+  assert.equal(shown.composer, "open", "sending reopens after the cooldown");
+};
+
+test("a session the relay refuses with 503 shows the unavailable notice and starts the cooldown", (t) => refusesSession(t, 503));
+
+test("a session the relay rate-limits with 429 starts the cooldown instead of being requested again at once", (t) => refusesSession(t, 429));
 
 test("a poll answer that arrives after a newer poll cannot move the session back to queued", async (t) => {
   const { network, shown, relay } = setup(t);
@@ -472,6 +516,30 @@ test("a poll answer that arrives after a newer poll cannot move the session back
   slowPoll.resolve(json({ sessionId: "s1", state: "queued", nodeAlias: "node-a" }));
   await settle();
   assert.deepEqual(shown.session, { state: "delivered", errorCode: "" }, "the older answer does not overwrite the newer delivered state");
+});
+
+test("a poll answer slower than the poll interval still lands when no newer answer has landed", async (t) => {
+  const { network, shown, relay } = setup(t);
+  await settle();
+  await relay.send(() => "hello");
+  network.answer = (request) =>
+    isSessionPoll(request)
+      ? delayed(pollIntervalMs * 2 + 500, () => json({ sessionId: "s1", state: "delivered", nodeAlias: "node-a" }))
+      : healthyAnswer(request);
+
+  await advance(t, pollIntervalMs * 4);
+  assert.deepEqual(shown.session, { state: "delivered", errorCode: "" }, "each poll answers after the next tick has started, and the delivery is still shown");
+});
+
+test("a slow session poll failure that is newer than every applied answer still marks the session failed", async (t) => {
+  const { network, shown, relay } = setup(t);
+  await settle();
+  await relay.send(() => "hello");
+  network.answer = (request) =>
+    isSessionPoll(request) ? delayed(pollIntervalMs * 2 + 500, () => json({}, 503)) : healthyAnswer(request);
+
+  await advance(t, pollIntervalMs * 4);
+  assert.deepEqual(shown.session, { state: "failed", errorCode: "outbound_error" });
 });
 
 test("a poll that fails after a newer answer does not mark the session failed", async (t) => {
