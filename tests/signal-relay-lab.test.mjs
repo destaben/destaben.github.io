@@ -9,7 +9,9 @@ import {
   pollIntervalMs,
   readTimeoutMs,
   sendCooldownMs,
+  sessionPollFailureLimit,
 } from "../src/lib/relay-live.mjs";
+import { renderInbox } from "../src/lib/relay-view.mjs";
 
 const relayUrl = "http://127.0.0.1:8787";
 const sessionPath = "/v1/lab/sessions/s1";
@@ -80,7 +82,8 @@ const isSessionPost = (request) => request.method === "POST" && request.url === 
 const isSessionPoll = (request) => request.method === "GET" && request.url === `${relayUrl}${sessionPath}`;
 
 // Records what the page would show. Each setter keeps the latest value, so tests assert on observable state.
-const createView = () => {
+// `overrides` replaces individual setters, for tests that make a render fail or run the page's real renderer.
+const createView = (overrides = {}) => {
   const shown = {
     available: undefined,
     address: undefined,
@@ -120,17 +123,18 @@ const createView = () => {
     setComposer: (mode) => {
       shown.composer = mode;
     },
+    ...overrides,
   };
   return { view, shown };
 };
 
 // Builds a relay lab on a stubbed page, with fake timers. A page starts visible unless the test says otherwise.
-const setup = (t, { visibilityState = "visible", answer = healthyAnswer } = {}) => {
+const setup = (t, { visibilityState = "visible", answer = healthyAnswer, view: viewOverrides } = {}) => {
   t.mock.timers.enable({ apis: ["setInterval", "setTimeout", "Date"] });
   const documentTarget = Object.assign(new EventTarget(), { visibilityState });
   const windowTarget = new EventTarget();
   const network = createNetwork(answer);
-  const { view, shown } = createView();
+  const { view, shown } = createView(viewOverrides);
   const relay = createRelayLive({ relayUrl, fetch: network.fetch, view, documentTarget, windowTarget });
   const page = {
     hide() {
@@ -465,14 +469,21 @@ test("a network error creating the session shows a failed state, never an unconf
   assert.deepEqual(shown.session, { state: "queued", errorCode: "" }, "the next send asks the relay for a session again");
 });
 
-test("an HTTP error on send keeps the failed state and leaves sending open", async (t) => {
+test("an HTTP error on send keeps the failed state and starts the cooldown before a retry", async (t) => {
   const { network, shown, relay } = setup(t);
   await settle();
   network.answer = (request) => (isMessagePost(request) ? json({ detail: "delivery_failed" }, 502) : healthyAnswer(request));
 
   await relay.send(() => "hello");
   assert.deepEqual(shown.session, { state: "failed", errorCode: "delivery_failed" });
-  assert.equal(shown.composer, "open", "an HTTP error does not start the cooldown");
+  assert.equal(shown.composer, "cooldown", "an edge error starts the cooldown, so a retry cannot hammer the edge");
+
+  const postsBefore = requestCount(network, messagesPath, "POST");
+  await relay.send(() => "again");
+  assert.equal(requestCount(network, messagesPath, "POST"), postsBefore, "a submit during the cooldown makes no request");
+
+  t.mock.timers.tick(sendCooldownMs);
+  assert.equal(shown.composer, "open", "sending reopens once the cooldown ends");
 
   network.answer = (request) => (isMessagePost(request) ? new Response("upstream down", { status: 500 }) : healthyAnswer(request));
   await relay.send(() => "again");
@@ -748,7 +759,10 @@ test("a message to a session the relay no longer knows fails, and the next send 
 
   await relay.send(() => "hello");
   assert.deepEqual(shown.session, { state: "failed", errorCode: "session_not_found" }, "the expired session is reported as a failure");
-  assert.equal(shown.composer, "open", "an expired session does not lock sending");
+  assert.equal(shown.composer, "cooldown", "an expired session starts the cooldown like any refused message");
+
+  t.mock.timers.tick(sendCooldownMs);
+  assert.equal(shown.composer, "open", "an expired session reopens sending once the cooldown ends");
 
   await relay.send(() => "again");
   assert.equal(created, 2, "the next send creates a fresh session instead of reusing the expired one");
@@ -770,4 +784,130 @@ test("a session poll answered 404 is a failure that says the session is gone, an
   t.mock.timers.tick(pollIntervalMs * 5);
   await settle();
   assert.equal(requestCount(network, sessionPath), polls, "polling stops once the relay has forgotten the session");
+});
+
+// Each session poll takes the next outcome from `outcomes`: "network" rejects like a dropped connection, "timeout" never answers,
+// "429" is a rate limit, and any other word is the session state the relay reports. Polls past the script report "queued".
+const scriptedPolls = (network, outcomes) => {
+  network.answer = (request) => {
+    if (!isSessionPoll(request)) return healthyAnswer(request);
+    const outcome = outcomes.shift() ?? "queued";
+    if (outcome === "network") throw new TypeError("fetch failed");
+    if (outcome === "timeout") return new Promise(() => {});
+    if (outcome === "429") return json({ detail: "rate limited" }, 429);
+    return json({ sessionId: "s1", state: outcome, nodeAlias: "node-a" });
+  };
+};
+
+const networkErrors = (count) => Array.from({ length: count }, () => "network");
+
+test("a single network error on a session poll keeps the last shown state, and the next poll applies its answer", async (t) => {
+  const { network, shown, relay } = setup(t);
+  await settle();
+  await relay.send(() => "hello");
+  scriptedPolls(network, ["network", "delivered"]);
+
+  t.mock.timers.tick(pollIntervalMs);
+  await settle();
+  assert.deepEqual(shown.session, { state: "queued", errorCode: "" }, "one dropped poll does not fail the session");
+
+  t.mock.timers.tick(pollIntervalMs);
+  await settle();
+  assert.deepEqual(shown.session, { state: "delivered", errorCode: "" }, "polling continues after the dropped poll");
+});
+
+test("a run of failed session polls gives up at the limit: the session is failed, polling stops, and the composer stays as the relay left it", async (t) => {
+  const { network, shown, relay } = setup(t);
+  await settle();
+  await relay.send(() => "hello");
+  scriptedPolls(network, networkErrors(sessionPollFailureLimit));
+
+  for (let tick = 1; tick < sessionPollFailureLimit; tick += 1) {
+    t.mock.timers.tick(pollIntervalMs);
+    await settle();
+  }
+  assert.deepEqual(shown.session, { state: "queued", errorCode: "" }, "one tick short of the limit the session is still shown as queued");
+
+  t.mock.timers.tick(pollIntervalMs);
+  await settle();
+  assert.deepEqual(shown.session, { state: "failed", errorCode: "outbound_error" }, "the limit of consecutive failed polls marks the session failed");
+  assert.equal(shown.composer, "sent", "the relay accepted the message, so the composer stays locked and a retry cannot duplicate it");
+
+  const polls = requestCount(network, sessionPath);
+  t.mock.timers.tick(pollIntervalMs * 5);
+  await settle();
+  assert.equal(requestCount(network, sessionPath), polls, "polling stops after the give-up");
+});
+
+// Runs `ticks` poll ticks, letting each tick's promise work finish before the next.
+const tickPolls = async (t, ticks) => {
+  for (let tick = 0; tick < ticks; tick += 1) {
+    t.mock.timers.tick(pollIntervalMs);
+    await settle();
+  }
+};
+
+test("an answer from the relay resets the run of failed session polls", async (t) => {
+  const { network, shown, relay } = setup(t);
+  await settle();
+  await relay.send(() => "hello");
+  scriptedPolls(network, [...networkErrors(sessionPollFailureLimit - 1), "queued", ...networkErrors(sessionPollFailureLimit)]);
+
+  await tickPolls(t, 2 * sessionPollFailureLimit - 1);
+  assert.deepEqual(shown.session, { state: "queued", errorCode: "" }, "a run of fewer than the limit before and after an answer does not fail the session");
+
+  await tickPolls(t, 1);
+  assert.deepEqual(shown.session, { state: "failed", errorCode: "outbound_error" }, "a full run of the limit after the answer does fail the session");
+});
+
+test("a rate-limited session poll is an answer, so it resets the run of failed polls", async (t) => {
+  const { network, shown, relay } = setup(t);
+  await settle();
+  await relay.send(() => "hello");
+  scriptedPolls(network, [...networkErrors(sessionPollFailureLimit - 1), "429", ...networkErrors(sessionPollFailureLimit)]);
+
+  await tickPolls(t, 2 * sessionPollFailureLimit - 1);
+  assert.deepEqual(shown.session, { state: "queued", errorCode: "" }, "the rate limit proves the relay is reachable, so the run starts again");
+
+  await tickPolls(t, 1);
+  assert.deepEqual(shown.session, { state: "failed", errorCode: "outbound_error" }, "a full run after the rate limit does fail the session");
+});
+
+test("a session poll that never answers is transient once, then gives up after a run of timeouts", async (t) => {
+  const { network, shown, relay } = setup(t);
+  await settle();
+  await relay.send(() => "hello");
+  network.answer = (request) => (isSessionPoll(request) ? new Promise(() => {}) : healthyAnswer(request));
+
+  await advance(t, pollIntervalMs + readTimeoutMs);
+  assert.deepEqual(shown.session, { state: "queued", errorCode: "" }, "a single timed-out poll keeps the last shown state");
+
+  await advance(t, readTimeoutMs * sessionPollFailureLimit);
+  assert.deepEqual(shown.session, { state: "failed", errorCode: "outbound_error" }, "a relay that stays silent for a run of polls is given up on");
+});
+
+test("a malformed inbox entry in a ready relay's answer renders without marking the relay offline", async (t) => {
+  const doc = { createElement: (tagName) => ({ tagName, children: [], textContent: "", dataset: {}, replaceChildren(...nodes) { this.children = nodes; } }) };
+  const list = doc.createElement("ul");
+  const { shown } = setup(t, {
+    answer: (request) => (request.url === `${relayUrl}/v1/inbox` ? json({ messages: [null] }) : healthyAnswer(request)),
+    view: { setInbox: (data) => renderInbox(doc, list, data, { inboxEmptyLabel: "No messages." }) },
+  });
+  await settle();
+  assert.equal(shown.available, true, "health is ready, so a payload the page cannot draw must not mark the relay offline");
+  assert.equal(list.children[0].textContent, "No messages.", "the inbox shows its empty line");
+});
+
+test("a render failure does not mark a ready relay offline, and the other panels still render", async (t) => {
+  const { shown } = setup(t, {
+    view: {
+      setInbox: () => {
+        throw new TypeError("render failed");
+      },
+    },
+  });
+  await settle();
+  assert.equal(shown.available, true, "a render failure is not a failed read, so the relay stays online");
+  assert.equal(shown.address, "abc123", "the address still renders after the inbox render failed");
+  assert.deepEqual(shown.nodes, { status: "unavailable", nodes: [] }, "the node list still renders after the inbox render failed");
 });

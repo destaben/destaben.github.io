@@ -8,6 +8,7 @@ export const nodesIntervalMs = 20_000;
 export const failedGiveUpMs = 15_000;
 export const sendCooldownMs = 10_000;
 export const readTimeoutMs = 10_000;
+export const sessionPollFailureLimit = 5;
 // Session polls are ticked every pollIntervalMs. Two may be pending at once, so one honest slow answer does not block the next poll,
 // while a relay that never answers cannot stack more than two requests.
 const maxPendingSessionPolls = 2;
@@ -85,34 +86,46 @@ export function createRelayLive({ relayUrl, fetch, view, documentTarget, windowT
     }
   };
 
+  // Runs one render step. A payload the page cannot draw leaves that panel as it was, and never changes the relay's availability.
+  const renderSafely = (draw) => {
+    try {
+      draw();
+    } catch {
+      // Intentionally silent: availability comes from the reads, not from rendering.
+    }
+  };
+
   // Health, contact, and inbox decide availability. Capabilities and nodes are optional: when they fail, only their own panel falls back.
   const refreshStatus = async () => {
     if (!relayUrl) return;
     const { signal } = controller;
-    try {
-      const [health, contact, inbox, capabilities, nodes] = await Promise.allSettled([
-        readJson("/healthz", signal),
-        readJson("/v1/contact", signal),
-        readJson("/v1/inbox", signal),
-        readJson("/v1/lab/capabilities", signal),
-        readJson("/v1/lab/reticulum-nodes", signal),
-      ]);
-      if (signal.aborted) return;
-      if (![health, contact, inbox].every((result) => result.status === "fulfilled")) throw new Error("relay unavailable");
-      view.setAvailability(health.value.status === "ready");
-      if (contact.value.address) view.setAddress(contact.value.address);
-      view.setInbox(inbox.value);
-      view.setNodes(nodes.status === "fulfilled" ? nodes.value : {});
-      view.setTelegram(capabilities.status === "fulfilled" && Boolean(capabilities.value?.telegramNotifications));
-    } catch {
-      if (!signal.aborted) view.setAvailability(false);
+    const [health, contact, inbox, capabilities, nodes] = await Promise.allSettled([
+      readJson("/healthz", signal),
+      readJson("/v1/contact", signal),
+      readJson("/v1/inbox", signal),
+      readJson("/v1/lab/capabilities", signal),
+      readJson("/v1/lab/reticulum-nodes", signal),
+    ]);
+    if (signal.aborted) return;
+    if (![health, contact, inbox].every((result) => result.status === "fulfilled")) {
+      view.setAvailability(false);
+      return;
     }
+    view.setAvailability(health.value?.status === "ready");
+    renderSafely(() => {
+      if (contact.value?.address) view.setAddress(contact.value.address);
+    });
+    renderSafely(() => view.setInbox(inbox.value));
+    renderSafely(() => view.setNodes(nodes.status === "fulfilled" ? nodes.value : {}));
+    renderSafely(() => view.setTelegram(capabilities.status === "fulfilled" && Boolean(capabilities.value?.telegramNotifications)));
   };
 
   // Polling runs only while the page is live, so a send that resolves while hidden waits for the next start.
   const pollSession = () => {
     if (!relayUrl || !sessionId || !live) return;
     let failedAt;
+    // Consecutive polls that got no answer (a dropped connection or a read timeout). Any HTTP answer resets it.
+    let unansweredPolls = 0;
     clearInterval(sessionTimer);
     sessionTimer = setInterval(async () => {
       // A tick that finds the pending cap reached skips its poll, so a relay that never answers cannot stack requests.
@@ -132,6 +145,7 @@ export function createRelayLive({ relayUrl, fetch, view, documentTarget, windowT
         // A poll that resolves after hiding or leaving the page must not write state or touch the timer of the next run.
         if (!mayApply()) return;
         appliedPollSequence = sequence;
+        unansweredPolls = 0;
         view.setSessionNode(session.nodeAlias);
         applySessionState(session.state, session.errorCode);
         if (session.state === "delivered") {
@@ -148,8 +162,17 @@ export function createRelayLive({ relayUrl, fetch, view, documentTarget, windowT
         // A poll aborted by hiding or leaving the page is not a relay failure; start() resumes polling with the page.
         // A superseded poll's error is ignored too, because an answer from a later tick already decided the state.
         if (!mayApply()) return;
-        // A rate-limited or timed-out poll is transient: it keeps the last shown state and the next tick polls again.
-        if (error.status === 429 || error.name === "TimeoutError") return;
+        // A rate-limited poll was answered, so the relay is reachable: it keeps the last shown state and restarts the run.
+        if (error.status === 429) {
+          unansweredPolls = 0;
+          return;
+        }
+        // A timed-out poll or a dropped connection got no answer. One such poll keeps the last shown state and the next tick polls again;
+        // only a run of sessionPollFailureLimit of them in a row gives up, so a silent relay cannot leave the session pending forever.
+        if (error.name === "TimeoutError" || error.name === "TypeError") {
+          unansweredPolls += 1;
+          if (unansweredPolls < sessionPollFailureLimit) return;
+        }
         appliedPollSequence = sequence;
         clearInterval(sessionTimer);
         // A 404 means the relay no longer knows the session: it expired, or the relay restarted.
@@ -238,7 +261,8 @@ export function createRelayLive({ relayUrl, fetch, view, documentTarget, windowT
         // anything. The session is dropped, so the next send creates a fresh one instead of retrying the dead session.
         if (error.detail === "session_not_found") sessionId = undefined;
         applySessionState("failed", error.detail || "outbound_error");
-        return;
+        // Any other refused message gets the same cooldown as a 429, so an edge error cannot be retried at once.
+        return startCooldown();
       }
       let session;
       try {

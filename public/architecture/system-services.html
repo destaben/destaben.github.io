@@ -152,7 +152,7 @@ a{color:var(--accent)}
 <div class="table-scroll"><table>
 <thead><tr><th>Laboratory (id)</th><th>Browser component</th><th>Chain</th><th>Refresh</th></tr></thead>
 <tbody>
-<tr><td><b>Reticulum</b> (<code>signal-relay</code>)</td><td><code>SignalRelayLab.astro</code></td><td>Browser → relay → Reticulum/LXMF network; optional Telegram notice</td><td>Inbox every 10 s, TCP nodes every 20 s, health and contact on load</td></tr>
+<tr><td><b>Reticulum</b> (<code>signal-relay</code>)</td><td><code>SignalRelayLab.astro</code></td><td>Browser → relay → Reticulum/LXMF network; optional Telegram notice</td><td>Inbox every 10 s, TCP nodes every 20 s, health and contact on load; while a session is queued, polled every 2 s with a 10 s read timeout, giving up after 5 unanswered polls in a row; 10 s send cooldown after any refused, failed, or unconfirmed send; reads and polls pause when the page is hidden and resume when it is shown again or restored from the back/forward cache</td></tr>
 <tr><td><b>Service observability</b> (<code>container-metrics</code>)</td><td><code>ContainerMetricsLab.astro</code></td><td>Browser → relay → Prometheus (cAdvisor)</td><td>On load and when the range or metric changes</td></tr>
 <tr><td><b>Home monitoring</b> (<code>home-status</code>)</td><td><code>HomeAssistantLab.astro</code></td><td>Browser → relay → Home Assistant (3 sensors)</td><td>On load; the relay caches ≥ 15 min</td></tr>
 <tr><td><b>Meshtastic</b> (<code>meshtastic</code>)</td><td><code>MeshtasticLab.astro</code></td><td>Browser → relay → Home Assistant → Meshtastic gateway node → LoRa mesh (public MediumFast channel). Sending: Turnstile → relay → HA event → automation → radio</td><td>On load; the relay caches 30 s (default)</td></tr>

@@ -89,6 +89,24 @@ test("a payload without a usable message list leaves the list as it was", () => 
   assert.doesNotThrow(() => renderInbox(doc, null, { messages: [messageAt("x")] }), "a page without an inbox list is a no-op");
 });
 
+test("skips inbox entries that are not objects and still renders the valid ones", () => {
+  const doc = createDocument();
+  const list = doc.createElement("ul");
+
+  assert.doesNotThrow(() => renderInbox(doc, list, { messages: [null, 42, "text", messageAt("kept")] }));
+  assert.deepEqual(list.children.map((item) => item.children[0].textContent), ["kept"]);
+});
+
+test("an inbox whose entries are all unusable shows the empty line instead of failing", () => {
+  const doc = createDocument();
+  const list = doc.createElement("ul");
+  list.replaceChildren(doc.createElement("li"));
+
+  assert.doesNotThrow(() => renderInbox(doc, list, { messages: [null, null] }, inboxLabels));
+  assert.equal(list.children.length, 1, "only the empty line remains");
+  assert.equal(list.children[0].textContent, "No messages have been recorded yet.");
+});
+
 const nodeLabels = {
   nodeUpLabel: "Online",
   nodeDownLabel: "Offline",
