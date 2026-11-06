@@ -12,7 +12,7 @@ const { lab, locale } = Astro.props;
 const nodeCopy = relayNodeCopy[locale];
 ---
 
-<article id={lab.id} class="lab-card relay-panel" data-lab-state={lab.status} aria-labelledby={`${lab.id}-title`} data-relay-panel data-relay-local-url="http://127.0.0.1:8787" data-relay-production-url="https://lab.destaben.dev" data-copied-label={lab.copiedLabel} data-online-label={lab.onlineLabel} data-offline-label={lab.offlineLabel} data-node-up-label={nodeCopy.up} data-node-down-label={nodeCopy.down} data-node-unavailable-label={nodeCopy.unavailable} data-node-pending-label={nodeCopy.sessionPending} data-preparing-label={lab.wizard.preparingLabel} data-unavailable-label={lab.wizard.unavailableLabel} data-queued-label={lab.wizard.queuedLabel} data-delivered-label={lab.wizard.deliveredLabel} data-failed-label={lab.wizard.failedLabel} data-route-waiting-label={lab.wizard.routeWaitingLabel} data-route-source-ready-label={lab.wizard.routeSourceReadyLabel} data-route-encrypted-label={lab.wizard.routeEncryptedLabel} data-route-routing-label={lab.wizard.routeRoutingLabel} data-route-received-label={lab.wizard.routeReceivedLabel} data-route-confirmed-label={lab.wizard.routeConfirmedLabel} data-route-delivery-failed-label={lab.wizard.routeDeliveryFailedLabel} data-route-outbound-failed-label={lab.wizard.routeOutboundFailedLabel} data-route-unknown-failed-label={lab.wizard.routeUnknownFailedLabel} data-telegram-configured-label={lab.wizard.telegramConfiguredLabel}>
+<article id={lab.id} class="lab-card relay-panel" data-lab-state={lab.status} aria-labelledby={`${lab.id}-title`} data-relay-panel data-relay-local-url="http://127.0.0.1:8787" data-relay-production-url="https://lab.destaben.dev" data-copied-label={lab.copiedLabel} data-online-label={lab.onlineLabel} data-offline-label={lab.offlineLabel} data-node-up-label={nodeCopy.up} data-node-down-label={nodeCopy.down} data-node-unavailable-label={nodeCopy.unavailable} data-node-pending-label={nodeCopy.sessionPending} data-preparing-label={lab.wizard.preparingLabel} data-unavailable-label={lab.wizard.unavailableLabel} data-queued-label={lab.wizard.queuedLabel} data-delivered-label={lab.wizard.deliveredLabel} data-failed-label={lab.wizard.failedLabel} data-unconfirmed-label={lab.wizard.unconfirmedLabel} data-route-waiting-label={lab.wizard.routeWaitingLabel} data-route-source-ready-label={lab.wizard.routeSourceReadyLabel} data-route-encrypted-label={lab.wizard.routeEncryptedLabel} data-route-routing-label={lab.wizard.routeRoutingLabel} data-route-received-label={lab.wizard.routeReceivedLabel} data-route-confirmed-label={lab.wizard.routeConfirmedLabel} data-route-delivery-failed-label={lab.wizard.routeDeliveryFailedLabel} data-route-outbound-failed-label={lab.wizard.routeOutboundFailedLabel} data-route-unknown-failed-label={lab.wizard.routeUnknownFailedLabel} data-route-unconfirmed-label={lab.wizard.routeUnconfirmedLabel} data-telegram-configured-label={lab.wizard.telegramConfiguredLabel}>
   <div class="lab-card-header">
     <p class="lab-status">{lab.statusLabel}</p>
     <span class="relay-availability" data-relay-availability data-state="checking" role="status"><span data-relay-status-dot></span><span data-relay-status-text>{lab.checkingLabel}</span></span>
@@ -44,9 +44,11 @@ const nodeCopy = relayNodeCopy[locale];
 </dialog>
 
 <script>
+  import { createRelayLive } from "../lib/relay-live.mjs";
+  import { composerControls, renderAddress, renderInbox, renderNodes, routeSteps, sessionStatusText } from "../lib/relay-view.mjs";
+
   const relayPanel = document.querySelector<HTMLElement>("[data-relay-panel]");
   if (relayPanel) {
-    type InboxMessage = { content?: string; receivedAt: string };
     const localHosts = new Set(["127.0.0.1", "localhost"]);
     const relayUrl = localHosts.has(window.location.hostname) ? relayPanel.dataset.relayLocalUrl : relayPanel.dataset.relayProductionUrl;
     const address = relayPanel.querySelector<HTMLElement>("[data-relay-address]");
@@ -63,97 +65,13 @@ const nodeCopy = relayNodeCopy[locale];
     const sessionNode = dialog?.querySelector<HTMLElement>("[data-relay-session-node]");
     const messageForm = dialog?.querySelector<HTMLFormElement>("[data-relay-message-form]");
     const messageInput = dialog?.querySelector<HTMLTextAreaElement>("[data-relay-message]");
-    const routeSteps = Array.from(dialog?.querySelectorAll<HTMLElement>("[data-route-step]") || []);
-    let sessionId: string | undefined;
+    const submitButton = messageForm?.querySelector<HTMLButtonElement>("button[type='submit']");
+    const routeStepElements = Array.from(dialog?.querySelectorAll<HTMLElement>("[data-route-step]") || []);
 
     const setRelayAvailability = (isOnline: boolean) => {
       if (availability) availability.dataset.state = isOnline ? "online" : "offline";
       if (availabilityText) availabilityText.textContent = isOnline ? relayPanel.dataset.onlineLabel || "Signal Relay online" : relayPanel.dataset.offlineLabel || "Signal Relay offline";
     };
-
-    const renderInbox = (inboxData: { messages?: InboxMessage[] }) => {
-      const messages = Array.isArray(inboxData.messages) ? inboxData.messages : [];
-      if (inbox && messages.length) inbox.replaceChildren(...messages.slice(0, 5).map((message) => {
-        const item = document.createElement("li");
-        const body = document.createElement("span");
-        body.textContent = message.content || "(empty message)";
-        const timestamp = document.createElement("time");
-        timestamp.dateTime = message.receivedAt;
-        timestamp.textContent = new Date(message.receivedAt).toLocaleString();
-        item.replaceChildren(body, timestamp);
-        return item;
-      }));
-    };
-
-    const refreshInbox = async () => {
-      if (!relayUrl) return;
-      try {
-        const response = await fetch(`${relayUrl}/v1/inbox`);
-        if (response.ok) renderInbox(await response.json());
-      } catch {
-        // The availability request remains the source of the relay health state.
-      }
-    };
-
-    const renderNodes = (nodeData: { status?: string; nodes?: { alias?: string; url?: string; status?: string }[] }) => {
-      const publicNodes = nodeData.status === "available" && Array.isArray(nodeData.nodes)
-        ? nodeData.nodes.filter((node) => node.alias && node.url)
-        : [];
-      if (!nodes) return;
-      if (!publicNodes.length) {
-        const unavailable = Object.assign(document.createElement("li"), {
-          className: "relay-nodes-unavailable",
-          textContent: relayPanel.dataset.nodeUnavailableLabel || "Node status is unavailable.",
-        });
-        nodes.replaceChildren(unavailable);
-        return;
-      }
-      nodes.replaceChildren(...publicNodes.map((node) => {
-        const item = document.createElement("li");
-        item.className = "relay-node-card";
-        const heading = document.createElement("div");
-        const alias = document.createElement("strong");
-        alias.textContent = node.alias || "";
-        const status = document.createElement("span");
-        const isUp = node.status === "up";
-        status.dataset.state = isUp ? "up" : "down";
-        status.textContent = isUp ? relayPanel.dataset.nodeUpLabel || "Online" : relayPanel.dataset.nodeDownLabel || "Offline";
-        const url = document.createElement("code");
-        url.textContent = node.url || "";
-        heading.replaceChildren(alias, status);
-        item.replaceChildren(heading, url);
-        return item;
-      }));
-    };
-
-    const refreshNodes = async () => {
-      if (!relayUrl) return;
-      try {
-        const response = await fetch(`${relayUrl}/v1/lab/reticulum-nodes`);
-        renderNodes(response.ok ? await response.json() : {});
-      } catch {
-        renderNodes({});
-      }
-    };
-
-    if (relayUrl) {
-      Promise.all([fetch(`${relayUrl}/healthz`), fetch(`${relayUrl}/v1/contact`), fetch(`${relayUrl}/v1/inbox`), fetch(`${relayUrl}/v1/lab/capabilities`), fetch(`${relayUrl}/v1/lab/reticulum-nodes`)])
-        .then(([healthResponse, contactResponse, inboxResponse, capabilitiesResponse, nodesResponse]) => healthResponse.ok && contactResponse.ok && inboxResponse.ok ? Promise.all([healthResponse.json(), contactResponse.json(), inboxResponse.json(), capabilitiesResponse.ok ? capabilitiesResponse.json() : { telegramNotifications: false }, nodesResponse.ok ? nodesResponse.json() : {}]) : Promise.reject())
-        .then(([health, contact, inboxData, capabilities, nodeData]) => {
-          setRelayAvailability(health.status === "ready");
-          if (address && contact.address) {
-            address.textContent = contact.address;
-            if (destination) destination.textContent = contact.address;
-            if (copyButton) copyButton.disabled = false;
-          }
-          renderInbox(inboxData);
-          renderNodes(nodeData);
-          if (telegramStatus && capabilities.telegramNotifications) telegramStatus.textContent = relayPanel.dataset.telegramConfiguredLabel || "Telegram configured";
-        })
-        .catch(() => setRelayAvailability(false));
-      window.setInterval(refreshInbox, 10_000);
-      window.setInterval(refreshNodes, 20_000);
-    }
 
     copyButton?.addEventListener("click", async () => {
       if (!address || !address.textContent || copyButton.disabled) return;
@@ -162,101 +80,64 @@ const nodeCopy = relayNodeCopy[locale];
     });
 
     const renderRoute = (state: string, errorCode = "") => {
-      const setStep = (index: number, stepState: "waiting" | "active" | "complete" | "failed", label: string) => {
-        const step = routeSteps[index];
-        if (!step) return;
-        step.dataset.state = stepState;
-        const status = step.querySelector<HTMLElement>("[data-route-state]");
-        if (status) status.textContent = label;
-      };
-      const labels = relayPanel.dataset;
-      setStep(0, state === "identity_ready" || state === "queued" || state === "delivered" || state === "failed" ? "complete" : "waiting", labels.routeSourceReadyLabel || "Ready");
-      setStep(1, state === "delivered" ? "complete" : state === "failed" ? "failed" : state === "queued" ? "active" : "waiting", state === "delivered" ? labels.routeReceivedLabel || "Received" : state === "failed" ? (errorCode === "outbound_error" ? labels.routeOutboundFailedLabel : errorCode === "delivery_failed" ? labels.routeDeliveryFailedLabel : labels.routeUnknownFailedLabel) || "Delivery failed" : state === "queued" ? labels.routeRoutingLabel || "Routing" : labels.routeWaitingLabel || "Waiting");
-      setStep(2, state === "queued" || state === "delivered" ? "complete" : "waiting", state === "queued" || state === "delivered" ? labels.routeEncryptedLabel || "Encrypted" : labels.routeWaitingLabel || "Waiting");
-      setStep(3, state === "delivered" ? "complete" : state === "failed" ? "failed" : state === "queued" ? "active" : "waiting", state === "delivered" ? labels.routeConfirmedLabel || "Confirmed" : state === "failed" ? (errorCode === "outbound_error" ? labels.routeOutboundFailedLabel : errorCode === "delivery_failed" ? labels.routeDeliveryFailedLabel : labels.routeUnknownFailedLabel) || "Delivery failed" : state === "queued" ? labels.routeRoutingLabel || "Routing" : labels.routeWaitingLabel || "Waiting");
+      routeSteps(state, errorCode, relayPanel.dataset).forEach((step, index) => {
+        const element = routeStepElements[index];
+        if (!element) return;
+        element.dataset.state = step.state;
+        const status = element.querySelector<HTMLElement>("[data-route-state]");
+        if (status) status.textContent = step.label;
+      });
     };
 
     const setSessionState = (state: string, errorCode = "") => {
       if (!sessionStatus) return;
-      const labels: Record<string, string | undefined> = {
-        queued: relayPanel.dataset.queuedLabel,
-        delivered: relayPanel.dataset.deliveredLabel,
-        failed: relayPanel.dataset.failedLabel,
-      };
-      sessionStatus.textContent = labels[state] || state;
+      sessionStatus.textContent = sessionStatusText(state, relayPanel.dataset);
       sessionStatus.dataset.state = state;
       renderRoute(state, errorCode);
     };
 
-    const displaySession = (session: { sessionId: string; state: string; errorCode?: string; nodeAlias?: string }) => {
-      sessionId = session.sessionId;
-      if (sessionNode) sessionNode.textContent = session.nodeAlias || relayPanel.dataset.nodePendingLabel || "Waiting for route confirmation";
-      setSessionState(session.state, session.errorCode);
-    };
-
-    const pollSession = () => {
-      if (!relayUrl || !sessionId) return;
-      let failedAt: number | undefined;
-      const timer = window.setInterval(async () => {
-        try {
-          const response = await fetch(`${relayUrl}/v1/lab/sessions/${sessionId}`);
-          if (!response.ok) throw new Error();
-          const session = await response.json();
-          if (sessionNode) sessionNode.textContent = session.nodeAlias || relayPanel.dataset.nodePendingLabel || "Waiting for route confirmation";
-          setSessionState(session.state, session.errorCode);
-          if (session.state === "delivered") {
-            window.clearInterval(timer);
-            if (session.state === "delivered") refreshInbox();
-          }
-          if (session.state === "failed") {
-            failedAt ||= Date.now();
-            if (Date.now() - failedAt >= 15_000) window.clearInterval(timer);
-          } else {
-            failedAt = undefined;
-          }
-        } catch {
-          window.clearInterval(timer);
-          setSessionState("failed", "outbound_error");
-        }
-      }, 2000);
-    };
-
-    const createSession = async () => {
-      if (!relayUrl) return false;
-      if (sessionStatus) sessionStatus.textContent = relayPanel.dataset.preparingLabel || "Preparing session";
-      try {
-        const response = await fetch(`${relayUrl}/v1/lab/sessions`, { method: "POST" });
-        if (!response.ok) throw new Error();
-        displaySession(await response.json());
-        return true;
-      } catch {
-        if (sessionStatus) sessionStatus.textContent = relayPanel.dataset.unavailableLabel || "Educational sending is unavailable";
-        return false;
-      }
-    };
+    // The helper owns the network rules (polling, aborts, send outcomes, cooldown) and reports only what to show.
+    const relay = createRelayLive({
+      relayUrl,
+      fetch,
+      documentTarget: document,
+      windowTarget: window,
+      view: {
+        setAvailability: setRelayAvailability,
+        setAddress(value) {
+          renderAddress({ address, destination, copyButton }, value);
+        },
+        setInbox: (data) => renderInbox(document, inbox, data),
+        setNodes: (data) => renderNodes(document, nodes, data, relayPanel.dataset),
+        setTelegram(enabled) {
+          if (telegramStatus && enabled) telegramStatus.textContent = relayPanel.dataset.telegramConfiguredLabel || "Telegram configured";
+        },
+        setSessionNode(alias) {
+          if (sessionNode) sessionNode.textContent = alias || relayPanel.dataset.nodePendingLabel || "Waiting for route confirmation";
+        },
+        setSessionState,
+        setSessionNotice(kind) {
+          if (!sessionStatus) return;
+          sessionStatus.textContent = kind === "preparing"
+            ? relayPanel.dataset.preparingLabel || "Preparing session"
+            : relayPanel.dataset.unavailableLabel || "Educational sending is unavailable";
+          // The notice replaces any earlier state so its styling cannot carry over (for example, an unconfirmed warning).
+          sessionStatus.dataset.state = kind;
+        },
+        setComposer(mode) {
+          const { inputDisabled, submitDisabled } = composerControls(mode);
+          if (messageInput) messageInput.disabled = inputDisabled;
+          if (submitButton) submitButton.disabled = submitDisabled;
+        },
+      },
+    });
 
     openWizardButton?.addEventListener("click", () => dialog?.showModal());
 
-    messageForm?.addEventListener("submit", async (event) => {
+    messageForm?.addEventListener("submit", (event) => {
       event.preventDefault();
-      if (!relayUrl || !messageInput) return;
-      if (!sessionId && !(await createSession())) return;
-      const response = await fetch(`${relayUrl}/v1/lab/sessions/${sessionId}/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: messageInput.value }),
-      });
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        setSessionState("failed", error.detail || "outbound_error");
-        return;
-      }
-      const session = await response.json();
-      setSessionState(session.state, session.errorCode);
-      if (session.state === "queued") pollSession();
-      messageInput.disabled = true;
-      const submit = messageForm.querySelector<HTMLButtonElement>("button[type='submit']");
-      if (submit) submit.disabled = true;
+      if (!messageInput) return;
+      void relay.send(() => messageInput.value);
     });
   }
 </script>

@@ -7,5 +7,6 @@ export default defineConfig({
   integrations: [react(), sitemap()],
   build: {
     format: "directory",
+    inlineStylesheets: "always",
   },
 });
