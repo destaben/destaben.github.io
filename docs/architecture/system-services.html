@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sistema y servicios | info.destaben.dev</title>
+<meta name="description" content="Cómo se conectan la web, el Signal Relay y los servicios de apoyo, y de dónde sale cada dato que muestra el sitio.">
+<style>
+:root{--bg:#f6f5f1;--panel:#fff;--ink:#1b1d1f;--muted:#5d6368;--line:#d9d6cd;--accent:#2b6cb0;--accent2:#b7791f;--ok:#2f855a;--warn:#c05621;--chip:#eceae3}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0f1214;--panel:#171b1e;--ink:#e8eaec;--muted:#9aa3a9;--line:#2b3238;--accent:#63b3ed;--accent2:#ecc94b;--ok:#68d391;--warn:#f6ad55;--chip:#222a2f}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:32px 16px 64px}
+h1{font-size:clamp(1.6rem,4vw,2.3rem);margin:0 0 6px}
+h2{font-size:1.35rem;margin:44px 0 6px;padding-top:8px;border-top:1px solid var(--line)}
+h3{font-size:1rem;margin:0 0 4px}
+p{margin:6px 0}
+.lead{color:var(--muted);max-width:780px}
+nav.toc{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 0}
+nav.toc a{background:var(--chip);color:var(--ink);text-decoration:none;padding:4px 12px;border-radius:999px;font-size:.88rem}
+nav.toc a:hover{outline:1px solid var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+code{background:var(--chip);padding:1px 6px;border-radius:5px;font-size:.84em;word-break:break-word}
+.tag{display:inline-block;font-size:.72rem;padding:1px 8px;border-radius:999px;background:var(--chip);color:var(--muted);margin:4px 4px 0 0}
+.tag.a{color:var(--accent)}.tag.b{color:var(--accent2)}.tag.c{color:var(--ok)}.tag.d{color:var(--warn)}
+.table-scroll{overflow-x:auto;margin-top:12px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;min-width:820px;font-size:.9rem}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+tr:last-child td{border-bottom:0}
+figure{margin:16px 0 0;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;overflow-x:auto}
+figure svg{display:block;width:100%;min-width:860px;height:auto}
+figcaption{color:var(--muted);font-size:.85rem;padding:6px 6px 2px}
+svg text{font-family:system-ui,sans-serif;fill:var(--ink);font-size:13px}
+svg .t2{fill:var(--muted);font-size:11.5px}
+svg .box{fill:var(--panel);stroke:var(--line);stroke-width:1.3}
+svg .hi{fill:var(--chip);stroke:var(--accent);stroke-width:1.5}
+svg .hi2{fill:var(--chip);stroke:var(--accent2);stroke-width:1.5}
+svg .hi3{fill:var(--chip);stroke:var(--ok);stroke-width:1.5}
+svg .hi4{fill:var(--chip);stroke:var(--warn);stroke-width:1.5}
+svg .zone{fill:none;stroke:var(--line);stroke-dasharray:5 4;stroke-width:1.2}
+svg .ln{stroke:var(--muted);stroke-width:1.5;fill:none}
+svg .dash{stroke-dasharray:5 4}
+ol.steps{padding-left:20px;margin:10px 0}
+ol.steps li{margin:4px 0}
+.key{display:flex;flex-wrap:wrap;gap:16px;font-size:.85rem;color:var(--muted);margin-top:10px}
+.key span::before{content:"";display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px;border:2px solid}
+.key .k1::before{border-color:var(--accent)}.key .k2::before{border-color:var(--accent2)}.key .k3::before{border-color:var(--ok)}.key .k4::before{border-color:var(--warn)}
+footer{margin-top:48px;color:var(--muted);font-size:.85rem}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Sistema y servicios</h1>
+  <p class="lead">Cómo se compone <code>info.destaben.dev</code>: un sitio estático que se publica en GitHub Pages y, aparte, un relay autohospedado (<code>lab.destaben.dev</code>) del que el navegador obtiene los datos en vivo. Complementa la <a href="code-architecture.html">arquitectura del código</a>.</p>
+  <nav class="toc" aria-label="Secciones">
+    <a href="#mapa">Mapa</a><a href="#datos">Origen de los datos</a><a href="#flujos">Flujos</a><a href="#api">API pública</a><a href="#limites">Seguridad</a><a href="#ops">Despliegue</a>
+  </nav>
+</header>
+
+<h2 id="mapa">1. Mapa de componentes</h2>
+<p>Dos caminos independientes: el contenido estático llega desde GitHub Pages; los datos dinámicos llegan por el edge privado. Si el relay cae, la web sigue cargando y cada panel muestra su estado «no disponible».</p>
+<figure>
+<svg viewBox="0 0 1100 560" role="img" aria-label="Topología: navegador, GitHub Pages, Cloudflare, cloudflared, nginx, Signal Relay y servicios upstream">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--muted)"/></marker>
+  </defs>
+  <!-- zones -->
+  <rect class="zone" x="240" y="10" width="850" height="108" rx="12"/><text x="254" y="30" class="t2">CAMINO ESTÁTICO · GitHub</text>
+  <rect class="zone" x="240" y="150" width="850" height="400" rx="12"/><text x="254" y="170" class="t2">CAMINO DINÁMICO · lab.destaben.dev + host propio (sin puertos abiertos en el host)</text>
+  <!-- static -->
+  <rect class="hi4" x="270" y="44" width="190" height="60" rx="8"/><text x="284" y="70">GitHub Pages</text><text x="284" y="88" class="t2">info.destaben.dev (HTML/JS)</text>
+  <rect class="box" x="520" y="44" width="230" height="60" rx="8"/><text x="534" y="70">GitHub Actions</text><text x="534" y="88" class="t2">deploy-pages.yml · build + tests</text>
+  <rect class="box" x="810" y="44" width="260" height="60" rx="8"/><text x="824" y="70">API pública de GitHub</text><text x="824" y="88" class="t2">repos de destaben (solo en build)</text>
+  <path class="ln" marker-end="url(#a)" d="M810 74 L750 74"/>
+  <path class="ln" marker-end="url(#a)" d="M520 74 L460 74"/>
+  <!-- browser -->
+  <rect class="hi" x="20" y="250" width="170" height="130" rx="10"/><text x="36" y="278" style="font-weight:600">Navegador</text><text x="36" y="298" class="t2">paneles de laboratorio</text><text x="36" y="314" class="t2">fetch + WebSocket</text><text x="36" y="330" class="t2">widget Turnstile</text><text x="36" y="346" class="t2">solo datos públicos</text>
+  <path class="ln" marker-end="url(#a)" d="M105 250 C105 150 200 74 270 74"/>
+  <text x="58" y="170" class="t2">HTTPS GET</text>
+  <!-- dynamic chain -->
+  <rect class="hi2" x="270" y="215" width="150" height="60" rx="8"/><text x="284" y="241">Cloudflare</text><text x="284" y="259" class="t2">DNS · TLS · túnel</text>
+  <rect class="box" x="270" y="300" width="150" height="60" rx="8"/><text x="284" y="326">cloudflared</text><text x="284" y="344" class="t2">túnel saliente</text>
+  <rect class="hi2" x="270" y="385" width="150" height="60" rx="8"/><text x="284" y="411">nginx (edge)</text><text x="284" y="429" class="t2">allowlist + rate limit</text>
+  <path class="ln" marker-end="url(#a)" d="M190 315 C225 315 235 250 270 245"/>
+  <text x="196" y="296" class="t2">HTTPS/WSS</text>
+  <path class="ln" marker-end="url(#a)" d="M345 275 L345 300"/>
+  <path class="ln" marker-end="url(#a)" d="M345 360 L345 385"/>
+  <!-- relay -->
+  <rect class="hi3" x="500" y="270" width="210" height="150" rx="10"/><text x="516" y="298" style="font-weight:600">Signal Relay</text><text x="516" y="318" class="t2">FastAPI · contenedor</text><text x="516" y="334" class="t2">GET/POST /v1/… · /healthz</text><text x="516" y="350" class="t2">WebSocket /v1/events</text><text x="516" y="366" class="t2">proyecciones públicas + caché</text><text x="516" y="382" class="t2">red destaben-edge</text><text x="516" y="398" class="t2">volumen /data · /reticulum</text>
+  <path class="ln" marker-end="url(#a)" d="M420 415 C460 415 465 360 500 350"/>
+  <path class="ln dash" marker-end="url(#a)" d="M500 330 C465 330 460 380 420 392"/>
+  <!-- upstreams -->
+  <rect class="hi3" x="810" y="185" width="260" height="56" rx="8"/><text x="824" y="210">Red Reticulum / LXMF</text><text x="824" y="228" class="t2">TCPClientInterface salientes</text>
+  <rect class="hi3" x="810" y="253" width="260" height="56" rx="8"/><text x="824" y="278">Prometheus + cAdvisor</text><text x="824" y="296" class="t2">CPU/memoria de contenedores</text>
+  <rect class="hi3" x="810" y="321" width="260" height="56" rx="8"/><text x="824" y="346">Home Assistant</text><text x="824" y="364" class="t2">sensores · Meshtastic · vía nginx :8081</text>
+  <rect class="hi3" x="810" y="389" width="260" height="56" rx="8"/><text x="824" y="414">Moonraker (Klipper)</text><text x="824" y="432" class="t2">impresora 3D · vía nginx :8082</text>
+  <rect class="hi3" x="810" y="457" width="260" height="38" rx="8"/><text x="824" y="481">Telegram Bot API (avisos)</text>
+  <rect class="hi4" x="500" y="470" width="260" height="60" rx="8"/><text x="514" y="496">Cloudflare Turnstile</text><text x="514" y="514" class="t2">siteverify antes de emitir a la radio</text>
+  <path class="ln" marker-end="url(#a)" d="M710 300 C760 300 760 213 810 213"/>
+  <path class="ln" marker-end="url(#a)" d="M710 320 C760 320 760 281 810 281"/>
+  <path class="ln" marker-end="url(#a)" d="M710 345 L810 349"/>
+  <path class="ln" marker-end="url(#a)" d="M710 370 C760 370 760 417 810 417"/>
+  <path class="ln" marker-end="url(#a)" d="M710 395 C770 395 770 476 810 476"/>
+  <path class="ln" marker-end="url(#a)" d="M605 420 L605 470"/>
+  <path class="ln dash" marker-end="url(#a)" d="M105 380 C105 520 330 500 500 500"/>
+  <text x="130" y="525" class="t2">el widget se carga desde challenges.cloudflare.com</text>
+</svg>
+<figcaption>Los servicios de la derecha nunca son accesibles desde internet: el relay solo contacta Home Assistant y Moonraker a través de listeners internos de nginx con rutas fijas.</figcaption>
+</figure>
+<div class="key"><span class="k1">cliente</span><span class="k2">edge / red</span><span class="k3">servicio propio</span><span class="k4">servicio de terceros</span></div>
+
+<h2 id="datos">2. De dónde sale cada dato</h2>
+<p>Los datos de la web tienen dos orígenes: los que se fijan al compilar y los que el navegador pide en vivo al relay. Ninguno requiere claves en el navegador.</p>
+
+<h3 style="margin-top:18px">2.1 En tiempo de build (congelados en el HTML)</h3>
+<div class="table-scroll"><table>
+<thead><tr><th>Dato en la web</th><th>Fuente</th><th>Cuándo se actualiza</th></tr></thead>
+<tbody>
+<tr><td>Textos, casos de trabajo, experiencia, contacto, descripciones de laboratorios (ES/EN)</td><td><code>src/data/portfolio.ts</code></td><td>Con cada commit a <code>main</code></td></tr>
+<tr><td>Notas / bitácora y RSS</td><td><code>src/content/blog/{es,en}/*.md</code> (borradores excluidos)</td><td>Con cada commit a <code>main</code></td></tr>
+<tr><td>Repositorios públicos (nombre, lenguaje, estrellas, forks, temas, fecha)</td><td><code>api.github.com/users/destaben/repos</code> (<code>GITHUB_TOKEN</code> opcional para evitar el límite de tasa)</td><td>En cada build; el listado envejece hasta el siguiente despliegue</td></tr>
+<tr><td>Metadatos SEO, sitemap, canonical</td><td><code>src/config/site.ts</code>, <code>@astrojs/sitemap</code></td><td>Build</td></tr>
+<tr><td>Clave pública de Turnstile</td><td>Variable de repositorio <code>TURNSTILE_SITE_KEY</code> → <code>PUBLIC_TURNSTILE_SITE_KEY</code></td><td>Build; sin ella el envío público a Meshtastic queda desactivado</td></tr>
+</tbody></table></div>
+
+<h3 style="margin-top:22px">2.2 En vivo (el navegador consulta <code>lab.destaben.dev</code>)</h3>
+<div class="table-scroll"><table>
+<thead><tr><th>Panel</th><th>Endpoint</th><th>El relay lo obtiene de</th><th>Caché / límites</th><th>Qué se publica</th></tr></thead>
+<tbody>
+<tr><td>Reticulum: estado y contacto</td><td><code>/healthz</code>, <code>/v1/contact</code>, <code>/v1/lab/capabilities</code></td><td>Estado interno del puente y destino LXMF persistente</td><td>Sin caché</td><td>Estado agregado, dirección pública <code>lxmf.delivery</code>, si el envío educativo y Telegram están configurados</td></tr>
+<tr><td>Reticulum: bandeja</td><td><code>/v1/inbox</code></td><td>Mensajes LXMF recibidos, guardados en el volumen <code>/data</code></td><td>Los 20 más recientes; ≤ 1000 caracteres</td><td>ID opaco, hora y texto plano; nunca remitente ni metadatos</td></tr>
+<tr><td>Reticulum: nodos TCP</td><td><code>/v1/lab/reticulum-nodes</code></td><td>Interfaces <code>TCPClientInterface</code> del runtime Reticulum</td><td>Máx. 12 alias</td><td>Alias público, URL <code>tcp://</code> pública y <code>up</code>/<code>down</code></td></tr>
+<tr><td>Reticulum: prueba educativa</td><td>POST <code>/v1/lab/sessions</code>, GET <code>…/{id}</code>, POST <code>…/{id}/messages</code></td><td>Runtime Reticulum aislado con identidad temporal</td><td>Sesión de 15 min, un mensaje; POST ≤ 5/min por IP en el edge; desactivado por defecto</td><td>Estado real: <code>identity_ready</code>, <code>queued</code>, <code>delivered</code> o <code>failed</code> (+ código y alias del nodo)</td></tr>
+<tr><td>Observabilidad de servicios</td><td><code>/v1/lab/metrics</code></td><td>Prometheus (consultas fijas a cAdvisor)</td><td>Solo <code>cpu</code>/<code>memory</code> y rango acotado; sin PromQL libre</td><td>Nombres de contenedor y series agregadas</td></tr>
+<tr><td>Hogar</td><td><code>/v1/lab/home-status</code></td><td>Home Assistant: 3 entidades configuradas en privado</td><td>≥ 15 min; fallo recordado 30 s; sin redirecciones</td><td>Temperatura, humedad y calidad del aire (bueno/regular/malo), hora de refresco</td></tr>
+<tr><td>Meshtastic: pasarela y actividad</td><td><code>/v1/lab/meshtastic</code></td><td>Cinco helpers fijos de Home Assistant</td><td>Caché corta configurable (30 s por defecto)</td><td>Nombre público del nodo, contadores, utilización de canal y hasta 5 mensajes públicos MediumFast saneados</td></tr>
+<tr><td>Meshtastic: estado de la malla</td><td><code>/v1/lab/meshtastic-status</code></td><td>Home Assistant (<code>/api/states</code> para descubrir canales)</td><td>≥ 15 min; con canales fallidos, 60 s; allowlist obligatoria</td><td>Nodos en línea/total y último mensaje de canales permitidos con ID de nodo enmascarado</td></tr>
+<tr><td>Meshtastic: enviar mensaje</td><td>POST <code>/v1/lab/meshtastic/messages</code></td><td>Verifica Turnstile y lanza el evento <code>meshtastic_public_broadcast</code> en Home Assistant</td><td>Una línea ≤ 237 bytes; cooldown por cliente y global</td><td><code>202 accepted</code>: Home Assistant aceptó el evento, no hay acuse de radio</td></tr>
+<tr><td>Impresora 3D</td><td><code>/v1/lab/printer</code>, <code>/thumbnail</code>, <code>/model/{modelId}</code></td><td>Moonraker, por el listener interno :8082 de nginx (4 peticiones fijas)</td><td>Estado ≤ 1 consulta/5 s; metadatos 5 min; <code>no-store</code> salvo el modelo</td><td>Estado, progreso, capa, miniatura PNG y trazos de pared exterior; nunca nombre de archivo ni G-code</td></tr>
+<tr><td>Eventos en tiempo real</td><td>WSS <code>/v1/events</code></td><td>Bridge interno</td><td>Origen restringido a <code>https://info.destaben.dev</code></td><td>Eventos anónimos de estado y latido</td></tr>
+</tbody></table></div>
+
+<h2 id="flujos">3. Flujos principales</h2>
+<div class="grid">
+  <div class="card"><h3>Publicar un cambio</h3>
+    <ol class="steps"><li>Se abre un PR a <code>main</code>: <code>ci.yml</code> corre pytest, Compose config y <code>npm run verify</code>.</li><li>Al fusionar, <code>deploy-pages.yml</code> repite las pruebas, compila (consultando la API de GitHub) y sube <code>dist/</code>.</li><li>GitHub Pages sirve el nuevo sitio en <code>info.destaben.dev</code>.</li></ol>
+    <span class="tag a">estático</span></div>
+  <div class="card"><h3>Actualizar el relay</h3>
+    <ol class="steps"><li>Un push a <code>main</code> que toque <code>services/signal-relay/**</code> publica <code>ghcr.io/destaben/signal-relay</code> (amd64 y arm64).</li><li>En el host, <code>preflight.sh</code> y <code>deploy.sh</code> recrean solo el contenedor <code>signal-relay</code>.</li><li><code>verify.sh</code> comprueba salud y contratos; <code>rollback.sh</code> revierte.</li></ol>
+    <span class="tag c">servicio</span></div>
+  <div class="card"><h3>Un panel pide datos</h3>
+    <ol class="steps"><li>El navegador hace <code>GET lab.destaben.dev/v1/lab/…</code> con un timeout.</li><li>Cloudflare → <code>cloudflared</code> → nginx, que solo deja pasar rutas y métodos listados y limita la tasa (120/min por IP).</li><li>El relay responde desde caché o pide al origen (Home Assistant, Prometheus, Moonraker…).</li><li>Devuelve solo la proyección pública; ante cualquier fallo, estado «no disponible».</li></ol>
+    <span class="tag b">dinámico</span></div>
+  <div class="card"><h3>Mensaje entrante por Reticulum</h3>
+    <ol class="steps"><li>Un cliente LXMF escribe a la dirección pública.</li><li>El puente guarda el texto en la bandeja (≤ 1000 caracteres) y actualiza métricas.</li><li>Después, y sin bloquear la entrega, avisa por Telegram si hay credenciales.</li><li>La web lo ve en <code>/v1/inbox</code> como texto plano anónimo.</li></ol>
+    <span class="tag c">Reticulum</span></div>
+  <div class="card"><h3>Visitante envía a Meshtastic</h3>
+    <ol class="steps"><li>El widget Turnstile entrega un token al navegador.</li><li>POST con <code>message</code> + <code>turnstileToken</code>.</li><li>El relay valida con <code>siteverify</code>, aplica cooldowns y lanza el evento en Home Assistant.</li><li>Una automatización lo mapea solo a <code>script.meshtastic_public_broadcast</code>.</li></ol>
+    <span class="tag d">anti-abuso</span></div>
+  <div class="card"><h3>Panel de la impresora</h3>
+    <ol class="steps"><li>Sondeo cada 15 s (backoff hasta 120 s).</li><li>El relay consulta Moonraker y, durante una impresión, descarga y analiza el G-code en segundo plano.</li><li>El navegador recibe un <code>modelId</code> (HMAC), descarga el modelo ligero y dibuja las capas ya impresas.</li><li>Sin trabajo activo, muestra una animación de reserva.</li></ol>
+    <span class="tag b">3D</span></div>
+</div>
+
+<h2 id="api">4. Superficie pública del relay</h2>
+<div class="table-scroll"><table>
+<thead><tr><th>Método</th><th>Ruta</th><th>Uso</th><th>Estado por defecto</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td><code>/healthz</code>, <code>/v1/status</code>, <code>/v1/contact</code>, <code>/v1/inbox</code></td><td>Salud, estado, contacto, bandeja</td><td>Activo</td></tr>
+<tr><td>GET</td><td><code>/v1/lab/capabilities</code>, <code>/v1/lab/reticulum-nodes</code>, <code>/v1/lab/metrics</code>, <code>/v1/lab/home-status</code>, <code>/v1/lab/meshtastic</code>, <code>/v1/lab/meshtastic-status</code></td><td>Proyecciones de laboratorio</td><td>Activo si hay configuración privada; si no, 503 genérico</td></tr>
+<tr><td>GET</td><td><code>/v1/lab/printer</code>, <code>/thumbnail</code>, <code>/model/{modelId}</code></td><td>Taller 3D</td><td>404 hasta <code>SIGNAL_RELAY_PRINTER_ENABLED=true</code></td></tr>
+<tr><td>POST / GET</td><td><code>/v1/lab/sessions</code>, <code>/v1/lab/sessions/{id}</code>, <code>…/messages</code></td><td>Prueba educativa Reticulum</td><td>Desactivado (<code>SIGNAL_RELAY_LAB_SEND_ENABLED</code>)</td></tr>
+<tr><td>POST</td><td><code>/v1/lab/meshtastic/messages</code></td><td>Mensaje público a la malla</td><td>Requiere Turnstile configurado</td></tr>
+<tr><td>WSS</td><td><code>/v1/events</code></td><td>Eventos anónimos</td><td>Activo, solo origen permitido</td></tr>
+<tr><td>GET</td><td><code>/metrics</code></td><td>Prometheus del operador</td><td>No lo usa la web</td></tr>
+</tbody></table></div>
+<p>Contrato completo: <a href="../SIGNAL-RELAY.md">docs/SIGNAL-RELAY.md</a>. Cualquier ruta no listada en el edge devuelve 404 y un método no permitido, 405.</p>
+
+<h2 id="limites">5. Límites de seguridad y privacidad</h2>
+<div class="grid">
+  <div class="card"><h3>Nada sensible en el repositorio</h3><p>Identidad Reticulum, tokens de Telegram y Home Assistant, secreto de Turnstile, configuración del túnel y <code>.env</code> viven solo en el host.</p></div>
+  <div class="card"><h3>Proyecciones fijas</h3><p>El relay no reenvía respuestas de origen: construye objetos con campos permitidos. No publica entidades, atributos, nombres de archivo, IPs, rutas ni topología.</p></div>
+  <div class="card"><h3>Default-deny</h3><p>Canales de Meshtastic con allowlist, impresora y envío educativo desactivados, nginx con lista blanca de rutas y métodos.</p></div>
+  <div class="card"><h3>Origen acotado</h3><p>CORS y WebSocket aceptan <code>https://info.destaben.dev</code>. Los upstreams se alcanzan sin seguir redirecciones, con tamaño y tiempo máximos.</p></div>
+  <div class="card"><h3>Contenedor endurecido</h3><p>Sistema de archivos de solo lectura, <code>cap_drop: ALL</code>, <code>no-new-privileges</code>, sin puerto publicado y una sola red externa.</p></div>
+  <div class="card"><h3>Anti-abuso</h3><p>Turnstile en el único POST con efecto físico (radio), cooldowns por cliente y global y 120 req/min por IP en el edge.</p></div>
+</div>
+
+<h2 id="ops">6. Despliegue y repositorios</h2>
+<div class="table-scroll"><table>
+<thead><tr><th>Pieza</th><th>Dónde vive</th><th>Cómo se despliega</th></tr></thead>
+<tbody>
+<tr><td>Sitio estático</td><td><code>destaben/destaben.github.io</code> → GitHub Pages (CNAME <code>info.destaben.dev</code>, DNS solo)</td><td>Actions desde <code>main</code>; artefacto <code>dist/</code></td></tr>
+<tr><td>Signal Relay</td><td><code>services/signal-relay/</code> → imagen <code>ghcr.io/destaben/signal-relay</code></td><td>Compose en el host (<code>/opt/signal-relay</code>) con los scripts de <code>scripts/</code></td></tr>
+<tr><td>Edge (nginx + Cloudflare Tunnel)</td><td><code>destaben/lab-inverse-proxy</code></td><td>Compose independiente; el relay y nginx comparten la red <code>destaben-edge</code></td></tr>
+<tr><td>Home Assistant, Prometheus/cAdvisor, Moonraker</td><td>Red doméstica del operador, fuera de cualquier repositorio</td><td>Sin puertos públicos: Home Assistant y Moonraker se alcanzan desde el relay por los listeners internos de nginx (:8081, :8082); Prometheus por la URL privada configurada</td></tr>
+</tbody></table></div>
+<p>Orden recomendado para funciones nuevas con dependencia de edge: edge → imagen del relay → relay con la función desactivada → activación → sitio. Detalles en el <a href="../../README.md">README</a>.</p>
+
+<footer>Generado a partir del estado del repositorio en noviembre de 2026. Describe contratos públicos; no incluye direcciones ni configuración privada.</footer>
+</div>
+</body>
+</html>
