@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>System and services | info.destaben.dev</title>
+<meta name="robots" content="noindex">
 <meta name="description" content="How the site, the Signal Relay and the supporting services connect, and where each piece of data shown on the site comes from.">
 <style>
 :root{--bg:#f6f5f1;--panel:#fff;--ink:#1b1d1f;--muted:#5d6368;--line:#d9d6cd;--accent:#2b6cb0;--accent2:#b7791f;--ok:#2f855a;--warn:#c05621;--chip:#eceae3}
@@ -204,7 +205,7 @@ a{color:var(--accent)}
 <tr><td>WSS</td><td><code>/v1/events</code></td><td>Anonymous events</td><td>Active, allowed origin only</td></tr>
 <tr><td>GET</td><td><code>/metrics</code></td><td>Operator’s Prometheus</td><td>Not used by the site</td></tr>
 </tbody></table></div>
-<p>Full contract: <a href="../SIGNAL-RELAY.md">docs/SIGNAL-RELAY.md</a>. Any route not listed at the edge returns 404 and any disallowed method, 405.</p>
+<p>Full contract: <a href="https://github.com/destaben/destaben.github.io/blob/main/docs/SIGNAL-RELAY.md">docs/SIGNAL-RELAY.md</a>. Any route not listed at the edge returns 404 and any disallowed method, 405.</p>
 
 <h2 id="limits">6. Security and privacy limits</h2>
 <div class="grid">
@@ -225,7 +226,7 @@ a{color:var(--accent)}
 <tr><td>Edge (nginx + Cloudflare Tunnel)</td><td><code>destaben/lab-inverse-proxy</code></td><td>Separate Compose project; the relay and nginx share the <code>destaben-edge</code> network</td></tr>
 <tr><td>Home Assistant, Prometheus/cAdvisor, Moonraker</td><td>Operator’s own network, outside any repository (the Meshtastic gateway node is read through Home Assistant)</td><td>No public ports: Home Assistant and Moonraker are reached from the relay through nginx’s internal listeners (:8081, :8082); Prometheus through its privately configured URL</td></tr>
 </tbody></table></div>
-<p>Recommended order for new features that depend on the edge: edge → relay image → relay with the feature disabled → enable → site. Details in the <a href="../../README.md">README</a>.</p>
+<p>Recommended order for new features that depend on the edge: edge → relay image → relay with the feature disabled → enable → site. Details in the <a href="https://github.com/destaben/destaben.github.io/blob/main/README.md">README</a>.</p>
 
 <footer>Generated from the repository state in November 2026. It describes public contracts; it contains no private addresses or configuration.</footer>
 </div>
