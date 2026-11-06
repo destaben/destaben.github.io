@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 560" role="img" aria-label="Topology: browser, GitHub Pages, Cloudflare, cloudflared, nginx, Signal Relay and upstream services"><style>
+:root{--bg:#fff;--panel:#fff;--ink:#1b1d1f;--muted:#5d6368;--line:#c9c6bc;--accent:#2b6cb0;--accent2:#b7791f;--ok:#2f855a;--warn:#c05621;--chip:#eceae3}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1214;--panel:#171b1e;--ink:#e8eaec;--muted:#9aa3a9;--line:#2b3238;--accent:#63b3ed;--accent2:#ecc94b;--ok:#68d391;--warn:#f6ad55;--chip:#222a2f}}
+text{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;fill:var(--ink);font-size:13px}
+.t2{fill:var(--muted);font-size:11.5px}
+.box{fill:var(--panel);stroke:var(--line);stroke-width:1.3}
+.hi{fill:var(--chip);stroke:var(--accent);stroke-width:1.5}.hi2{fill:var(--chip);stroke:var(--accent2);stroke-width:1.5}.hi3{fill:var(--chip);stroke:var(--ok);stroke-width:1.5}.hi4{fill:var(--chip);stroke:var(--warn);stroke-width:1.5}
+.zone{fill:none;stroke:var(--line);stroke-dasharray:5 4;stroke-width:1.2}
+.ln{stroke:var(--muted);stroke-width:1.5;fill:none}.dash{stroke-dasharray:5 4}
+</style><rect x="0" y="0" width="100%" height="100%" fill="var(--bg)"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--muted)"/></marker>
+  </defs>
+  <rect class="zone" x="240" y="10" width="850" height="108" rx="12"/><text x="254" y="30" class="t2">STATIC PATH · GitHub</text>
+  <rect class="zone" x="240" y="150" width="850" height="400" rx="12"/><text x="254" y="170" class="t2">DYNAMIC PATH · lab.destaben.dev + self-hosted machine (no open host ports)</text>
+  <rect class="hi4" x="270" y="44" width="190" height="60" rx="8"/><text x="284" y="70">GitHub Pages</text><text x="284" y="88" class="t2">info.destaben.dev (HTML/JS)</text>
+  <rect class="box" x="520" y="44" width="230" height="60" rx="8"/><text x="534" y="70">GitHub Actions</text><text x="534" y="88" class="t2">deploy-pages.yml · build + tests</text>
+  <rect class="box" x="810" y="44" width="260" height="60" rx="8"/><text x="824" y="70">Public GitHub API</text><text x="824" y="88" class="t2">destaben repositories (build time only)</text>
+  <path class="ln" marker-end="url(#a)" d="M810 74 L750 74"/>
+  <path class="ln" marker-end="url(#a)" d="M520 74 L460 74"/>
+  <rect class="hi" x="20" y="250" width="170" height="130" rx="10"/><text x="36" y="278" style="font-weight:600">Browser</text><text x="36" y="298" class="t2">laboratory panels</text><text x="36" y="314" class="t2">fetch + WebSocket</text><text x="36" y="330" class="t2">widget Turnstile</text><text x="36" y="346" class="t2">public data only</text>
+  <path class="ln" marker-end="url(#a)" d="M105 250 C105 150 200 74 270 74"/>
+  <text x="58" y="170" class="t2">HTTPS GET</text>
+  <rect class="hi2" x="270" y="215" width="150" height="60" rx="8"/><text x="284" y="241">Cloudflare</text><text x="284" y="259" class="t2">DNS · TLS · tunnel</text>
+  <rect class="box" x="270" y="300" width="150" height="60" rx="8"/><text x="284" y="326">cloudflared</text><text x="284" y="344" class="t2">outbound tunnel</text>
+  <rect class="hi2" x="270" y="385" width="150" height="60" rx="8"/><text x="284" y="411">nginx (edge)</text><text x="284" y="429" class="t2">allowlist + rate limit</text>
+  <path class="ln" marker-end="url(#a)" d="M190 315 C225 315 235 250 270 245"/>
+  <text x="196" y="296" class="t2">HTTPS/WSS</text>
+  <path class="ln" marker-end="url(#a)" d="M345 275 L345 300"/>
+  <path class="ln" marker-end="url(#a)" d="M345 360 L345 385"/>
+  <rect class="hi3" x="500" y="270" width="210" height="150" rx="10"/><text x="516" y="298" style="font-weight:600">Signal Relay</text><text x="516" y="318" class="t2">FastAPI · container</text><text x="516" y="334" class="t2">GET/POST /v1/… · /healthz</text><text x="516" y="350" class="t2">WebSocket /v1/events</text><text x="516" y="366" class="t2">public projections + cache</text><text x="516" y="382" class="t2">destaben-edge network</text><text x="516" y="398" class="t2">/data · /reticulum volumes</text>
+  <path class="ln" marker-end="url(#a)" d="M420 415 C460 415 465 360 500 350"/>
+  <path class="ln dash" marker-end="url(#a)" d="M500 330 C465 330 460 380 420 392"/>
+  <rect class="hi3" x="810" y="180" width="260" height="46" rx="8"/><text x="824" y="201">Reticulum / LXMF network</text><text x="824" y="218" class="t2">outbound TCPClientInterface</text>
+  <rect class="hi3" x="810" y="240" width="260" height="46" rx="8"/><text x="824" y="261">Prometheus + cAdvisor</text><text x="824" y="278" class="t2">container CPU/memory</text>
+  <rect class="hi3" x="810" y="300" width="260" height="46" rx="8"/><text x="824" y="321">Home Assistant</text><text x="824" y="338" class="t2">sensors · Meshtastic · via nginx :8081</text>
+  <rect class="hi3" x="810" y="360" width="260" height="46" rx="8"/><text x="824" y="381">Meshtastic gateway node</text><text x="824" y="398" class="t2">LoRa radio · public MediumFast channel</text>
+  <rect class="hi3" x="810" y="420" width="260" height="46" rx="8"/><text x="824" y="441">Moonraker (Klipper)</text><text x="824" y="458" class="t2">3D printer · via nginx :8082</text>
+  <rect class="hi3" x="810" y="480" width="260" height="46" rx="8"/><text x="824" y="501">Telegram Bot API</text><text x="824" y="518" class="t2">private notices</text>
+  <rect class="hi4" x="500" y="470" width="260" height="60" rx="8"/><text x="514" y="496">Cloudflare Turnstile</text><text x="514" y="514" class="t2">siteverify before transmitting to the radio</text>
+  <path class="ln" marker-end="url(#a)" d="M710 300 C760 300 760 203 810 203"/>
+  <path class="ln" marker-end="url(#a)" d="M710 320 C760 320 760 263 810 263"/>
+  <path class="ln" marker-end="url(#a)" d="M710 345 C760 345 760 323 810 323"/>
+  <path class="ln" marker-end="url(#a)" d="M710 370 C760 370 760 443 810 443"/>
+  <path class="ln" marker-end="url(#a)" d="M710 395 C770 395 770 503 810 503"/>
+  <path class="ln" marker-end="url(#a)" d="M1040 346 L1040 360"/>
+  <path class="ln" marker-end="url(#a)" d="M605 420 L605 470"/>
+  <path class="ln dash" marker-end="url(#a)" d="M105 380 C105 520 330 500 500 500"/>
+  <text x="130" y="525" class="t2">the widget loads from challenges.cloudflare.com</text>
+</svg>

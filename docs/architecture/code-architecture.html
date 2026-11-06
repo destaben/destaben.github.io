@@ -121,6 +121,7 @@ a{color:var(--accent)}
 <p><small>Licenses for the code adapted from React Bits (MIT + Commons Clause): <code>THIRD_PARTY_NOTICES.md</code>. The hero graphic (<code>SystemGraphic.astro</code>) is plain CSS, without React.</small></p>
 
 <h2 id="labs">4. Laboratories: component → endpoint</h2>
+<p>There are six laboratories (<code>labDisplayOrder</code> in <code>PortfolioPage.astro</code>): <code>home-status</code>, <code>container-metrics</code>, <code>meshtastic</code>, <code>meshtastic-status</code>, <code>printer</code> and <code>signal-relay</code>. <code>meshtastic-status</code> is not its own card: <code>PortfolioPage</code> passes it to <code>MeshtasticLab</code>, which embeds <code>MeshtasticStatusLab</code>.</p>
 <p>Each card is an Astro component with a browser <code>&lt;script&gt;</code>. All of them read from <code>https://lab.destaben.dev</code> in production or <code>http://127.0.0.1:8787</code> locally (<code>data-production-url</code> / <code>data-local-url</code> attributes) and fall back to an “unavailable” state if the response fails.</p>
 <div class="table-scroll"><table>
 <thead><tr><th>Component</th><th>Relay endpoints</th><th>Notes</th></tr></thead>
@@ -146,7 +147,7 @@ a{color:var(--accent)}
   <rect class="box" x="280" y="318" width="200" height="34" rx="8"/><text x="294" y="340">metrics · telegram · lab_sender</text>
   <rect class="hi3" x="580" y="20" width="220" height="46" rx="8"/><text x="594" y="48">SIGNAL_RELAY_* variables</text>
   <rect class="hi3" x="580" y="96" width="220" height="56" rx="8"/><text x="594" y="120">Reticulum / LXMF</text><text x="594" y="138" class="t2">/reticulum + /data volumes</text>
-  <rect class="hi3" x="580" y="172" width="220" height="56" rx="8"/><text x="594" y="196">Home Assistant (via nginx)</text><text x="594" y="214" class="t2">own token, read-only + 1 event</text>
+  <rect class="hi3" x="580" y="172" width="220" height="56" rx="8"/><text x="594" y="196">Home Assistant (via nginx)</text><text x="594" y="214" class="t2">sensors + Meshtastic · 1 event</text>
   <rect class="hi3" x="580" y="248" width="220" height="56" rx="8"/><text x="594" y="272">Moonraker (via nginx)</text><text x="594" y="290" class="t2">4 fixed requests, GET only</text>
   <rect class="hi3" x="580" y="318" width="220" height="34" rx="8"/><text x="594" y="340">Prometheus · Telegram · Turnstile</text>
   <rect class="hi2" x="860" y="96" width="180" height="108" rx="10"/><text x="876" y="124" style="font-weight:600">Container</text><text x="876" y="144" class="t2">read_only · cap_drop ALL</text><text x="876" y="160" class="t2">no host port</text><text x="876" y="176" class="t2">external destaben-edge network</text><text x="876" y="192" class="t2">healthcheck /healthz</text>

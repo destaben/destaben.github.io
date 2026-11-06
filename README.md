@@ -23,12 +23,24 @@ Source for [info.destaben.dev](https://info.destaben.dev), a bilingual static As
 
 ## Architecture
 
-Two standalone HTML diagrams (open them in a browser after cloning; they need no build and support dark mode):
+GitHub does not render HTML inside a README, so the diagrams below are SVG exports of the two standalone HTML pages. Open the HTML pages (after cloning, or through any HTML preview) for the full detail, including the data-source tables:
 
-- [docs/architecture/code-architecture.html](docs/architecture/code-architecture.html): build pipeline, source layout, React islands, lab components, Signal Relay modules, tests and workflows.
-- [docs/architecture/system-services.html](docs/architecture/system-services.html): the site, the relay and its upstream services, how they connect, and where each piece of data shown on the site comes from.
+- [docs/architecture/code-architecture.html](docs/architecture/code-architecture.html): build pipeline, source layout, React islands, the six laboratory components, Signal Relay modules, tests and workflows.
+- [docs/architecture/system-services.html](docs/architecture/system-services.html): the site, the relay and its upstream services (Reticulum, Prometheus, Home Assistant, the Meshtastic gateway, Moonraker, Telegram, Turnstile), how they connect, a per-laboratory summary, and where each piece of data shown on the site comes from.
 
-Update both when routes, labs, relay endpoints, upstream services, or workflows change.
+### System and services
+
+![System topology: browser, GitHub Pages, Cloudflare, cloudflared, nginx, Signal Relay and upstream services](docs/architecture/system-topology.svg)
+
+### Build pipeline
+
+![Build pipeline from content sources to GitHub Pages](docs/architecture/build-pipeline.svg)
+
+### Signal Relay modules
+
+![Signal Relay Python modules and their dependencies](docs/architecture/relay-modules.svg)
+
+The SVG files are copies of the figures in the HTML pages. Update the HTML and the matching SVG together whenever routes, laboratories, relay endpoints, upstream services, or workflows change.
 
 ## Local Development
 
