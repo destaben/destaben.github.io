@@ -100,11 +100,12 @@ const writingPrefix = locale === "es" ? "/es/bitacora/" : "/en/notes/";
     status.className = "anchor-copy-label";
     status.setAttribute("role", "status");
     document.body.append(status);
+    let statusTimer: number | undefined;
     document.querySelectorAll<HTMLElement>("section.section[id], .lab-card[id]").forEach((target) => {
       const heading = target.matches(".lab-card") ? target.querySelector("h3") : target.querySelector("h2");
       if (!heading) return;
       // Animated headings render their text twice (one screen-reader copy, one decorative); collapse that before naming anything.
-      const raw = (heading.textContent ?? "").trim();
+      const raw = (heading.textContent ?? "").replace(/\u00A0/g, " ").trim();
       const half = raw.length / 2;
       const title = raw.length % 2 === 0 && raw.slice(0, half) === raw.slice(half) ? raw.slice(0, half) : raw;
       heading.setAttribute("aria-label", title);
@@ -119,7 +120,6 @@ const writingPrefix = locale === "es" ? "/es/bitacora/" : "/en/notes/";
       label.className = "anchor-copy-label";
       label.textContent = `${copyLabel}: ${title}`;
       button.append(glyph, label);
-      let timer: number | undefined;
       button.addEventListener("click", async () => {
         const url = `${location.origin}${location.pathname}#${target.id}`;
         let copied = true;
@@ -128,8 +128,8 @@ const writingPrefix = locale === "es" ? "/es/bitacora/" : "/en/notes/";
         button.dataset.state = copied ? "copied" : "failed";
         button.title = message;
         status.textContent = message;
-        clearTimeout(timer);
-        timer = window.setTimeout(() => { delete button.dataset.state; button.removeAttribute("title"); status.textContent = ""; }, 2400);
+        clearTimeout(statusTimer);
+        statusTimer = window.setTimeout(() => { document.querySelectorAll<HTMLElement>(".anchor-copy[data-state]").forEach((other) => { delete other.dataset.state; other.removeAttribute("title"); }); status.textContent = ""; }, 2400);
       });
       heading.append(button);
     });
