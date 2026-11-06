@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System and services | info.destaben.dev</title>
+<meta name="robots" content="noindex">
+<meta name="description" content="How the site, the Signal Relay and the supporting services connect, and where each piece of data shown on the site comes from.">
+<style>
+:root{--bg:#f6f5f1;--panel:#fff;--ink:#1b1d1f;--muted:#5d6368;--line:#d9d6cd;--accent:#2b6cb0;--accent2:#b7791f;--ok:#2f855a;--warn:#c05621;--chip:#eceae3}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0f1214;--panel:#171b1e;--ink:#e8eaec;--muted:#9aa3a9;--line:#2b3238;--accent:#63b3ed;--accent2:#ecc94b;--ok:#68d391;--warn:#f6ad55;--chip:#222a2f}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:32px 16px 64px}
+h1{font-size:clamp(1.6rem,4vw,2.3rem);margin:0 0 6px}
+h2{font-size:1.35rem;margin:44px 0 6px;padding-top:8px;border-top:1px solid var(--line)}
+h3{font-size:1rem;margin:0 0 4px}
+p{margin:6px 0}
+.lead{color:var(--muted);max-width:780px}
+nav.toc{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 0}
+nav.toc a{background:var(--chip);color:var(--ink);text-decoration:none;padding:4px 12px;border-radius:999px;font-size:.88rem}
+nav.toc a:hover{outline:1px solid var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+code{background:var(--chip);padding:1px 6px;border-radius:5px;font-size:.84em;word-break:break-word}
+.tag{display:inline-block;font-size:.72rem;padding:1px 8px;border-radius:999px;background:var(--chip);color:var(--muted);margin:4px 4px 0 0}
+.tag.a{color:var(--accent)}.tag.b{color:var(--accent2)}.tag.c{color:var(--ok)}.tag.d{color:var(--warn)}
+.table-scroll{overflow-x:auto;margin-top:12px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;min-width:820px;font-size:.9rem}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+tr:last-child td{border-bottom:0}
+figure{margin:16px 0 0;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;overflow-x:auto}
+figure svg{display:block;width:100%;min-width:860px;height:auto}
+figcaption{color:var(--muted);font-size:.85rem;padding:6px 6px 2px}
+svg text{font-family:system-ui,sans-serif;fill:var(--ink);font-size:13px}
+svg .t2{fill:var(--muted);font-size:11.5px}
+svg .box{fill:var(--panel);stroke:var(--line);stroke-width:1.3}
+svg .hi{fill:var(--chip);stroke:var(--accent);stroke-width:1.5}
+svg .hi2{fill:var(--chip);stroke:var(--accent2);stroke-width:1.5}
+svg .hi3{fill:var(--chip);stroke:var(--ok);stroke-width:1.5}
+svg .hi4{fill:var(--chip);stroke:var(--warn);stroke-width:1.5}
+svg .zone{fill:none;stroke:var(--line);stroke-dasharray:5 4;stroke-width:1.2}
+svg .ln{stroke:var(--muted);stroke-width:1.5;fill:none}
+svg .dash{stroke-dasharray:5 4}
+ol.steps{padding-left:20px;margin:10px 0}
+ol.steps li{margin:4px 0}
+.key{display:flex;flex-wrap:wrap;gap:16px;font-size:.85rem;color:var(--muted);margin-top:10px}
+.key span::before{content:"";display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px;border:2px solid}
+.key .k1::before{border-color:var(--accent)}.key .k2::before{border-color:var(--accent2)}.key .k3::before{border-color:var(--ok)}.key .k4::before{border-color:var(--warn)}
+footer{margin-top:48px;color:var(--muted);font-size:.85rem}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>System and services</h1>
+  <p class="lead">How <code>info.destaben.dev</code> is put together: a static site published on GitHub Pages and, separately, a self-hosted relay (<code>lab.destaben.dev</code>) from which the browser gets live data. It complements the <a href="code-architecture.html">code architecture</a>.</p>
+  <nav class="toc" aria-label="Sections">
+    <a href="#map">Map</a><a href="#data">Data sources</a><a href="#labs">Laboratories</a><a href="#flows">Flows</a><a href="#api">Public API</a><a href="#limits">Security</a><a href="#ops">Deployment</a>
+  </nav>
+</header>
+
+<h2 id="map">1. Component map</h2>
+<p>Two independent paths: static content comes from GitHub Pages; dynamic data comes through the private edge. If the relay goes down, the site still loads and each panel shows its “unavailable” state.</p>
+<figure>
+<svg viewBox="0 0 1100 560" role="img" aria-label="Topology: browser, GitHub Pages, Cloudflare, cloudflared, nginx, Signal Relay and upstream services">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--muted)"/></marker>
+  </defs>
+  <!-- zones -->
+  <rect class="zone" x="240" y="10" width="850" height="108" rx="12"/><text x="254" y="30" class="t2">STATIC PATH · GitHub</text>
+  <rect class="zone" x="240" y="150" width="850" height="400" rx="12"/><text x="254" y="170" class="t2">DYNAMIC PATH · lab.destaben.dev + self-hosted machine (no open host ports)</text>
+  <!-- static -->
+  <rect class="hi4" x="270" y="44" width="190" height="60" rx="8"/><text x="284" y="70">GitHub Pages</text><text x="284" y="88" class="t2">info.destaben.dev (HTML/JS)</text>
+  <rect class="box" x="520" y="44" width="230" height="60" rx="8"/><text x="534" y="70">GitHub Actions</text><text x="534" y="88" class="t2">deploy-pages.yml · build + tests</text>
+  <rect class="box" x="810" y="44" width="260" height="60" rx="8"/><text x="824" y="70">Public GitHub API</text><text x="824" y="88" class="t2">destaben repositories (build time only)</text>
+  <path class="ln" marker-end="url(#a)" d="M810 74 L750 74"/>
+  <path class="ln" marker-end="url(#a)" d="M520 74 L460 74"/>
+  <!-- browser -->
+  <rect class="hi" x="20" y="250" width="170" height="130" rx="10"/><text x="36" y="278" style="font-weight:600">Browser</text><text x="36" y="298" class="t2">laboratory panels</text><text x="36" y="314" class="t2">fetch + WebSocket</text><text x="36" y="330" class="t2">widget Turnstile</text><text x="36" y="346" class="t2">public data only</text>
+  <path class="ln" marker-end="url(#a)" d="M105 250 C105 150 200 74 270 74"/>
+  <text x="58" y="170" class="t2">HTTPS GET</text>
+  <!-- dynamic chain -->
+  <rect class="hi2" x="270" y="215" width="150" height="60" rx="8"/><text x="284" y="241">Cloudflare</text><text x="284" y="259" class="t2">DNS · TLS · tunnel</text>
+  <rect class="box" x="270" y="300" width="150" height="60" rx="8"/><text x="284" y="326">cloudflared</text><text x="284" y="344" class="t2">outbound tunnel</text>
+  <rect class="hi2" x="270" y="385" width="150" height="60" rx="8"/><text x="284" y="411">nginx (edge)</text><text x="284" y="429" class="t2">allowlist + rate limit</text>
+  <path class="ln" marker-end="url(#a)" d="M190 315 C225 315 235 250 270 245"/>
+  <text x="196" y="296" class="t2">HTTPS/WSS</text>
+  <path class="ln" marker-end="url(#a)" d="M345 275 L345 300"/>
+  <path class="ln" marker-end="url(#a)" d="M345 360 L345 385"/>
+  <!-- relay -->
+  <rect class="hi3" x="500" y="270" width="210" height="150" rx="10"/><text x="516" y="298" style="font-weight:600">Signal Relay</text><text x="516" y="318" class="t2">FastAPI · container</text><text x="516" y="334" class="t2">GET/POST /v1/… · /healthz</text><text x="516" y="350" class="t2">WebSocket /v1/events</text><text x="516" y="366" class="t2">public projections + cache</text><text x="516" y="382" class="t2">destaben-edge network</text><text x="516" y="398" class="t2">/data · /reticulum volumes</text>
+  <path class="ln" marker-end="url(#a)" d="M420 415 C460 415 465 360 500 350"/>
+  <path class="ln dash" marker-end="url(#a)" d="M500 330 C465 330 460 380 420 392"/>
+  <!-- upstreams -->
+  <rect class="hi3" x="810" y="180" width="260" height="46" rx="8"/><text x="824" y="201">Reticulum / LXMF network</text><text x="824" y="218" class="t2">outbound TCPClientInterface</text>
+  <rect class="hi3" x="810" y="240" width="260" height="46" rx="8"/><text x="824" y="261">Prometheus + cAdvisor</text><text x="824" y="278" class="t2">container CPU/memory</text>
+  <rect class="hi3" x="810" y="300" width="260" height="46" rx="8"/><text x="824" y="321">Home Assistant</text><text x="824" y="338" class="t2">sensors · Meshtastic · via nginx :8081</text>
+  <rect class="hi3" x="810" y="360" width="260" height="46" rx="8"/><text x="824" y="381">Meshtastic gateway node</text><text x="824" y="398" class="t2">LoRa radio · public MediumFast channel</text>
+  <rect class="hi3" x="810" y="420" width="260" height="46" rx="8"/><text x="824" y="441">Moonraker (Klipper)</text><text x="824" y="458" class="t2">3D printer · via nginx :8082</text>
+  <rect class="hi3" x="810" y="480" width="260" height="46" rx="8"/><text x="824" y="501">Telegram Bot API</text><text x="824" y="518" class="t2">private notices</text>
+  <rect class="hi4" x="500" y="470" width="260" height="60" rx="8"/><text x="514" y="496">Cloudflare Turnstile</text><text x="514" y="514" class="t2">siteverify before transmitting to the radio</text>
+  <path class="ln" marker-end="url(#a)" d="M710 300 C760 300 760 203 810 203"/>
+  <path class="ln" marker-end="url(#a)" d="M710 320 C760 320 760 263 810 263"/>
+  <path class="ln" marker-end="url(#a)" d="M710 345 C760 345 760 323 810 323"/>
+  <path class="ln" marker-end="url(#a)" d="M710 370 C760 370 760 443 810 443"/>
+  <path class="ln" marker-end="url(#a)" d="M710 395 C770 395 770 503 810 503"/>
+  <path class="ln" marker-end="url(#a)" d="M1040 346 L1040 360"/>
+  <path class="ln" marker-end="url(#a)" d="M605 420 L605 470"/>
+  <path class="ln dash" marker-end="url(#a)" d="M105 380 C105 520 330 500 500 500"/>
+  <text x="130" y="525" class="t2">the widget loads from challenges.cloudflare.com</text>
+</svg>
+<figcaption>The services on the right are never reachable from the internet: the relay reaches Home Assistant and Moonraker only through internal nginx listeners with fixed routes. Meshtastic is never reached directly: the gateway node is read and commanded only through Home Assistant.</figcaption>
+</figure>
+<div class="key"><span class="k1">client</span><span class="k2">edge / network</span><span class="k3">own service</span><span class="k4">third-party service</span></div>
+
+<h2 id="data">2. Where each piece of data comes from</h2>
+<p>The site’s data has two origins: what is fixed at build time and what the browser requests live from the relay. Neither requires keys in the browser.</p>
+
+<h3 style="margin-top:18px">2.1 At build time (frozen into the HTML)</h3>
+<div class="table-scroll"><table>
+<thead><tr><th>Data on the site</th><th>Source</th><th>When it updates</th></tr></thead>
+<tbody>
+<tr><td>Copy, work cases, experience, contact, laboratory descriptions (ES/EN)</td><td><code>src/data/portfolio.ts</code></td><td>On every commit to <code>main</code></td></tr>
+<tr><td>Notes / bitácora and RSS</td><td><code>src/content/blog/{es,en}/*.md</code> (drafts excluded)</td><td>On every commit to <code>main</code></td></tr>
+<tr><td>Public repositories (name, language, stars, forks, topics, date)</td><td><code>api.github.com/users/destaben/repos</code> (optional <code>GITHUB_TOKEN</code> to avoid the rate limit)</td><td>Every build; the list ages until the next deployment</td></tr>
+<tr><td>SEO metadata, sitemap, canonical</td><td><code>src/config/site.ts</code>, <code>@astrojs/sitemap</code></td><td>Build</td></tr>
+<tr><td>Public Turnstile key</td><td>Repository variable <code>TURNSTILE_SITE_KEY</code> → <code>PUBLIC_TURNSTILE_SITE_KEY</code></td><td>Build; without it, public sending to Meshtastic stays disabled</td></tr>
+</tbody></table></div>
+
+<h3 style="margin-top:22px">2.2 Live (the browser queries <code>lab.destaben.dev</code>)</h3>
+<div class="table-scroll"><table>
+<thead><tr><th>Panel</th><th>Endpoint</th><th>The relay gets it from</th><th>Cache / limits</th><th>What is published</th></tr></thead>
+<tbody>
+<tr><td>Reticulum: status and contact</td><td><code>/healthz</code>, <code>/v1/contact</code>, <code>/v1/lab/capabilities</code></td><td>Internal bridge state and persistent LXMF destination</td><td>No cache</td><td>Aggregate status, public <code>lxmf.delivery</code> address, whether educational sending and Telegram are configured</td></tr>
+<tr><td>Reticulum: inbox</td><td><code>/v1/inbox</code></td><td>Received LXMF messages, stored in the <code>/data</code> volume</td><td>Newest 20; ≤ 1,000 characters</td><td>Opaque ID, time and plain text; never sender or metadata</td></tr>
+<tr><td>Reticulum: TCP nodes</td><td><code>/v1/lab/reticulum-nodes</code></td><td><code>TCPClientInterface</code> interfaces of the Reticulum runtime</td><td>At most 12 aliases</td><td>Public alias, public <code>tcp://</code> URL and <code>up</code>/<code>down</code></td></tr>
+<tr><td>Reticulum: educational test</td><td>POST <code>/v1/lab/sessions</code>, GET <code>…/{id}</code>, POST <code>…/{id}/messages</code></td><td>Isolated Reticulum runtime with a temporary identity</td><td>15 min session, one message; POST ≤ 5/min per IP at the edge; disabled by default</td><td>Actual state: <code>identity_ready</code>, <code>queued</code>, <code>delivered</code> or <code>failed</code> (+ error code and node alias)</td></tr>
+<tr><td>Service observability</td><td><code>/v1/lab/metrics</code></td><td>Prometheus (fixed cAdvisor queries)</td><td>Only <code>cpu</code>/<code>memory</code> and a bounded range; no free-form PromQL</td><td>Container names and aggregate series</td></tr>
+<tr><td>Home</td><td><code>/v1/lab/home-status</code></td><td>Home Assistant: 3 privately configured entities</td><td>≥ 15 min; failure remembered 30 s; no redirects</td><td>Temperature, humidity and air quality (good/regular/bad), refresh time</td></tr>
+<tr><td>Meshtastic: gateway and activity</td><td><code>/v1/lab/meshtastic</code></td><td>Five fixed Home Assistant helpers</td><td>Short configurable cache (30 s default)</td><td>Public node name, counters, channel utilization and up to 5 sanitized public MediumFast messages</td></tr>
+<tr><td>Meshtastic: mesh status</td><td><code>/v1/lab/meshtastic-status</code></td><td>Home Assistant (<code>/api/states</code> to discover channels)</td><td>≥ 15 min; 60 s when channels failed; allowlist required</td><td>Online/total nodes and the last message of allowlisted channels with a masked node ID</td></tr>
+<tr><td>Meshtastic: send message</td><td>POST <code>/v1/lab/meshtastic/messages</code></td><td>Verifies Turnstile and fires the <code>meshtastic_public_broadcast</code> event in Home Assistant</td><td>One line ≤ 237 bytes; per-client and global cooldown</td><td><code>202 accepted</code>: Home Assistant accepted the event; there is no radio acknowledgement</td></tr>
+<tr><td>3D printer</td><td><code>/v1/lab/printer</code>, <code>/thumbnail</code>, <code>/model/{modelId}</code></td><td>Moonraker, through nginx’s internal :8082 listener (4 fixed requests)</td><td>State ≤ 1 query/5 s; metadata 5 min; <code>no-store</code> except the model</td><td>State, progress, layer, PNG thumbnail and outer-wall paths; never the filename or G-code</td></tr>
+<tr><td>Real-time events</td><td>WSS <code>/v1/events</code></td><td>Bridge interno</td><td>Origin restricted to <code>https://info.destaben.dev</code></td><td>Anonymous status and heartbeat events</td></tr>
+</tbody></table></div>
+
+<h2 id="labs">3. The six laboratories</h2>
+<p>All live in the <em>Laboratory</em> section of the page (<code>PortfolioPage.astro</code>). The Meshtastic mesh status is not a separate card: it renders inside the Meshtastic card. Each panel has a stable id that works as a public anchor.</p>
+<div class="table-scroll"><table>
+<thead><tr><th>Laboratory (id)</th><th>Browser component</th><th>Chain</th><th>Refresh</th></tr></thead>
+<tbody>
+<tr><td><b>Reticulum</b> (<code>signal-relay</code>)</td><td><code>SignalRelayLab.astro</code></td><td>Browser → relay → Reticulum/LXMF network; optional Telegram notice</td><td>Inbox every 10 s, TCP nodes every 20 s, health and contact on load</td></tr>
+<tr><td><b>Service observability</b> (<code>container-metrics</code>)</td><td><code>ContainerMetricsLab.astro</code></td><td>Browser → relay → Prometheus (cAdvisor)</td><td>On load and when the range or metric changes</td></tr>
+<tr><td><b>Home monitoring</b> (<code>home-status</code>)</td><td><code>HomeAssistantLab.astro</code></td><td>Browser → relay → Home Assistant (3 sensors)</td><td>On load; the relay caches ≥ 15 min</td></tr>
+<tr><td><b>Meshtastic</b> (<code>meshtastic</code>)</td><td><code>MeshtasticLab.astro</code></td><td>Browser → relay → Home Assistant → Meshtastic gateway node → LoRa mesh (public MediumFast channel). Sending: Turnstile → relay → HA event → automation → radio</td><td>On load; the relay caches 30 s (default)</td></tr>
+<tr><td><b>Meshtastic mesh status</b> (<code>meshtastic-status</code>)</td><td><code>MeshtasticStatusLab.astro</code>, nested in the Meshtastic card</td><td>Browser → relay → Home Assistant (gateway state, node counts, <code>/api/states</code> for channels)</td><td>On load (20 s timeout); the relay caches ≥ 15 min</td></tr>
+<tr><td><b>3D printer</b> (<code>printer</code>)</td><td><code>PrinterLab.astro</code> + <code>printer-lab.mjs</code></td><td>Browser → relay → nginx :8082 → Moonraker (Klipper)</td><td>Polls every 15 s, backoff up to 120 s</td></tr>
+</tbody></table></div>
+<div class="grid">
+  <div class="card"><h3>Meshtastic in detail</h3>
+    <p>A Meshtastic gateway node (LoRa radio) is connected to Home Assistant through its Meshtastic integration. The relay never speaks to the radio: it reads fixed entities (gateway state, node name, uptime, battery, node counts, traffic and error rates, public-channel messages) and fires one fixed event.</p>
+    <p>Three different views come from the same source: the <b>gateway panel</b> (<code>/v1/lab/meshtastic</code>), the <b>mesh status</b> (<code>/v1/lab/meshtastic-status</code>) and the <b>send form</b> (<code>POST /v1/lab/meshtastic/messages</code>).</p>
+    <span class="tag c">LoRa</span><span class="tag a">MediumFast</span><span class="tag d">Turnstile</span></div>
+  <div class="card"><h3>What Meshtastic never exposes</h3>
+    <p>No entity IDs, full node identifiers (the last two characters are masked), positions, SNR/RSSI, routes, channel keys, direct messages, unbounded history or controls. Channels publish only when allowlisted and at most 16; direct-message channels must be denylisted.</p></div>
+  <div class="card"><h3>Meshtastic send path</h3>
+    <ol class="steps"><li>Turnstile token + one printable line ≤ 237 bytes.</li><li>The relay validates with <code>siteverify</code> and applies per-client and global cooldowns.</li><li>Fires <code>meshtastic_public_broadcast</code> in Home Assistant.</li><li>An automation maps it only to <code>script.meshtastic_public_broadcast</code>, which transmits over the radio.</li></ol>
+    <p><small><code>202</code> means Home Assistant accepted the event, not that the mesh delivered it.</small></p></div>
+</div>
+
+<h2 id="flows">4. Main flows</h2>
+<div class="grid">
+  <div class="card"><h3>Publishing a change</h3>
+    <ol class="steps"><li>A PR to <code>main</code> is opened: <code>ci.yml</code> runs pytest, Compose config and <code>npm run verify</code>.</li><li>On merge, <code>deploy-pages.yml</code> repeats the checks, builds (querying the GitHub API) and uploads <code>dist/</code>.</li><li>GitHub Pages serves the new site at <code>info.destaben.dev</code>.</li></ol>
+    <span class="tag a">static</span></div>
+  <div class="card"><h3>Updating the relay</h3>
+    <ol class="steps"><li>A push to <code>main</code> touching <code>services/signal-relay/**</code> publishes <code>ghcr.io/destaben/signal-relay</code> (amd64 and arm64).</li><li>On the host, <code>preflight.sh</code> and <code>deploy.sh</code> recreate only the <code>signal-relay</code> container.</li><li><code>verify.sh</code> checks health and contracts; <code>rollback.sh</code> reverts.</li></ol>
+    <span class="tag c">service</span></div>
+  <div class="card"><h3>A panel requests data</h3>
+    <ol class="steps"><li>The browser sends <code>GET lab.destaben.dev/v1/lab/…</code> with a timeout.</li><li>Cloudflare → <code>cloudflared</code> → nginx, which lets only listed routes and methods through and rate-limits (120/min per IP).</li><li>The relay answers from cache or asks the origin (Home Assistant, Prometheus, Moonraker…).</li><li>It returns only the public projection; on any failure, an “unavailable” state.</li></ol>
+    <span class="tag b">dynamic</span></div>
+  <div class="card"><h3>Incoming Reticulum message</h3>
+    <ol class="steps"><li>An LXMF client writes to the public address.</li><li>The bridge stores the text in the inbox (≤ 1,000 characters) and updates metrics.</li><li>Afterwards, without blocking delivery, it notifies Telegram if credentials exist.</li><li>The site sees it in <code>/v1/inbox</code> as anonymous plain text.</li></ol>
+    <span class="tag c">Reticulum</span></div>
+  <div class="card"><h3>Visitor sends to Meshtastic</h3>
+    <ol class="steps"><li>The Turnstile widget hands a token to the browser.</li><li>POST with <code>message</code> + <code>turnstileToken</code>.</li><li>The relay validates with <code>siteverify</code>, applies cooldowns and fires the event in Home Assistant.</li><li>An automation maps it only to <code>script.meshtastic_public_broadcast</code>.</li></ol>
+    <span class="tag d">anti-abuse</span></div>
+  <div class="card"><h3>Printer panel</h3>
+    <ol class="steps"><li>Polls every 15 s (backoff up to 120 s).</li><li>The relay queries Moonraker and, during a print, downloads and parses the G-code in the background.</li><li>The browser receives a <code>modelId</code> (HMAC), downloads the light model and draws the layers already printed.</li><li>With no active job, it shows a fallback animation.</li></ol>
+    <span class="tag b">3D</span></div>
+</div>
+
+<h2 id="api">5. Relay public surface</h2>
+<div class="table-scroll"><table>
+<thead><tr><th>Method</th><th>Route</th><th>Use</th><th>Default state</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td><code>/healthz</code>, <code>/v1/status</code>, <code>/v1/contact</code>, <code>/v1/inbox</code></td><td>Health, status, contact, inbox</td><td>Active</td></tr>
+<tr><td>GET</td><td><code>/v1/lab/capabilities</code>, <code>/v1/lab/reticulum-nodes</code>, <code>/v1/lab/metrics</code>, <code>/v1/lab/home-status</code>, <code>/v1/lab/meshtastic</code>, <code>/v1/lab/meshtastic-status</code></td><td>Laboratory projections</td><td>Active when privately configured; otherwise a generic 503</td></tr>
+<tr><td>GET</td><td><code>/v1/lab/printer</code>, <code>/thumbnail</code>, <code>/model/{modelId}</code></td><td>3D workshop</td><td>404 until <code>SIGNAL_RELAY_PRINTER_ENABLED=true</code></td></tr>
+<tr><td>POST / GET</td><td><code>/v1/lab/sessions</code>, <code>/v1/lab/sessions/{id}</code>, <code>…/messages</code></td><td>Reticulum educational test</td><td>Disabled (<code>SIGNAL_RELAY_LAB_SEND_ENABLED</code>)</td></tr>
+<tr><td>POST</td><td><code>/v1/lab/meshtastic/messages</code></td><td>Public message to the mesh</td><td>Requires Turnstile to be configured</td></tr>
+<tr><td>WSS</td><td><code>/v1/events</code></td><td>Anonymous events</td><td>Active, allowed origin only</td></tr>
+<tr><td>GET</td><td><code>/metrics</code></td><td>Operator’s Prometheus</td><td>Not used by the site</td></tr>
+</tbody></table></div>
+<p>Full contract: <a href="https://github.com/destaben/destaben.github.io/blob/main/docs/SIGNAL-RELAY.md">docs/SIGNAL-RELAY.md</a>. Any route not listed at the edge returns 404 and any disallowed method, 405.</p>
+
+<h2 id="limits">6. Security and privacy limits</h2>
+<div class="grid">
+  <div class="card"><h3>Nothing sensitive in the repository</h3><p>The Reticulum identity, Telegram and Home Assistant tokens, the Turnstile secret, tunnel configuration and <code>.env</code> live only on the host.</p></div>
+  <div class="card"><h3>Fixed projections</h3><p>The relay does not forward upstream responses: it builds objects from allowed fields. It publishes no entities, attributes, filenames, IPs, routes or topology.</p></div>
+  <div class="card"><h3>Default-deny</h3><p>Meshtastic channels behind an allowlist, printer and educational sending disabled, nginx with an allowlist of routes and methods.</p></div>
+  <div class="card"><h3>Bounded origin</h3><p>CORS and the WebSocket accept <code>https://info.destaben.dev</code>. Upstreams are reached without following redirects, with maximum size and time.</p></div>
+  <div class="card"><h3>Hardened container</h3><p>Read-only filesystem, <code>cap_drop: ALL</code>, <code>no-new-privileges</code>, no published port and a single external network.</p></div>
+  <div class="card"><h3>Anti-abuse</h3><p>Turnstile on the only POST with a physical effect (radio), per-client and global cooldowns and 120 req/min per IP at the edge.</p></div>
+</div>
+
+<h2 id="ops">7. Deployment and repositories</h2>
+<div class="table-scroll"><table>
+<thead><tr><th>Piece</th><th>Where it lives</th><th>How it is deployed</th></tr></thead>
+<tbody>
+<tr><td>Static site</td><td><code>destaben/destaben.github.io</code> → GitHub Pages (CNAME <code>info.destaben.dev</code>, DNS-only)</td><td>Actions from <code>main</code>; <code>dist/</code> artifact</td></tr>
+<tr><td>Signal Relay</td><td><code>services/signal-relay/</code> → image <code>ghcr.io/destaben/signal-relay</code></td><td>Compose on the host (<code>/opt/signal-relay</code>) with the <code>scripts/</code> helpers</td></tr>
+<tr><td>Edge (nginx + Cloudflare Tunnel)</td><td><code>destaben/lab-inverse-proxy</code></td><td>Separate Compose project; the relay and nginx share the <code>destaben-edge</code> network</td></tr>
+<tr><td>Home Assistant, Prometheus/cAdvisor, Moonraker</td><td>Operator’s own network, outside any repository (the Meshtastic gateway node is read through Home Assistant)</td><td>No public ports: Home Assistant and Moonraker are reached from the relay through nginx’s internal listeners (:8081, :8082); Prometheus through its privately configured URL</td></tr>
+</tbody></table></div>
+<p>Recommended order for new features that depend on the edge: edge → relay image → relay with the feature disabled → enable → site. Details in the <a href="https://github.com/destaben/destaben.github.io/blob/main/README.md">README</a>.</p>
+
+<footer>Generated from the repository state in November 2026. It describes public contracts; it contains no private addresses or configuration.</footer>
+</div>
+</body>
+</html>

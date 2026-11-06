@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1060 330" role="img" aria-label="Build pipeline: content sources, astro build, dist and GitHub Pages"><style>
+:root{--bg:#fff;--panel:#fff;--ink:#1b1d1f;--muted:#5d6368;--line:#c9c6bc;--accent:#2b6cb0;--accent2:#b7791f;--ok:#2f855a;--warn:#c05621;--chip:#eceae3}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1214;--panel:#171b1e;--ink:#e8eaec;--muted:#9aa3a9;--line:#2b3238;--accent:#63b3ed;--accent2:#ecc94b;--ok:#68d391;--warn:#f6ad55;--chip:#222a2f}}
+text{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;fill:var(--ink);font-size:13px}
+.t2{fill:var(--muted);font-size:11.5px}
+.box{fill:var(--panel);stroke:var(--line);stroke-width:1.3}
+.hi{fill:var(--chip);stroke:var(--accent);stroke-width:1.5}.hi2{fill:var(--chip);stroke:var(--accent2);stroke-width:1.5}.hi3{fill:var(--chip);stroke:var(--ok);stroke-width:1.5}.hi4{fill:var(--chip);stroke:var(--warn);stroke-width:1.5}
+.zone{fill:none;stroke:var(--line);stroke-dasharray:5 4;stroke-width:1.2}
+.ln{stroke:var(--muted);stroke-width:1.5;fill:none}.dash{stroke-dasharray:5 4}
+</style><rect x="0" y="0" width="100%" height="100%" fill="var(--bg)"/>
+  <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--muted)"/></marker></defs>
+  <rect class="zone" x="8" y="8" width="300" height="314" rx="12"/><text x="22" y="30" class="t2">SOURCES</text>
+  <rect class="box" x="24" y="44" width="268" height="52" rx="8"/><text x="36" y="66">src/data/portfolio.ts</text><text x="36" y="84" class="t2">ES/EN content, labs, experience</text>
+  <rect class="box" x="24" y="108" width="268" height="52" rx="8"/><text x="36" y="130">src/content/blog/{es,en}/*.md</text><text x="36" y="148" class="t2">typed collection (content.config.ts)</text>
+  <rect class="box" x="24" y="172" width="268" height="52" rx="8"/><text x="36" y="194">src/lib/github.ts</text><text x="36" y="212" class="t2">api.github.com/users/destaben/repos</text>
+  <rect class="box" x="24" y="236" width="268" height="52" rx="8"/><text x="36" y="258">src/config/site.ts + public/</text><text x="36" y="276" class="t2">SEO, CNAME, robots.txt, .html redirects</text>
+  <rect class="hi" x="380" y="110" width="210" height="110" rx="10"/><text x="396" y="138" style="font-weight:600">astro build</text>
+  <text x="396" y="160" class="t2">@astrojs/react (islands)</text><text x="396" y="178" class="t2">@astrojs/sitemap · @astrojs/rss</text><text x="396" y="196" class="t2">PUBLIC_TURNSTILE_SITE_KEY</text>
+  <rect class="hi2" x="660" y="70" width="170" height="70" rx="10"/><text x="676" y="98" style="font-weight:600">dist/</text><text x="676" y="118" class="t2">static HTML + CSS + JS</text>
+  <rect class="box" x="660" y="170" width="170" height="110" rx="10"/><text x="676" y="194">Generated routes</text><text x="676" y="214" class="t2">/ · /es/ · /en/</text><text x="676" y="230" class="t2">/en/notes/&lt;slug&gt;/</text><text x="676" y="246" class="t2">/es/bitacora/&lt;slug&gt;/</text><text x="676" y="262" class="t2">/rss.xml · /sitemap · /404</text>
+  <rect class="hi3" x="890" y="110" width="154" height="110" rx="10"/><text x="906" y="138" style="font-weight:600">GitHub Pages</text><text x="906" y="160" class="t2">info.destaben.dev</text><text x="906" y="178" class="t2">deploy-pages.yml</text><text x="906" y="196" class="t2">from main</text>
+  <path class="ln" marker-end="url(#ar)" d="M292 70 C340 70 340 140 380 150"/>
+  <path class="ln" marker-end="url(#ar)" d="M292 134 L380 160"/>
+  <path class="ln" marker-end="url(#ar)" d="M292 198 L380 172"/>
+  <path class="ln" marker-end="url(#ar)" d="M292 262 C340 262 340 190 380 184"/>
+  <path class="ln" marker-end="url(#ar)" d="M590 150 L660 110"/>
+  <path class="ln" marker-end="url(#ar)" d="M590 185 L660 215"/>
+  <path class="ln" marker-end="url(#ar)" d="M830 105 C860 105 860 140 890 150"/>
+</svg>
