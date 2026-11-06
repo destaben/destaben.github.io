@@ -101,8 +101,8 @@ const writingPrefix = locale === "es" ? "/es/bitacora/" : "/en/notes/";
     status.setAttribute("role", "status");
     document.body.append(status);
     let statusTimer: number | undefined;
-    document.querySelectorAll<HTMLElement>("section.section[id], .lab-card[id]").forEach((target) => {
-      const heading = target.matches(".lab-card") ? target.querySelector("h3") : target.querySelector("h2");
+    document.querySelectorAll<HTMLElement>("section.section[id], .lab-card[id], .meshtastic-status-panel[id]").forEach((target) => {
+      const heading = target.matches(".meshtastic-status-panel") ? target.querySelector("h4") : target.matches(".lab-card") ? target.querySelector("h3") : target.querySelector("h2");
       if (!heading) return;
       // Animated headings render their text twice (one screen-reader copy, one decorative); collapse that before naming anything.
       const raw = (heading.textContent ?? "").replace(/\u00A0/g, " ").trim();
