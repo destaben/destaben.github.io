@@ -11,6 +11,9 @@ interface Props {
 
 const { alternates = [], description = site.description, locale = site.locale, title = site.title } = Astro.props;
 const ogLocale = locale === "en" ? "en_US" : "es_ES";
+// Cookieless GoatCounter runs only in production builds with a site code. The code is a public identifier, not a secret.
+const goatcounterCode = import.meta.env.PUBLIC_GOATCOUNTER_CODE || "";
+const showGoatCounter = import.meta.env.PROD && /^[a-z0-9-]+$/i.test(goatcounterCode);
 ---
 
 <!doctype html>
@@ -34,5 +37,6 @@ const ogLocale = locale === "en" ? "en_US" : "es_ES";
   </head>
   <body>
     <slot />
+    {showGoatCounter && <script is:inline async data-goatcounter={`https://${goatcounterCode}.goatcounter.com/count`} src="https://gc.zgo.at/count.js"></script>}
   </body>
 </html>

@@ -27,6 +27,17 @@ test("generates bilingual portfolio entries without a portrait", async () => {
   assert.match(spanish, /Reticulum/);
   assert.match(spanish, /El recorrido guiado permite entender cómo se prepara, cifra y confirma una prueba antes de enviarla\./);
   assert.match(spanish, /Explorar recorrido Reticulum/);
+  assert.match(spanish, /data-unconfirmed-label="Entrega sin confirmar: es posible que el relay ya haya aceptado este mensaje\. Revisa los mensajes recibidos antes de volver a enviarlo\."/);
+  assert.match(spanish, /data-route-unconfirmed-label="Confirmación desconocida"/);
+  assert.match(english, /data-unconfirmed-label="Delivery unconfirmed: the relay may already have accepted this message\. Check the received messages before sending it again\."/);
+  assert.match(english, /data-route-unconfirmed-label="Confirmation unknown"/);
+  // A session that cannot be requested sends no message, so it renders the plain failure copy, never the unconfirmed copy.
+  assert.match(spanish, /data-failed-label="No se pudo entregar"/);
+  assert.match(english, /data-failed-label="Delivery failed"/);
+  assert.match(spanish, /data-route-unknown-failed-label="La entrega terminó con un error"/);
+  assert.match(english, /data-route-unknown-failed-label="Delivery ended with an error"/);
+  assert.match(spanish, /data-inbox-empty-label="Todavía no hay mensajes registrados\."/);
+  assert.match(english, /data-inbox-empty-label="No messages have been recorded yet\."/);
   assert.match(spanish, /<h3 id="signal-relay-title"><a href="https:\/\/reticulum\.network"/);
   assert.match(spanish, /Origen temporal/);
   assert.match(spanish, /Aviso Telegram/);
@@ -390,17 +401,79 @@ test("keeps the numbered section labels as final plain text and scrambles them o
   }
 });
 
-test("adds no third-party script and keeps every script on this origin", async () => {
-  const [spanish, english] = await Promise.all([readPage("es/index.html"), readPage("en/index.html")]);
+const goatcounterScriptUrl = "https://gc.zgo.at/count.js";
+const goatcounterTag = /<script[^>]*\ssrc="https:\/\/gc\.zgo\.at\/count\.js"[^>]*><\/script>/g;
+const goatcounterEndpoint = /^https:\/\/([a-z0-9-]+)\.goatcounter\.com\/count$/i;
+const sitePaths = ["index.html", "en/index.html", "es/index.html", "404.html", "en/notes/signal-relay/index.html", "es/bitacora/signal-relay/index.html"];
+const localizedHomes = ["en/index.html", "es/index.html"];
 
-  for (const page of [spanish, english]) {
+// The built HTML is the source of truth for GoatCounter. The test process's environment is not: the build and the
+// test may not share one. A build made with a valid site code embeds it in each page's data-goatcounter endpoint.
+const readSitePages = async () => Object.fromEntries(await Promise.all(sitePaths.map(async (path) => [path, await readPage(path)])));
+const endpointsOf = (page) => [...page.matchAll(/data-goatcounter="([^"]*)"/g)].map((match) => match[1]);
+const builtCodeOf = (page) => endpointsOf(page).map((endpoint) => endpoint.match(goatcounterEndpoint)?.[1]).find(Boolean);
+
+test("adds no third-party script unless a build has a valid GoatCounter code, and keeps every other script on this origin", async () => {
+  const pages = await readSitePages();
+  const builtCode = builtCodeOf(pages["index.html"]);
+
+  for (const [path, page] of Object.entries(pages)) {
     const sources = [...page.matchAll(/<script[^>]*\ssrc="([^"]+)"/g)].map((match) => match[1]);
-    assert.ok(sources.length > 0, "the page loads its bundled scripts");
-    for (const source of sources) assert.match(source, /^\/_astro\//, `${source} is served from this site`);
-    assert.doesNotMatch(page, /<script[^>]*\ssrc="https?:/);
+    if (localizedHomes.includes(path)) assert.ok(sources.length > 0, `${path} loads its bundled scripts`);
+    for (const source of sources) {
+      if (source === goatcounterScriptUrl) {
+        assert.ok(builtCode, `${path} loads GoatCounter only when the build has a valid site code`);
+        continue;
+      }
+      assert.match(source, /^\/_astro\//, `${path}: ${source} is served from this site`);
+    }
+    for (const endpoint of endpointsOf(page)) {
+      assert.match(endpoint, goatcounterEndpoint, `${path} reports only to a valid GoatCounter endpoint`);
+    }
+    assert.doesNotMatch(page.replace(goatcounterTag, ""), /<script[^>]*\ssrc="https?:/, `${path} loads no other external script`);
     assert.doesNotMatch(page, /import\(\s*["']https?:/);
+    if (!builtCode) {
+      assert.doesNotMatch(page, /goatcounter|gc\.zgo\.at/i, `${path} carries no GoatCounter reference without a site code`);
+    }
   }
 });
+
+test("gates GoatCounter on production builds with a valid site code and names only its own hosts", async () => {
+  const layout = await readFile(new URL("../src/layouts/BaseLayout.astro", import.meta.url), "utf8");
+
+  assert.match(layout, /const goatcounterCode = import\.meta\.env\.PUBLIC_GOATCOUNTER_CODE \|\| "";/);
+  assert.match(layout, /const showGoatCounter = import\.meta\.env\.PROD && \/\^\[a-z0-9-\]\+\$\/i\.test\(goatcounterCode\);/);
+  assert.match(layout, /\{showGoatCounter && <script is:inline async data-goatcounter=\{`https:\/\/\$\{goatcounterCode\}\.goatcounter\.com\/count`\} src="https:\/\/gc\.zgo\.at\/count\.js"><\/script>\}/);
+  // The endpoint is a template literal: substituting a sample code must yield this site's GoatCounter endpoint.
+  const endpointTemplate = layout.match(/data-goatcounter=\{`([^`]+)`\}/)?.[1] ?? "";
+  assert.equal(endpointTemplate.replace("${goatcounterCode}", "sample-code"), "https://sample-code.goatcounter.com/count");
+  // Every URL the layout names is the GoatCounter script or that endpoint template; no protocol-relative script.
+  const urls = [...layout.matchAll(/https?:\/\/[^\s"'`<>]+/g)].map((match) => match[0]);
+  assert.ok(urls.length > 0, "the layout names its GoatCounter URLs");
+  for (const url of urls) {
+    assert.ok(url === goatcounterScriptUrl || url === endpointTemplate, `${url} is a GoatCounter host`);
+  }
+  assert.doesNotMatch(layout, /src="\/\/gc\.zgo\.at/);
+});
+
+test("renders GoatCounter once per page exactly when the build has a valid site code, and the same code on every page", async () => {
+  const pages = await readSitePages();
+  const builtCode = builtCodeOf(pages["index.html"]);
+
+  for (const [path, page] of Object.entries(pages)) {
+    const scripts = page.match(goatcounterTag) ?? [];
+
+    if (!builtCode) {
+      assert.equal(scripts.length, 0, `${path} has no GoatCounter script without a site code`);
+      assert.deepEqual(endpointsOf(page), [], `${path} has no GoatCounter endpoint without a site code`);
+      continue;
+    }
+    assert.equal(scripts.length, 1, `${path} renders one GoatCounter script`);
+    assert.match(scripts[0], /\sasync\b/, `${path} loads GoatCounter without blocking the page`);
+    assert.deepEqual(endpointsOf(page), [`https://${builtCode}.goatcounter.com/count`], `${path} reports to this site's GoatCounter endpoint`);
+  }
+});
+
 test("keeps animated headings readable without JavaScript and under reduced motion", async () => {
   const [spanish, english, css] = await Promise.all([
     readPage("es/index.html"),

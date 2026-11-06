@@ -51,6 +51,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY || secrets.TURNSTILE_SITE_KEY }}
+          # Public GoatCounter site code (not a secret): read from the repository variable only; the script is added to production builds only.
+          PUBLIC_GOATCOUNTER_CODE: ${{ vars.GOATCOUNTER_CODE }}
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

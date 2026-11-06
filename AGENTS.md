@@ -9,7 +9,7 @@ This repository is the source for `https://info.destaben.dev`. It is a static As
 - `astro.config.mjs` contains Astro site configuration.
 - `src/config/site.ts` contains the site identity and global SEO metadata.
 - `src/data/portfolio.ts` contains structured portfolio data.
-- `src/lib/` contains framework-free helpers that the Node tests import directly, such as the 3D printer laboratory rules in `printer-lab.mjs` (typed by `printer-lab.d.mts`).
+- `src/lib/` contains framework-free helpers that the Node tests import directly, such as the 3D printer laboratory rules in `printer-lab.mjs` (typed by `printer-lab.d.mts`), and the Signal Relay panel's live-polling rules and render helpers in `relay-live.mjs` and `relay-view.mjs` (typed by `relay-live.d.mts` and `relay-view.d.mts`).
 - `src/components/` and `src/layouts/` contain shared Astro UI and browser-side integration code.
 - `src/components/react/` contains the only React islands (section labels, animated headings and copy, magnetic buttons, click sparks, scroll reveals, and the decorative glitch backdrop), hydrated through `@astrojs/react`; `DecryptedText.tsx`, `BlurText.tsx`, `ShinyText.tsx`, `Magnet.tsx`, `ClickSpark.tsx`, and `LetterGlitch.tsx` are adapted from React Bits (MIT + Commons Clause, see `THIRD_PARTY_NOTICES.md`); `SectionLabel.tsx`, `Reveal.tsx`, `CopySpark.tsx`, and `GlitchBackdrop.tsx` are original wrappers. `react`, `react-dom`, and `motion` are exact-pinned in `package.json`.
 - `src/content/` contains type-checked future content collections.
@@ -26,6 +26,7 @@ This repository is the source for `https://info.destaben.dev`. It is a static As
 - Keep `site` set to `https://info.destaben.dev` in `astro.config.mjs`; this is the production canonical URL even though GitHub Pages hosts the site.
 - Keep the deployment least-privilege and artifact-based. Changes to deployment behavior must update both the workflow and `README.md`.
 - Do not commit credentials, tokens, or non-public personal data to this publicly deployed repository. Any portfolio contact detail must be intentionally public.
+- The GoatCounter site code is a public repository variable (`GOATCOUNTER_CODE`), not a secret; the production script embeds it in every page by design.
 - The Signal Relay is not part of GitHub Pages. Keep its Reticulum identity, inbox data, Telegram credentials, tunnel configuration, and deployment `.env` files outside Git.
 - Validate relay changes with `services/signal-relay/.venv/bin/python -m pytest`; validate the site with `npm run verify`. Validate Compose with `docker compose -f services/signal-relay/compose.yaml config` (every variable has a default, so no `.env` is required; if you create one locally, keep it ignored by Git).
 - When a task changes Signal Relay, provide the exact operational commands required on the deployment host. Daily operations use the system Docker context without `sudo`; require `docker context show` to return `default` and the operator to belong to the `docker` group. Never ask for or print secret `.env` values.

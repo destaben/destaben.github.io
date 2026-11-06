@@ -44,6 +44,10 @@ The portfolio demonstrates David Estaben's engineering judgement through clear c
 - Real text stays in the server-rendered HTML; an island must never replace it with text that only exists after hydration.
 - Section, lab-card, and Meshtastic status ids are public link targets, so keep them stable when renaming. With JavaScript enabled, each section and lab heading gets a copy-link button (a `button` with an accessible name) whose result is announced in a `role="status"` message; a failed copy says so and leaves the link in the address bar. Without JavaScript the headings are plain text and the ids still work as anchors.
 - Every motion effect respects `prefers-reduced-motion`: the page shows its final text and the static fallback, and no animation or WebGL context starts.
-- WebGL is limited to the glitch backdrop island, which renders nothing under reduced motion or on narrow screens. The only animation library is `motion`, used by the React Bits islands; do not add other WebGL, third-party scripts, or animation libraries.
+- WebGL is limited to the glitch backdrop island, which renders nothing under reduced motion or on narrow screens. The only animation library is `motion`, used by the React Bits islands; do not add other WebGL, third-party scripts, or animation libraries. The one approved third-party script is the production-only, cookieless GoatCounter script, enabled by the `GOATCOUNTER_CODE` variable described in the README.
 - Validate at mobile and desktop widths. Text, controls, and system panels must not clip or overlap.
 - Maintain sufficient contrast for every state, including status indicators.
+
+## Performance
+
+- Stylesheets are inlined into every page (`inlineStylesheets: "always"` in `astro.config.mjs`). This removes the render-blocking stylesheet request and the layout shift from a late CSS load. The cost is more HTML per page (the home page grew from about 20 KB to about 28 KB gzipped) and no cross-page CSS cache, so each navigation downloads the CSS again. Revisit this if the stylesheet grows or page weight becomes the limiting factor.
